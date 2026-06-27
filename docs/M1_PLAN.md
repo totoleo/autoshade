@@ -2,9 +2,9 @@
 
 # Autoshop — M1 Implementation Plan
 
-> Synthesis of five research reports against the live scaffold ([src/recipe.rs](<worktrees>/Autoshop/src/recipe.rs), [docs/ARCHITECTURE.md](<worktrees>/Autoshop/docs/ARCHITECTURE.md), [Cargo.toml](<worktrees>/Autoshop/Cargo.toml)). Evidence tags are preserved from the source reports; `[verified: …]` = read from a primary source this research session, `[unverified]` = not yet confirmed against a real file/API. The authoritative `EditRecipe` field set is the one in `src/recipe.rs` (Report 2's schema was illustrative; Report 5 read the real one).
+> Synthesis of five research reports against the live scaffold ([src/recipe.rs](../src/recipe.rs), [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md), [Cargo.toml](../Cargo.toml)). Evidence tags are preserved from the source reports; `[verified: …]` = read from a primary source this research session, `[unverified]` = not yet confirmed against a real file/API. The authoritative `EditRecipe` field set is the one in `src/recipe.rs` (Report 2's schema was illustrative; Report 5 read the real one).
 
-M1 scope (from [docs/ARCHITECTURE.md:83-84](<worktrees>/Autoshop/docs/ARCHITECTURE.md)): RAW decode + features, unified provider framework, GPT image advisor, Claude verifier. XMP sidecar writer is M2 in the doc, but Reports 4 & 5 fully spec it and it is the primary deliverable — this plan includes a **decode-time spec lock** for it in M1 and the writer build in M2.
+M1 scope (from [docs/ARCHITECTURE.md:83-84](../docs/ARCHITECTURE.md)): RAW decode + features, unified provider framework, GPT image advisor, Claude verifier. XMP sidecar writer is M2 in the doc, but Reports 4 & 5 fully spec it and it is the primary deliverable — this plan includes a **decode-time spec lock** for it in M1 and the writer build in M2.
 
 ---
 
@@ -35,7 +35,7 @@ Rationale:
 
 ## 2. Unified `Advisor` trait — final Rust signature + module layout
 
-The trait must match the architecture's two roles ([docs/ARCHITECTURE.md:54-72](<worktrees>/Autoshop/docs/ARCHITECTURE.md)): **GPT vision → `propose`**, **Claude data-only → `verify`**. I align the method names with the ARCHITECTURE.md sketch (`propose`/`verify`) rather than Report 3's `image_to_recipe`/`verify` names, because the doc is the project contract.
+The trait must match the architecture's two roles ([docs/ARCHITECTURE.md:54-72](../docs/ARCHITECTURE.md)): **GPT vision → `propose`**, **Claude data-only → `verify`**. I align the method names with the ARCHITECTURE.md sketch (`propose`/`verify`) rather than Report 3's `image_to_recipe`/`verify` names, because the doc is the project contract.
 
 **Async on tokio, `#[async_trait]` for `dyn` object-safety** [verified: reqwest async runs on tokio; async fn in traits is stable since Rust 1.75 but **not dyn-compatible** — `async_trait` desugars to `Pin<Box<dyn Future>>` to restore object safety, https://blog.rust-lang.org/2023/12/28/Rust-1.75.0/ + https://docs.rs/async-trait/]. Claude side shells out via `tokio::process::Command` [verified: docs.rs tokio process].
 
@@ -121,7 +121,7 @@ src/
 
 **Config / keys** [verified: dotenvy loads .env; toml via serde; claude CLI needs no key]:
 - `dotenvy::dotenv()` at startup; `OPENAI_API_KEY` via `std::env::var`.
-- `autoshop.local.toml` (gitignored, per [ARCHITECTURE.md:74](<worktrees>/Autoshop/docs/ARCHITECTURE.md)) holds non-secret knobs: model ids, base URLs, claude bin path, `extra_args=["--bare"]`.
+- `autoshop.local.toml` (gitignored, per [ARCHITECTURE.md:74](../docs/ARCHITECTURE.md)) holds non-secret knobs: model ids, base URLs, claude bin path, `extra_args=["--bare"]`.
 - Add to `Cargo.toml`: `tokio` (rt-multi-thread, macros, process), `reqwest` (json, rustls-tls), `async-trait`, `dotenvy`, `toml`, `base64`, plus `rawler` (pinned) and optionally `rawloader`+`imagepipe`.
 
 ---
@@ -178,7 +178,7 @@ Concrete request body (schema is the **real `EditRecipe`** from `src/recipe.rs`,
 }
 ```
 
-Note `temperature_k` and `crop` are `["number","null"]` / `["object","null"]` to match the `Option<…>` fields — strict mode requires every property present, so optionals are expressed as nullable, not omitted. After parsing, call `EditRecipe::clamp()` ([src/recipe.rs:135](<worktrees>/Autoshop/src/recipe.rs)) — never trust the model's ranges.
+Note `temperature_k` and `crop` are `["number","null"]` / `["object","null"]` to match the `Option<…>` fields — strict mode requires every property present, so optionals are expressed as nullable, not omitted. After parsing, call `EditRecipe::clamp()` ([src/recipe.rs:135](../src/recipe.rs)) — never trust the model's ranges.
 
 Image-input limits (well within our single small preview): ≤512 MB payload, ≤1500 images, PNG/JPEG/WEBP/GIF [verified: images-vision guide].
 
@@ -223,7 +223,7 @@ let verdict: Verdict = serde_json::from_str(&env.result)?;
 
 To get a structured verdict, the prompt instructs Claude to reply with **exactly** a JSON object matching `Verdict`, then we parse `env.result` as that JSON (Claude has no `response_format`; we constrain by prompt + parse + retry-on-parse-fail).
 
-**`Verdict` type** (matches [ARCHITECTURE.md:114](<worktrees>/Autoshop/docs/ARCHITECTURE.md) "accept / revise / reject + reasons"):
+**`Verdict` type** (matches [ARCHITECTURE.md:114](../docs/ARCHITECTURE.md) "accept / revise / reject + reasons"):
 
 ```rust
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -239,7 +239,7 @@ pub struct Verdict {
 pub enum Decision { Accept, Revise, Reject }
 ```
 
-A `Revise` (or `Reject`) verdict can trigger **one** revision round back through `propose()` with `revised_hint` injected ([ARCHITECTURE.md:114](<worktrees>/Autoshop/docs/ARCHITECTURE.md)).
+A `Revise` (or `Reject`) verdict can trigger **one** revision round back through `propose()` with `revised_hint` injected ([ARCHITECTURE.md:114](../docs/ARCHITECTURE.md)).
 
 Tooling note for the build harness [verified, not a Claude bug]: on this machine, drive Python via PowerShell, not the Bash tool (Git-Bash mis-passes args → `Non-UTF-8 code starting with '\x90'`).
 
@@ -249,7 +249,7 @@ Tooling note for the build harness [verified, not a Claude bug]: on this machine
 
 **Namespace:** `http://ns.adobe.com/camera-raw-settings/1.0/`, prefix `crs` [verified: developer.adobe.com/xmp/docs/XMPNamespaces/crs/]. **Sidecar naming:** `foo.ARW → foo.xmp` (replace extension, NOT `foo.ARW.xmp`) [verified: Adobe/Lightroom help corpus]. Scalars are **attributes** on `rdf:Description`; the tone curve is a **child `rdf:Seq` of `"x, y"` strings** [verified: real ACR sidecars]. `<?xpacket?>` wrapper optional [verified: KelSolaar gist].
 
-**EditRecipe field → `crs:` key mapping** (field set from [src/recipe.rs](<worktrees>/Autoshop/src/recipe.rs); types/ranges from Reports 4 & 5):
+**EditRecipe field → `crs:` key mapping** (field set from [src/recipe.rs](../src/recipe.rs); types/ranges from Reports 4 & 5):
 
 | EditRecipe field | `crs:` key | Writable type | Conversion / caveat |
 |---|---|---|---|
@@ -321,7 +321,7 @@ Tooling note for the build harness [verified, not a Claude bug]: on this machine
 
 ## 6. Eval / style harness approach (M4, designed in M1)
 
-Ground truth = the user's **finished edits**. Two cases ([ARCHITECTURE.md:129-134](<worktrees>/Autoshop/docs/ARCHITECTURE.md)):
+Ground truth = the user's **finished edits**. Two cases ([ARCHITECTURE.md:129-134](../docs/ARCHITECTURE.md)):
 
 **Case A — XMP/develop settings exist (primary scorer; recipe-vs-recipe in slider space).** Read the user's `crs:` keys with one `exiftool -j -struct -G1 …` call (`-struct -j` required because `ToneCurvePV2012` is a sequence). Per image compute signed delta `Δf = recipe_f − gt_f`; aggregate **per-field MAE** (which knob the AI gets wrong) and **signed mean bias** (the tuning signal). Tone curve: sample both as a 256-entry LUT and RMSE. Crop: IoU + angle delta. **Needs only exiftool + arithmetic** — the smallest, most certain toolchain, so it is the primary scorer. Mapping caveats carried from §5: `noise_reduction`→`LuminanceSmoothing` (must add to the exiftool key list or NR goes unscored), `Dehaze` absent ⇒ score as neutral 0 not unknown, `temperature_k` vs `Temperature` is an absolute-Kelvin compare **only** for RAW+Custom WB (else use `IncrementalTemperature` as relative), `straighten_deg` sign vs `CropAngle` must be verified on one known image [verified: exiv2 crs schema; exiftool Dehaze forum].
 
@@ -355,7 +355,7 @@ Ground truth = the user's **finished edits**. Two cases ([ARCHITECTURE.md:129-13
    *Accept:* `cargo run -- advise sample.ARW` decodes → proposes → verifies → prints an `EditRecipe` JSON + `Verdict`; a forced bad recipe triggers exactly one revision round.
 9. **Lock the XMP `crs:` spec into `src/xmp.rs` as a skeleton + table-driven mapping** (§5), even though the writer body is M2.
    *Accept:* a `recipe_to_crs(&EditRecipe)` map and the template render compile; a unit test emits a well-formed XMP string for a sample recipe (validate by reading it back with `exiftool` once exiftool is installed).
-10. **Resolve open question #1 (image library path)** [ARCHITECTURE.md:146](<worktrees>/Autoshop/docs/ARCHITECTURE.md) — needed to point decode + eval at real files.
+10. **Resolve open question #1 (image library path)** [ARCHITECTURE.md:146](../docs/ARCHITECTURE.md) — needed to point decode + eval at real files.
     *Accept:* a configured path with ≥1 real `.ARW` + ≥1 finished edit, used by tasks 2/6/7.
 
 ---
