@@ -17,7 +17,7 @@
   <meta name="theme-color" content="#101817" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preload" href="fonts/Inter-autoshade.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=1.6.3">
+  <link rel="stylesheet" href="styles.css?v=1.6.3-1">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -32,10 +32,8 @@
         <a href="#overview">Overview</a>
         <a href="#download">Download</a>
         <a href="#showcase-a">Showcase</a>
-        <a href="#showcase-c">Denoise</a>
         <a href="#formats">Formats</a>
-        <a href="#architecture">Architecture</a>
-        <a href="#pillars">Pillars</a>
+        <a href="#architecture">How it works</a>
         <a href="#technology">Technology</a>
         <a href="#docs">Docs</a>
       </nav>
@@ -56,69 +54,57 @@
       </div>
       <figure class="hero-figure">
         <img src="images/showcase-canyon-reverse-fit.jpg?v=1.6.3" width="2134" height="1000" alt="Desert canyon at dusk: straight conversion, generated target, the recovered recipe rendered on the RAW, and the same recipe on the AI-denoised RAW, with a 1:1 detail row">
-        <figcaption><strong>Ask for the picture, keep the RAW.</strong> One Sony α7R IVA 61 MP <code>.ARW</code> at dusk: the straight conversion, the picture an image model generated from it &mdash; a full regeneration, the sky's texture re-synthesised and only its layout kept &mdash; and the recipe AutoShade recovered from that picture, rendered on the full RAW: sky ΔE <strong>3.8</strong> against the target, whole-frame mean |diff| <strong>0.0248</strong>, the recipe editable and exportable to Lightroom &mdash; and, fourth, the same recipe rendered after AutoShade's own RAW denoiser cleaned the sensor mosaic: sky ΔE <strong>3.5</strong>, the look unchanged, the grain in the 1:1 window <strong>3.1 → 0.6</strong> codes. The bottom row is one window at 1:1: the recipe carries the look, the sensor carries the detail, the denoiser keeps both, and the generated picture is a target, never the delivery. <a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">Every number</a>.</figcaption>
+        <figcaption><strong>Ask for the picture, keep the RAW.</strong> One 61 MP frame at dusk: the straight conversion, the picture an image model generated from it, the recipe AutoShade recovered from that picture rendered on the full RAW (sky ΔE <strong>3.8</strong> against the target, whole-frame mean |diff| <strong>0.0248</strong>), and the same recipe after AutoShade's own RAW denoiser cleaned the sensor mosaic (sky ΔE <strong>3.5</strong>, grain in the 1:1 window <strong>3.1 → 0.6</strong> codes). The generated picture is a target, never the delivery. <a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">Every number</a>.</figcaption>
       </figure>
     </section>
 
     <section class="section prose-intro" id="overview" aria-labelledby="overview-title">
       <p class="section-kicker">What it is</p>
       <h2 id="overview-title">AI proposes. The engine develops.</h2>
-      <p class="section-lede">Describe the picture you want and get it back as an editable develop of your own RAW. Every AI proposal renders through one deterministic Rust engine, and a RAW denoiser trained here cleans the sensor mosaic.</p>
+      <p class="section-lede">Describe the picture you want and get it back as an editable develop of your own RAW. Every AI proposal renders through one deterministic Rust engine.</p>
 
       <div class="feature-grid">
         <article>
           <h3>A generated look, recovered as a recipe</h3>
-          <p><code>reimagine</code> asks an image model for the picture you describe, from your own frame; <code>match</code> measures how far that picture strayed, fits an editable recipe to its look and renders it on the full RAW. The picture is a target, never the delivery. <a href="#showcase-a">Two pairs &rarr;</a></p>
-        </article>
-        <article>
-          <h3>One develop engine</h3>
-          <p>Exposure, white balance, curves, HSL, colour grading, texture, clarity, dehaze, sharpening, both noise reductions, de-fringing, grain, vignettes, perspective, crop and lens-aware local adjustments &mdash; one shared library behind the desktop app, the command line and the local web UI.</p>
+          <p><code>reimagine</code> asks an image model for the picture you describe, from your own frame; <code>match</code> fits an editable recipe to its look and renders it on the full RAW. <a href="#showcase-a">Two pairs &rarr;</a></p>
         </article>
         <article>
           <h3>Editable AI proposals</h3>
-          <p><code>analyze</code> and <code>auto</code> propose a recipe from preview, EXIF and histogram, check it against the image's own statistics, render it, and may buy one bounded visual-review revision. The recipe is the only channel between the AI and the pixels.</p>
+          <p><code>analyze</code> and <code>auto</code> propose a recipe from preview, EXIF and histogram, check it against the image's own statistics and render it. The recipe is the only channel between the AI and the pixels.</p>
+        </article>
+        <article>
+          <h3>One develop engine</h3>
+          <p>Exposure, white balance, curves, HSL, colour grading, texture, clarity, dehaze, sharpening, noise reduction, grain, vignettes, perspective, crop and local adjustments: one library behind the desktop app, the command line and the local web UI.</p>
         </article>
         <article>
           <h3>Local masks</h3>
-          <p>Linear, radial, brush, bitmap, luminance-range and colour-range masks composed by Add, Subtract and Intersect, plus local subject, sky and point-prompted object selection from pinned models that run on your own machine, no API key.</p>
+          <p>Linear, radial, brush, bitmap, luminance-range and colour-range masks, combined by Add, Subtract and Intersect, plus subject, sky and point-prompted object selection from pinned models on your own machine. No API key.</p>
         </article>
         <article>
           <h3>Sidecars both ways</h3>
-          <p>Lightroom and Camera Raw sidecars are the merge base: owned edits are written back, unmodeled fields survive byte for byte, and the whole develop rides inside the sidecar under AutoShade's own namespace, so a Lightroom round trip reopens exactly.</p>
+          <p>Lightroom and Camera Raw sidecars are the merge base: owned edits are written back, unmodeled fields survive byte for byte, and a Lightroom round trip reopens exactly.</p>
         </article>
         <article>
           <h3>Versions and variants</h3>
-          <p>Ordinary develops, generated targets, reverse-fitted looks, denoised negatives and stacked frames stay distinct cards with numbered snapshots in a per-user store; the source library is read-only and the original is never rewritten.</p>
+          <p>Develops, generated targets, reverse-fitted looks, denoised negatives and stacked frames stay distinct cards with numbered snapshots. The source library is read-only; the original is never rewritten.</p>
         </article>
         <article>
           <h3>Stacking and merging</h3>
-          <p>Several frames of one scene become one over a single alignment: an HDR merge that records the stops it recovered, an exposure fusion, a focus stack, a noise stack. The merge lands as its own <span aria-hidden="true">▦</span> card and the frames it started from keep their pixels.</p>
+          <p>Several frames of one scene become one over a single alignment: an HDR merge, an exposure fusion, a focus stack, a noise stack. The merge lands as its own card; the frames keep their pixels.</p>
         </article>
         <article>
           <h3>Every slider renders</h3>
-          <p>Sharpening, luminance and colour noise reduction, de-fringing, Transform and Upright, camera profiles, HDR edit mode and imported spot removal are read from the sidecar <em>and</em> rendered &mdash; not carried through untouched, and not silently dropped.</p>
+          <p>Sharpening, noise reduction, de-fringing, Transform and Upright, camera profiles, HDR edit mode and spot removal are read from the sidecar <em>and</em> rendered, never carried through untouched or silently dropped.</p>
         </article>
         <article>
           <h3>A denoiser trained here</h3>
-          <p>The RAW denoiser cleans the sensor mosaic before demosaic with weights trained on this project's own data, told the noise measured tile by tile on the frame itself; only luminance grain comes back (71% by default) and faint stars survive. <a href="#showcase-c">See the star field &rarr;</a></p>
-        </article>
-        <article>
-          <h3>Pass marks written before training</h3>
-          <p>Every training run's pass marks are committed before it starts, among them a same-frame comparison against Lightroom's Denoise 50 on a real star field. The second run passed and ships; two later runs failed their own marks and were refused.</p>
-        </article>
-        <article>
-          <h3>The camera's look, read like with like</h3>
-          <p>The tone curve that makes a neutral develop look like the camera's own JPEG is estimated from the embedded preview on block means, paired at the camera's own framing; older recipes are re-estimated once, the first time they are opened, and say so.</p>
-        </article>
-        <article>
-          <h3>Hot pixels mapped every develop</h3>
-          <p>Before the denoiser reads a Bayer mosaic, isolated sites 20 sigma above their own neighbourhood are mapped, with eight neighbours vouching and clipped samples never measuring noise; ordinary frames map none or a handful, and a frame with no mappable site renders byte-identically.</p>
+          <p>Weights trained on this project's own data clean the sensor mosaic before demosaic, told the noise measured on the frame itself. Only luminance grain returns, 71% by default, and faint stars survive. <a href="#showcase-c">See the star field &rarr;</a></p>
         </article>
       </div>
 
       <aside class="honesty" aria-label="Pixel provenance note">
         <strong>Know which path you are on.</strong>
-        <p>The develop path never invents scene content. AI denoise, reimagine, retouch and heal are opt-in exceptions, marked as generated; a denoise lands as its own card and never rewrites the original.</p>
+        <p>The develop path never invents scene content. AI denoise, reimagine, retouch and heal are opt-in, marked as generated, and never rewrite the original.</p>
       </aside>
     </section>
 
@@ -126,7 +112,7 @@
       <div>
         <p class="section-kicker">Download</p>
         <h2 id="download-title">Download v1.6.3.</h2>
-        <p>9 assets: the first 7 files below, plus <code>checksums.txt</code> with their SHA-256, and the trained RAW denoiser in the last row &mdash; uploaded by hand from the training run rather than built from the tag, and not something you install: the AI denoise sidecar fetches it once against a pinned digest, trying a byte-exact copy on Hugging Face first.</p>
+        <p>Seven files built from the tag, <code>checksums.txt</code> with their SHA-256, and the trained RAW denoiser weights, which the AI denoise sidecar fetches once against a pinned digest.</p>
         <table class="release-files">
           <thead>
             <tr><th scope="col">File</th><th scope="col">Use</th><th scope="col" class="asset-bytes">Bytes</th></tr>
@@ -165,67 +151,52 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
     <section class="section showcase" id="showcase-a" aria-labelledby="showcase-a-title">
       <p class="section-kicker">Showcase · Part A</p>
       <h2 id="showcase-a-title">Reimagine → reverse-fit</h2>
-      <p class="section-lede">Targets can invent content; fitted renders cannot. Fit an editable recipe to the target's look, then apply it to the full RAW. The desert canyon at the top of the page is the second pair; a third, a Cornwall lighthouse islet, is on <a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">the showcase page</a>.</p>
+      <p class="section-lede">A generated target can invent content; a fitted render cannot. The canyon at the top of the page is the second pair; a third is on <a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">the showcase page</a>.</p>
 
       <figure class="wide-figure">
         <img src="images/showcase-viaduct-reverse-fit.jpg?v=1.6.3" width="1600" height="1000" alt="Stone viaduct: straight conversion, generated target, and the recovered recipe rendered on the RAW, with a 1:1 detail row" loading="lazy">
-        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">Stone viaduct.</a></strong> Top row: straight conversion, <code>gpt-image-2</code> target (<strong>D = 0.180</strong>, under the 0.35 threshold: full solve), recovered recipe on the RAW. Look error <strong>0.161 → 0.023</strong> at confidence 0.63, at Reverse-fit strength 100 %, not the 65 % default.</figcaption>
+        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">Stone viaduct.</a></strong> Straight conversion, generated target, recovered recipe on the RAW. Look error <strong>0.161 → 0.023</strong> at Reverse-fit strength 100 %.</figcaption>
       </figure>
 
       <aside class="honesty" aria-label="Reverse-fit limitation">
         <strong>Reverse-fit's limits.</strong>
-        <p>It recovers global tone, saturation, guarded color casts and bounded local corrections behind evidence and boundary gates, not a target's own local masks, generated detail or per-band hue rotation.</p>
+        <p>It recovers global tone, saturation, guarded colour casts and bounded local corrections, not a target's generated detail or its own local masks.</p>
       </aside>
     </section>
 
     <section class="section showcase part-b" id="showcase-b" aria-labelledby="showcase-b-title">
       <p class="section-kicker">Showcase · Part B</p>
       <h2 id="showcase-b-title">AI analysis and style transfer</h2>
-      <p class="section-lede">One Sony α7R IVA 61 MP <code>.ARW</code>, three directions, an index of the photographer's 169 Lightroom RAW+XMP edits and 94-photo finished-look library. Recipes render at full resolution; no pixels are copied.</p>
+      <p class="section-lede">One RAW, three direction texts, and an index of the photographer's own 169 Lightroom edits and 94 finished looks. Recipes render at full resolution; no pixels are copied.</p>
 
       <figure class="wide-figure">
         <img src="images/showcase-island-four-looks.jpg?v=1.6.3" width="1600" height="1112" alt="Lakeside island town: straight conversion and three AI develops driven by three different direction texts" loading="lazy">
-        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">One photograph, four looks.</a></strong> The straight conversion and three AI develops of the same RAW, changing only the direction text. Judge trails are automated review, not human aesthetic approval.</figcaption>
+        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">One photograph, four looks.</a></strong> The straight conversion and three AI develops of the same RAW, changing only the direction text.</figcaption>
       </figure>
-
-      <div class="feature-grid">
-        <article>
-          <h3>Two pinned local models</h3>
-          <p>SigLIP 2 <code>siglip2-base-patch16-384</code> puts photographs and Direction text in one 768-dimensional space; <code>Qwen3-VL-2B-Instruct</code> writes one sentence on each photograph's grade. Both read the same staged 512 px frame, so a RAW is never decoded twice.</p>
-        </article>
-        <article>
-          <h3>One distance, four terms</h3>
-          <p><code>d14 + W_EMB(1&minus;cos) + W_TXT(1&minus;cos) + W_DESC(1&minus;cos)</code> over the image, Direction-text and description cosines, shipped at <strong>4 / 0.5 / 0.5</strong>. A missing vector contributes zero; zeroed weights reproduce the feature-only ranking exactly.</p>
-        </article>
-        <article>
-          <h3>Weights the harness chose</h3>
-          <p><strong>14</strong> normalized photographic features, z-scored only where the variance is useful. Both Direction-text cosines are standardised across candidates first, and the weights come from a leave-one-out sweep over <strong>169 exemplars</strong>.</p>
-        </article>
-      </div>
     </section>
 
     <section class="section showcase part-b" id="showcase-c" aria-labelledby="showcase-c-title">
       <p class="section-kicker">Showcase · Part C</p>
       <h2 id="showcase-c-title">A RAW denoiser trained and judged here</h2>
-      <p class="section-lede">The one network this project ships its own weights for. Four training runs were made on this project's own data; the first two shipped, the last two were refused by pass marks written down before they started. Every number here was measured on the v1.6.0 build, against Lightroom's Denoise 50 on the same frame.</p>
+      <p class="section-lede">The one network this project ships its own weights for. Four training runs on this project's own data: two shipped, two were refused by pass marks written before they started. Every number here is measured against Lightroom's Denoise 50 on the same frame.</p>
 
       <figure class="wide-figure">
         <img src="images/showcase-denoise-star-field.jpg?v=1.6.3" width="1600" height="1000" alt="One 1:1 window of a 61 MP star field, four ways: Lightroom's develop with Denoise off and at 50, AutoShade's neutral develop with no denoise and with its own denoiser at the 71 % default" loading="lazy">
-        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">One star field, four ways.</a></strong> The author's own ISO 2500 frame, one 796 × 462 px window at 1:1, shown one stop brighter than the develops (the same gain on all four panels). Top: Lightroom's own develop with Denoise off and at 50. Bottom: AutoShade's neutral develop with no denoise and with its denoiser at the 71 % default: clean colour, the frame's own luminance grain, the faint stars still there. <strong>98.70 %</strong> of 17,817 real faint stars kept against Lightroom's 98.80 %; the finished develop keeps fine grain at a ratio of <strong>0.2922</strong> against Lightroom's 0.2701 (limit ±0.03).</figcaption>
+        <figcaption><strong><a href="https://github.com/skymanbp/autoshade/blob/main/docs/SHOWCASE.md">One star field, four ways.</a></strong> The author's own ISO 2500 frame, one 796 × 462 px window at 1:1, shown one stop brighter. Top: Lightroom with Denoise off and at 50. Bottom: AutoShade with no denoise and at the 71 % default. <strong>98.70 %</strong> of 17,817 faint stars kept against Lightroom's 98.80 %.</figcaption>
       </figure>
 
       <div class="feature-grid">
         <article>
           <h3>Noise measured where it stands</h3>
-          <p>The network expects noise of one known strength everywhere, so the noise is measured per tile on the finest diagonal wavelet band, with the samples chosen by the three other bands so the choice cannot bias the number; a smooth map of the measured noise is divided out before the network and multiplied back after. On this frame the per-tile residual's maximum fell <strong>0.508 → 0.070</strong>, and the tile-to-tile spread of the fine-luminance ratio (how much fine grain the finished develop keeps) 0.185 → 0.014, beside Lightroom's own 0.011.</p>
+          <p>The network expects noise of one strength everywhere, so the noise is measured per tile on the frame itself, divided out before the network and multiplied back after. On this frame the per-tile residual's maximum fell <strong>0.508 → 0.070</strong>.</p>
         </article>
         <article>
           <h3>Only luminance grain returns</h3>
-          <p>At any positive strength the full clean output is requested; the original and the clean mosaic go through the same demosaic and calibration, and in linear light <code>1 − strength</code> of the luminance difference returns along the grey axis. Colour noise cannot come back by construction. The default is 71 %; hot pixels are mapped before either reader sees the mosaic.</p>
+          <p>The clean and the original mosaic go through the same demosaic; in linear light, <code>1 − strength</code> of the luminance difference returns along the grey axis. Colour noise cannot come back by construction. Hot pixels are mapped first.</p>
         </article>
         <article>
           <h3>Faint stars kept</h3>
-          <p>The first training run had never seen a star and kept 10 % of the light of a star four times the noise level. The second was trained with stars added to the clean side and a loss that seeks the mean; it keeps <strong>54 %</strong>, and the weights that ship were chosen among the run's snapshots by pass marks written before the run. Two later runs, five of them on a rented cloud GPU, failed their own marks and were refused. Two of the ten star-field readings stay behind Lightroom and are recorded in the release notes.</p>
+          <p>The first training run had never seen a star and kept 10 % of the light of a star four times the noise level. The second, trained with stars added, keeps <strong>54 %</strong>. Two of the ten star-field readings still trail Lightroom and are recorded in the release notes.</p>
         </article>
       </div>
     </section>
@@ -233,7 +204,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
     <section class="section" id="formats" aria-labelledby="formats-title">
       <p class="section-kicker">Supported formats</p>
       <h2 id="formats-title">Nine cameras, 24 RAW extensions.</h2>
-      <p class="section-lede">AutoShade neutral renders, one CC0 file per sample, not embedded previews. The environment-gated release suite last recorded 9/9.</p>
+      <p class="section-lede">AutoShade's own neutral renders of one CC0 sample per format, not embedded previews.</p>
 
       <div class="format-grid">
         <figure>
@@ -278,12 +249,12 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
         <article>
           <h3>Camera RAW · 24 extensions</h3>
           <p><code>arw, dng, raw, raf, nef, cr2, cr3, orf, rw2, pef, srw, 3fr, fff, iiq, mef, mos, erf, kdc, dcr, dcs, crw, nrw, mrw, ari</code></p>
-          <p>rawler decodes; its database covers 725 camera models. Twelve formats lack embedded previews; AutoShade displays and identifies its own neutral rendition.</p>
+          <p>rawler decodes; its database covers 725 camera models.</p>
         </article>
         <article>
           <h3>Baked rasters · 8 extensions</h3>
           <p><code>jpg, jpeg, png, tif, tiff, bmp, webp, gif</code></p>
-          <p>qcms converts ICC profiles when present. Monochrome and four-colour sensor arrays are refused, never reinterpreted as three-channel colour.</p>
+          <p>ICC profiles are converted when present.</p>
         </article>
       </div>
       <p class="attribution">Nine format samples from <a href="https://raw.pixls.us/">raw.pixls.us</a> under CC0 1.0 Public Domain.</p>
@@ -313,7 +284,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
     <section class="section technology" id="pillars" aria-labelledby="pillars-title">
       <p class="section-kicker">Three pillars</p>
       <h2 id="pillars-title">Three things this does.</h2>
-      <p class="section-lede">Three pillars and their infrastructure, with mathematics and measured results. v1.6.3.</p>
+      <p class="section-lede">Each diagram is generated from the source; each number below was measured.</p>
 
       <div class="tech-list">
         <article id="pillar-reimagine-fit">
@@ -335,7 +306,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
                 <span class="diagram-hint">Click the diagram, then scroll to zoom</span>
               </div>
             </figure>
-            <p><code>reimagine</code> adds a faithfulness scaffold to every prompt: <code>gpt-image-2</code> silently drops <code>input_fidelity</code>. Below <code>D = 0.35</code>: full solve; at or above: bounded Atmosphere mode. Local order: semantic regions or luminance bands, frozen-evidence quadtree to <strong>4×4</strong>, then at most two free-form masks. Each passes the same <strong>3%</strong> evidence, <code>D &lt; 0.65</code> and <strong>0.012</strong> rim gates. The recovered recipe is editable; generated pixels never carry over.</p>
+            <p><code>reimagine</code> adds a faithfulness scaffold to every prompt. Below <code>D = 0.35</code> the fit is a full solve; at or above, a bounded Atmosphere mode. Local corrections come in order, semantic regions or luminance bands, then an evidence quadtree, then at most two free-form masks, each behind the same <strong>3%</strong> evidence, <code>D &lt; 0.65</code> and <strong>0.012</strong> rim gates. Generated pixels never carry over.</p>
           </div>
         </article>
 
@@ -358,7 +329,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
                 <span class="diagram-hint">Click the diagram, then scroll to zoom</span>
               </div>
             </figure>
-            <p>Each of your Lightroom RAW+XMP pairs becomes an exemplar with a <strong>14-dimension</strong> EXIF+histogram feature, sliders and tone curve. Local models add a <strong>768-D</strong> SigLIP 2 vector and Qwen3-VL-2B sentence. Retrieval: <strong>4</strong> nearest past shots by <code>d14 + W_EMB(1−cos) + W_TXT·z(1−cos−hub) + W_DESC·z(1−cos)</code>. Leave-one-out corpus winners: <code>W_EMB=4</code>, <code>W_TXT=0.5</code> and <code>W_DESC=0.5</code>. A capped pull, <strong>0.18</strong> at Style 0.3, moves the proposal toward your means without copying it.</p>
+            <p>Each of your Lightroom RAW+XMP pairs becomes an exemplar: a <strong>14-dimension</strong> feature, sliders and tone curve, plus a <strong>768-D</strong> SigLIP 2 vector and a Qwen3-VL-2B sentence from pinned local models. The <strong>4</strong> nearest past shots, ranked by <code>d14 + W_EMB(1−cos) + W_TXT·z(1−cos−hub) + W_DESC·z(1−cos)</code> with <code>W_EMB=4</code>, <code>W_TXT=0.5</code> and <code>W_DESC=0.5</code>, pull the proposal toward your habits, capped at <strong>0.18</strong> at Style 0.3, without copying any of them.</p>
           </div>
         </article>
 
@@ -381,13 +352,13 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
                 <span class="diagram-hint">Click the diagram, then scroll to zoom</span>
               </div>
             </figure>
-            <p>Hand-rolled XML reads and writes Camera Raw's own scope; unknown namespaces survive merges. Measured: Fritsch–Carlson tone LUT, <strong>45 of 45</strong> Lightroom Texture anchors within ±0.02, <strong>290×11</strong> radial feather table. Radials close <strong>41/41</strong> vectors to ≤1 px; linear handles are <em>not</em> pixel-closed: <strong>9.748/7.025/6.336 px</strong> RMS. Linear falloff: smoothstep on the measured abscissa <code>t^1.124</code>, rms <strong>0.0064</strong> against <strong>0.0315</strong> for plain smoothstep.</p>
+            <p>Hand-rolled XML reads and writes Camera Raw's own scope; unknown namespaces survive merges. Measured: <strong>45 of 45</strong> Lightroom Texture anchors within ±0.02, a <strong>290×11</strong> radial feather table, radials closed <strong>41/41</strong> to ≤1 px, linear falloff on <code>t^1.124</code> at rms <strong>0.0064</strong>.</p>
           </div>
         </article>
       </div>
     </section>
 
-    <section class="section technology" id="technology" aria-labelledby="technology-title">
+    <section class="section technology tech-stack" id="technology" aria-labelledby="technology-title">
       <p class="section-kicker">Tech stack &amp; algorithms</p>
       <h2 id="technology-title">The implementation details.</h2>
       <p class="section-lede">Nine areas; links open equations, provenance, measurements and sources.</p>
@@ -397,7 +368,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">01</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#raw-decode-and-cfa">RAW decode and CFA</a></h3>
-            <p>rawler: <strong>24 RAW formats and 725 camera bodies</strong>. <strong>Approximate</strong> X-Trans fits colour planes over a 5×5 CFA neighbourhood; the measured X-S10 G/R ratio moved from 1.5503 to 0.9476. Lightroom sidecar <code>tiff:Orientation</code> chooses quarter turns. The RAW denoiser cleans the mosaic before demosaic with weights <a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#raw-denoise">trained and judged here</a>, against noise measured tile by tile.</p>
+            <p>rawler: <strong>24 RAW formats and 725 camera bodies</strong>; X-Trans is <strong>approximate</strong>. The RAW denoiser cleans the mosaic before demosaic with weights <a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#raw-denoise">trained and judged here</a>.</p>
           </div>
         </article>
 
@@ -405,7 +376,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">02</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#develop-pipeline-and-tone-model">Develop pipeline and tone model</a></h3>
-            <p>Deterministic f32 rendering: linear-light vignette and dehaze, monotone Fritsch–Carlson tone LUT containing Highlights, then curves, HSL, clarity and local edits. Negative Texture: two measured low-pass arms, <code>A1=0.172443</code> and <code>A2=0.304888</code>. The camera's <a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#camera-base-look">base look</a> is read from the embedded preview on block means, like with like.</p>
+            <p>Deterministic f32 rendering: linear-light vignette and dehaze, a monotone Fritsch–Carlson tone LUT, then curves, HSL, clarity and local edits. The camera's <a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#camera-base-look">base look</a> is read from the embedded preview.</p>
           </div>
         </article>
 
@@ -413,7 +384,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">03</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#masks">Masks</a></h3>
-            <p>Radial, linear, brush, bitmap, luminance-range and colour-range: Add/Subtract/Intersect. Radial feather uses a measured <strong>290×11 alpha LUT</strong>; brush dab flow: <code>kappa=0.1284</code>. The pixel/aspect metric cut D1 error from <strong>874 px to 9.8 px</strong>.</p>
+            <p>Radial, linear, brush, bitmap, luminance-range and colour-range, combined by Add, Subtract and Intersect. Radial feather uses a measured <strong>290×11 alpha LUT</strong>; brush dab flow <code>kappa=0.1284</code>.</p>
           </div>
         </article>
 
@@ -421,7 +392,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">04</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#ai-masks">AI masks</a></h3>
-            <p>Subject selection: commit-pinned BiRefNet, named U²-Net fallback. Sky: OneFormer, <strong>150-class</strong> ADE20K table. Object gestures: ordered positive points for SAM 2.1 over <code>gp1</code>. Locally derived alpha is disclosed as non-Adobe.</p>
+            <p>Subject: commit-pinned BiRefNet. Sky: OneFormer over the <strong>150-class</strong> ADE20K table. Objects: positive points for SAM 2.1. Locally derived alpha is disclosed as non-Adobe.</p>
           </div>
         </article>
 
@@ -429,7 +400,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">05</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#lens-correction-and-lightroom-mask-frame-laws">Lens correction and Lightroom mask-frame laws</a></h3>
-            <p>Sony 0x7037's <strong>16 samples at (i+1)/16</strong> feed a 2048-node/64-knot mask solve; Newton inversion reads rectilinear <code>.lcp</code> profiles and refuses fisheye-only ones. Radials close <strong>41/41 vectors to ≤1 px</strong>; linear H2 keeps lines straight and records its RMS residuals. Lightroom's «Remove chromatic aberration» is an instruction, not a number, so <code>R−G</code> is least-squared against the radial lever <code>r·∂G/∂r</code> and answered in the manual pair's own units. Upright's 3×3 was measured to be Adobe's own <strong>[0,1] frame-centred</strong>, per-axis normalised and fully projective.</p>
+            <p>Sony lens metadata feeds a 2048-node mask solve; Newton inversion reads rectilinear <code>.lcp</code> profiles. Radials close <strong>41/41 vectors to ≤1 px</strong>; Upright's 3×3 was measured to be Adobe's own <strong>[0,1] frame-centred</strong> projective form.</p>
           </div>
         </article>
 
@@ -437,7 +408,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">06</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#xmp-and-lightroom-interoperability">XMP and Lightroom interoperability</a></h3>
-            <p>Typed <code>Tag</code>/<code>Scope</code> traversal reads Camera Raw's own scope including nested <code>Look</code>; conservative merge preserves unmodeled fields. Measured domains: <code>LocalExposure2012=EV/4</code>, local Hue <code>/180</code>, other local family <code>/100</code>, global Sharpness <strong>1:1</strong>. Since v1.3.1 the whole develop also rides in the sidecar under AutoShade's own namespace, measured to survive a Lightroom 9.4 rewrite byte for byte.</p>
+            <p>Typed traversal reads Camera Raw's own scope; a conservative merge preserves unmodeled fields. Measured domains: <code>LocalExposure2012=EV/4</code>, local Hue <code>/180</code>, global Sharpness <strong>1:1</strong>. The whole develop rides inside the sidecar and survives a Lightroom rewrite byte for byte.</p>
           </div>
         </article>
 
@@ -445,7 +416,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">07</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#ai-advisor-and-reverse-fit">AI advisor and reverse fit</a></h3>
-            <p>Bounded proposals use <code>store:false</code> and a do-no-harm gate. A cast ships only through four vetoes, including foreign hues <strong>≥45° over ≥5%</strong> of the frame and a <strong>≥15°</strong> hue fan across luminance. Reimagine and heal remain generated-pixel operations.</p>
+            <p>Bounded proposals use <code>store:false</code> and a do-no-harm gate. A colour cast ships only through four vetoes, among them foreign hues <strong>≥45° over ≥5%</strong> of the frame.</p>
           </div>
         </article>
 
@@ -453,7 +424,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">08</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#stacking-and-merging-v150-track-s">Stacking and merging</a></h3>
-            <p>Inverse-compositional Lucas–Kanade on a Gaussian pyramid, solved in <strong>log luminance</strong> so a change of exposure is a constant a gradient cannot see. Samples are weighted Geman–McClure; both passes keep the step they measured; a block must beat doing nothing by <strong>10 %</strong> and then agree with its neighbours. Measured: a bracket returns <strong>−2.49 / −4.98 EV</strong> against a −2.5 / −5.0 truth.</p>
+            <p>Inverse-compositional Lucas–Kanade on a Gaussian pyramid, solved in <strong>log luminance</strong> so a change of exposure is invisible to the gradient. Measured: a bracket returns <strong>−2.49 / −4.98 EV</strong> against a −2.5 / −5.0 truth.</p>
           </div>
         </article>
 
@@ -461,7 +432,7 @@ autoshade apply "photo.ARW" "recipe.json" -o "developed.tif"</code></pre>
           <div class="tech-index" aria-hidden="true">09</div>
           <div>
             <h3><a href="https://github.com/skymanbp/autoshade/blob/main/docs/TECH_STACK.md#application-and-infrastructure">Application and infrastructure</a></h3>
-            <p>Rust 2024: one library for CLI, egui desktop and loopback web UI. Server: 32-byte token and Host/Origin/no-store defenses. Every denoise sidecar requires <code>sidecar_wrote</code>. A <strong>1771 MB</strong> probe set the 1800 MB per-photo budget. The v1.6.3 battery: 1767 library, 27 CLI, 223 GUI and 2+2 contract tests.</p>
+            <p>Rust 2024: one library for the CLI, egui desktop and loopback web UI. The v1.6.3 battery: 1767 library, 27 CLI, 223 GUI and 2+2 contract tests.</p>
           </div>
         </article>
       </div>

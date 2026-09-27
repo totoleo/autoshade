@@ -981,6 +981,19 @@ h4 {
   margin-bottom: 0;
 }
 
+/* The nine technology items are a list, not nine sections. At the rail's
+   heading size (up to 2.35rem, which the three pillars keep) each two-line
+   entry read as a heading with a footnote under it, and the 4.5rem of padding
+   around it made the list taller than the diagrams above. Only the section
+   that carries `.tech-stack` tightens; the pillars are untouched. */
+.tech-stack .tech-list article {
+  padding: clamp(1.9rem, 3.6vw, 2.75rem) 0;
+}
+
+.tech-stack .tech-list h3 {
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
+}
+
 .docs {
   border-bottom: 0;
 }
