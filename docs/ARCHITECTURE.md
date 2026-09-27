@@ -1,6 +1,10 @@
 # AutoShade — Architecture
 
-> Status: **implemented** (v1.6.3 — the app's own files read back as the pixels
+> Status: **implemented** (v1.6.4 — the desktop app's side panels lay every text
+> verb in a grid cell, the Develop histogram keeps the readable ceiling, and
+> each brush tool keeps its own painted area behind its own 「🖌 Paint area」 /
+> 「Clear area」 row;
+> v1.6.3 — the app's own files read back as the pixels
 > it wrote: the engine's sRGB profile reads as the working space, the 16-bit
 > profile lattice sits on exact codes, and the stack, heal and clone masters and
 > a 16-bit denoise master carry the profile wherever the format holds one; a

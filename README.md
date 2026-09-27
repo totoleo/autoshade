@@ -15,7 +15,7 @@ The one network that does, the RAW denoiser, was trained here on this
 project's own data and is held to a same-frame comparison with Lightroom
 on a real star field whenever it changes.
 
-[Download v1.6.3](https://github.com/skymanbp/autoshade/releases/tag/v1.6.3) ·
+[Download v1.6.4](https://github.com/skymanbp/autoshade/releases/tag/v1.6.4) ·
 [Architecture](docs/ARCHITECTURE.md) ·
 [Release ledger](docs/ROADMAP.md) ·
 [MIT](LICENSE)
@@ -408,7 +408,7 @@ look unchanged, the 1:1 window's grain 3.1 → 0.6 codes.
   first, failed them, and were refused.
 
 Details: [docs/TECH_STACK.md#raw-denoise](docs/TECH_STACK.md#raw-denoise) and
-the release notes, [docs/RELEASE_NOTES_v1.6.3.md](docs/RELEASE_NOTES_v1.6.3.md).
+the release notes, [docs/RELEASE_NOTES_v1.6.4.md](docs/RELEASE_NOTES_v1.6.4.md).
 
 ### 6. The camera's own look is read from the picture, like with like
 
@@ -527,7 +527,7 @@ the tests [`scripts/check_docs.py`](scripts/check_docs.py) re-derives.
 
 ### Download a release
 
-The v1.6.3 release is built by GitHub Actions from the tag: the Windows front
+The v1.6.4 release is built by GitHub Actions from the tag: the Windows front
 ends, two macOS universal (arm64 + x86_64) archives and a Linux x64
 command-line archive; `checksums.txt` carries the SHA-256 of every asset.
 One file the app uses is not a build product: `autoshade-raw-denoise-v2.pth`,
@@ -545,17 +545,17 @@ unpickled on trust.
 |---|---:|---|
 | `autoshade.exe` (CLI) | 23,097,344 bytes | `2d03367231cb1ffc7299d39ca1c4e4a754bc62822dac915abf38f51ca903d75c` |
 | `autoshade-gui.exe` (desktop app) | 29,559,296 bytes | `d1ba327f1dee22d89febe91be2bcdbe7042ce12f41ed0234819c2a689d9009ed` |
-| `AutoShade-Setup-1.6.3.exe` (installer) | 15,332,578 bytes | `932c41158f4d262de9b39a5b5e047a3da90ddc7dfca7dd074bc474663c2c61f7` |
-| `autoshade-1.6.3-windows-x64.zip` (portable archive) | 20,733,019 bytes | `78c34f410d47295b1f36806cf2fe0815166dbf96f3f6ee1818eb540a3f8c6cca` |
-| `AutoShade-1.6.3-macos-universal.zip` (macOS app bundle) | 41,766,269 bytes | `c3b5a12da13d833428c7b32516e65f145c3385115b1293e8ae3c8513c685bc36` |
-| `AutoShade-1.6.3-linux-x64.zip` (Linux command line only) | 10,048,710 bytes | `44618c323cb56b0865b9b7b22bc7ab4af1d7b0dacf37fc4b62424a658b41b3aa` |
-| `AutoShade-1.6.3-macos-cli.zip` (macOS command line only) | 18,192,237 bytes | `d50a474cb387c7c96addc688266addb7426164a06edc5d8512fa062d21d73f4c` |
+| `AutoShade-Setup-1.6.4.exe` (installer) | 15,332,578 bytes | `932c41158f4d262de9b39a5b5e047a3da90ddc7dfca7dd074bc474663c2c61f7` |
+| `autoshade-1.6.4-windows-x64.zip` (portable archive) | 20,733,019 bytes | `78c34f410d47295b1f36806cf2fe0815166dbf96f3f6ee1818eb540a3f8c6cca` |
+| `AutoShade-1.6.4-macos-universal.zip` (macOS app bundle) | 41,766,269 bytes | `c3b5a12da13d833428c7b32516e65f145c3385115b1293e8ae3c8513c685bc36` |
+| `AutoShade-1.6.4-linux-x64.zip` (Linux command line only) | 10,048,710 bytes | `44618c323cb56b0865b9b7b22bc7ab4af1d7b0dacf37fc4b62424a658b41b3aa` |
+| `AutoShade-1.6.4-macos-cli.zip` (macOS command line only) | 18,192,237 bytes | `d50a474cb387c7c96addc688266addb7426164a06edc5d8512fa062d21d73f4c` |
 | `autoshade-raw-denoise-v2.pth` (RAW denoiser weights, fetched on demand from the v1.6.0 release) | 130,590,559 bytes | `ffafa40a53f52092149db2fcf03636117ad6855e1068142d4f6b03b634e9f9c4` |
 
 Download from the
-[v1.6.3 release page](https://github.com/skymanbp/autoshade/releases/tag/v1.6.3):
+[v1.6.4 release page](https://github.com/skymanbp/autoshade/releases/tag/v1.6.4):
 
-- **Installer (recommended):** run `AutoShade-Setup-1.6.3.exe`. It installs for
+- **Installer (recommended):** run `AutoShade-Setup-1.6.4.exe`. It installs for
   the current user without administrator access, adds Start Menu shortcuts, and
   offers optional desktop and user `PATH` tasks.
 - **Upgrading, uninstalling and a silent rollout** are in the manual,
@@ -564,7 +564,7 @@ Download from the
   older installer is refused, either uninstall door asks before deleting the
   two things it never installed, and `/VERYSILENT` installs, upgrades or
   uninstalls with no window.
-- **Portable archive:** extract `autoshade-1.6.3-windows-x64.zip` to a directory
+- **Portable archive:** extract `autoshade-1.6.4-windows-x64.zip` to a directory
   you can keep intact and run either executable from there, beside the bundled
   `assets/` and `python/` sidecars.
 
@@ -572,9 +572,9 @@ Download from the
 
 Both macOS archives are universal (Apple silicon and Intel in one binary);
 unpack either with Finder or `ditto -x -k <zip> <dir>`.
-`AutoShade-1.6.3-macos-universal.zip` is the app: move `AutoShade.app` to
+`AutoShade-1.6.4-macos-universal.zip` is the app: move `AutoShade.app` to
 `/Applications`; the command line travels inside it
-(`AutoShade.app/Contents/MacOS/autoshade`), and `AutoShade-1.6.3-macos-cli.zip`
+(`AutoShade.app/Contents/MacOS/autoshade`), and `AutoShade-1.6.4-macos-cli.zip`
 is that binary alone. The bundle is **ad-hoc signed, not notarised**, so the
 first launch is refused once per machine, not per launch: **System Settings →
 Privacy & Security → Open Anyway**, or right-click in Finder and choose
@@ -583,7 +583,7 @@ weights** download on first use into the develop store, not the signed
 read-only bundle; the interpreter is a Settings field with **Detect**
 ([manual](docs/USER_MANUAL.md#configure-and-use-the-ai-features)).
 
-The Linux archive, `AutoShade-1.6.3-linux-x64.zip`, is the command line for
+The Linux archive, `AutoShade-1.6.4-linux-x64.zip`, is the command line for
 x86-64 Linux, built on Ubuntu 22.04 with the same payload as the macOS
 command-line archive: the binary, the Python sidecars without their weights,
 the assets, LICENSE and README. Unpack it anywhere and run `./autoshade`;
@@ -816,7 +816,7 @@ release claims.
 
 ## Status, roadmap, and known limitations
 
-- Release gates for v1.6.3 cover the CLI, desktop GUI, sidecar contracts,
+- Release gates for v1.6.4 cover the CLI, desktop GUI, sidecar contracts,
   format fixtures and the deterministic renderer; artifact sizes and hashes
   are above.
 - macOS has shipped binaries and an app since v1.2.0 and nobody has reported
