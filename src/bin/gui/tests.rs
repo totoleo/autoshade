@@ -3425,8 +3425,8 @@
 
     #[test]
     fn the_adjust_verb_is_disabled_off_ai_pixels_and_with_no_prompt_and_no_strokes() {
-        let mut app = AutoShadeApp::default();
-        app.paint_owner = BrushOwner::Adjust; // the fold's own area is the live canvas here
+        // The fold's own area is the live canvas here.
+        let mut app = AutoShadeApp { paint_owner: BrushOwner::Adjust, ..Default::default() };
         // Off AI pixels, empty AI input, and useful AI input are the three
         // states. Both Generated and Edited count; busy still disables them.
         for kind in [VariantKind::Original, VariantKind::Fitted, VariantKind::Denoised,
