@@ -3426,6 +3426,7 @@
     #[test]
     fn the_adjust_verb_is_disabled_off_ai_pixels_and_with_no_prompt_and_no_strokes() {
         let mut app = AutoShadeApp::default();
+        app.paint_owner = BrushOwner::Adjust; // the fold's own area is the live canvas here
         // Off AI pixels, empty AI input, and useful AI input are the three
         // states. Both Generated and Edited count; busy still disables them.
         for kind in [VariantKind::Original, VariantKind::Fitted, VariantKind::Denoised,
@@ -3466,6 +3467,7 @@
                 id: new_variant_id(), name: None, kind: VariantKind::Generated,
                 recipe: EditRecipe::default(), base: None, origin: None, thumb: None,
             }];
+            app.paint_owner = BrushOwner::Adjust; // the fold's own area is the live canvas here
             // The same >10 alpha predicate as export: a faint/erased mask
             // is whole-image mode, even though the mask buffer exists.
             for alpha in [0, 10, 11, 160] {
@@ -3475,7 +3477,7 @@
                 assert_eq!(app.has_painted_mask(), strokes);
                 assert_eq!(app.export_mask_png().is_some(), strokes);
                 let text = draw_adjust_panel(&mut app);
-                let painted = tr(lang, "painted area only (shared brush)");
+                let painted = tr(lang, "painted area only");
                 let whole = tr(lang, "whole image (paint an area to limit it)");
                 let (yes, no) = if strokes { (painted, whole) } else { (whole, painted) };
                 assert!(text.iter().any(|t| t == yes), "status missing: {yes}");
@@ -3484,7 +3486,7 @@
             app.variants[0].kind = VariantKind::Original;
             let text = draw_adjust_panel(&mut app);
             assert!(text.iter().any(|t| t == tr(lang, "select a ✨ AI generated card (or its ✎ edit) first")));
-            assert!(!text.iter().any(|t| t == tr(lang, "painted area only (shared brush)")));
+            assert!(!text.iter().any(|t| t == tr(lang, "painted area only")));
         }
         let prefs = Prefs { adjust_quality: 2, ..Prefs::default() };
         let json = serde_json::to_string(&prefs).unwrap();
@@ -3542,7 +3544,7 @@
                 app.mask_dirty = false;
                 text = draw_adjust_frame(app, ctx);
             }
-            let region = "painted area only (shared brush)";
+            let region = "painted area only";
             let whole = "whole image (paint an area to limit it)";
             let (yes, no) = if painted { (region, whole) } else { (whole, region) };
             assert!(text.iter().any(|t| t == yes), "{why}: expected {yes}");
@@ -3559,7 +3561,10 @@
                 }).collect(),
                 ..Default::default()
             };
-            app.start_mask_brush(None);
+            // The fold's OWN brush on a canvas sized to the plate: the Adjust
+            // area is the live canvas (2026-09-27, `BrushOwner`).
+            app.rebind_paint_canvas(1024, 768);
+            app.arm_brush(BrushOwner::Adjust);
             let ctx = egui::Context::default();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             five_frames(&mut app, &ctx, false, "an empty brush reads the whole image");
@@ -3570,17 +3575,16 @@
             assert!(app.mask_paint.as_ref().unwrap().pixels().any(|p| p[3] > 10), "the real brush added paint");
             five_frames(&mut app, &ctx, true, "a brush stroke limits the adjust to the painted area");
             assert_eq!(app.mask_presence_scans.get(), empty_scans, "adding paint needs no presence scan");
-            assert!(app.export_mask_png().is_some());
+            assert!(app.export_area_png(BrushOwner::Adjust).is_some());
 
-            app.mask_brush = Some((None, true));
-            app.brush = 100.0;
-            stroke(&mut app, drag);
-            assert!(app.mask_paint.as_ref().unwrap().pixels().all(|p| p[3] <= 10), "the real eraser removed every stroke");
-            five_frames(&mut app, &ctx, false, "erasing the last stroke must return the adjust fold to whole image");
-            assert!(app.mask_presence_scans.get() <= empty_scans + 1, "erasure permits only one new scan");
-            assert!(app.export_mask_png().is_none());
+            // 「Clear area」 is the fold's eraser (the retouch brushes have no
+            // erase mode): the canvas is known blank, so nothing scans.
+            app.clear_area(BrushOwner::Adjust);
+            assert!(app.mask_paint.as_ref().unwrap().pixels().all(|p| p[3] <= 10), "clearing removed every stroke");
+            five_frames(&mut app, &ctx, false, "clearing the area must return the adjust fold to whole image");
+            assert_eq!(app.mask_presence_scans.get(), empty_scans, "a cleared area needs no scan");
+            assert!(app.export_area_png(BrushOwner::Adjust).is_none());
 
-            app.mask_brush = Some((None, false));
             stroke(&mut app, drag);
             assert!(app.has_painted_mask());
             let before_switch = app.mask_presence_scans.get();
@@ -3611,13 +3615,15 @@
                 }
             }
         }
-        const CENSUS: [(&str, usize); 7] = [
+        const CENSUS: [(&str, usize); 9] = [
             ("actions.rs::load_active", 1),
             ("actions.rs::rebind_paint_canvas", 1),
             ("masks.rs::paint_imported_removals", 2),
             ("masks.rs::paint_mask_changed", 1),
             ("masks.rs::clear_mask", 1),
+            ("masks.rs::select_brush_owner", 1),
             ("masks.rs::start_mask_brush", 1),
+            ("masks.rs::unstash_owner_area", 1),
             ("panels/retouch.rs::handle_paint", 1),
         ];
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/bin/gui");
@@ -3659,7 +3665,7 @@
         }
         let expected = CENSUS.into_iter().map(|(site, n)| (site.to_string(), n)).collect();
         assert_eq!(found, expected, "paint-buffer mutation sites changed: wire the notification door and update the census");
-        assert_eq!(found.values().sum::<usize>(), 8, "four replacements, three mutable borrows, one dirty setter");
+        assert_eq!(found.values().sum::<usize>(), 10, "six replacements, three mutable borrows, one dirty setter");
     }
 
     /// v1.5.0: the canvas preview reaches its frame through the ENGINE's tail
@@ -7037,39 +7043,42 @@
         }
     }
 
-    /// R22-3, same段 as #9: the 「Paint mask」 checkbox writes `paint_mode`
-    /// directly, and a live MASK-brush session paints through that same flag.
-    /// Un-ticking it therefore produced an ORPHAN session — brush inert, but
-    /// the ⌫ / ✓ Apply / ✕ Cancel row still on screen with a buffer 「Apply」
-    /// would happily bake. Un-ticking must take the session's own teardown.
-    /// (Deleting the `else` arm of paint_mode_toggled fails phase 2.)
+    /// R22-3, same段 as #9, on the per-fold brush (2026-09-27): a live
+    /// MASK-brush session paints through the same `paint_mode` flag a tool's
+    /// brush uses. Putting the brush away while a session is live used to
+    /// leave an ORPHAN session — brush inert, but the ⌫ / ✓ Apply / ✕ Cancel
+    /// row still on screen with a buffer 「Apply」 would happily bake. It must
+    /// take the session's own teardown. (Deleting the `end_mask_brush` call
+    /// in `disarm_brush` fails phase 2.)
     #[test]
-    fn un_ticking_paint_mask_ends_the_brush_session_instead_of_orphaning_it() {
-        // Phase 1: ticking still sweeps the other canvas tools and stays armed.
+    fn arming_a_brush_sweeps_the_other_tools_and_putting_it_away_ends_a_mask_session() {
+        // Phase 1: arming sweeps the other canvas tools and stays armed; the
+        // Stamp arms through clone_mode and takes the other brush down.
         let mut app = AutoShadeApp {
             base_preview: Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(32, 48))),
             crop_mode: true,
             clone_mode: true,
-            paint_mode: true,
             ..Default::default()
         };
-        app.paint_mode_toggled();
-        assert!(app.paint_mode, "ticking must survive the mutual-exclusion sweep");
+        app.arm_brush(BrushOwner::Fill);
+        assert!(app.paint_mode && app.brush_armed(BrushOwner::Fill), "arming must survive the mutual-exclusion sweep");
         assert!(!app.crop_mode && !app.clone_mode, "the other tools are disarmed");
-        // Phase 2: a live session + the box un-ticked = a cancel, not an orphan.
+        app.arm_brush(BrushOwner::Stamp);
+        assert!(app.clone_mode && !app.paint_mode, "the Stamp paints through clone_mode");
+        assert!(app.brush_armed(BrushOwner::Stamp) && !app.brush_armed(BrushOwner::Fill));
+        // Phase 2: a live session + the brush put away = a cancel, not an orphan.
         app.start_mask_brush(None);
         assert!(
             app.mask_brush.is_some() && app.mask_brush_gray.is_some() && app.paint_mode,
             "sanity: the session is live and painting through paint_mode"
         );
-        app.paint_mode = false; // what the checkbox itself just wrote
-        app.paint_mode_toggled();
+        app.disarm_brush();
         assert!(
             app.mask_brush.is_none(),
             "the session outlived its own paint flag — its Apply row would bake stale weights"
         );
         assert!(app.mask_brush_gray.is_none(), "the weight buffer goes with it");
-        assert!(!app.paint_mode, "and the flag stays off");
+        assert!(!app.paint_mode && !app.clone_mode, "and the flags stay off");
     }
 
     /// M6a: the save status line the user actually reads. The projection's
@@ -11089,6 +11098,8 @@
         // v1.5.0: a Point Color swatch — its row is a chip, a name and a
         // ✕, and its four sliders are laid beside the mixer's own.
         app.recipe.point_colors.push(autoshade::recipe::PointColor::sampled(0.9, 0.7, 0.5));
+        // A histogram, so the readout's width can be pinned (2026-09-27).
+        app.histogram = Some(vec![[0.5; 4]; 256]);
         app.sel_mask = Some(0);
         app.start_mask_brush(None);
         assert!(app.mask_brush.is_some(), "{lang:?}: the brush session armed");
@@ -11234,6 +11245,14 @@
                         },
                     );
                     let drawn = DRAWN.with_borrow(|d| d.clone());
+                    // The histogram readout used to be the one widget that grew
+                    // with the panel without limit (user report 2026-09-27).
+                    let hist = app.histogram_rect.expect("the histogram readout was drawn");
+                    assert!(
+                        hist.width() <= crate::theme::FIELD_W_MAX + 0.5,
+                        "{lang:?}, {controls_width} px, frame {frame}: the histogram is {:.1} px wide — past the {:.0} px readable ceiling",
+                        hist.width(), crate::theme::FIELD_W_MAX
+                    );
                     for label in [
                         tr(lang, "🤖 AI heal (auto)"), tr(lang, "Heal area"),
                         tr(lang, "⎘ Enter stamp"), tr(lang, "⎘ Clone area"),
@@ -11524,4 +11543,171 @@
                 "{head} builds its own reference copy again"
             );
         }
+    }
+
+    /// 2026-09-27 (user report 「UI 按钮的大小参差不齐」, decided on a probe of
+    /// every drawn button): in the side panels every text verb is laid in a
+    /// grid cell — a row's one verb fills the row, two or three share it, a
+    /// verb beside a checkbox or a label takes one cell of the two-column
+    /// grid — so no verb is sized by its own label. Two list/header verbs are
+    /// the exceptions (a version row's 「Load」, the gallery's 「🗂 Open
+    /// folder…」 beside its heading); the toolbar, the dialogs and Settings
+    /// keep own-width verbs. Also pinned: the AI section's rows start on the
+    /// same x as the Develop and Retouch rows (its outer fold used to indent
+    /// them 18 px further), and each brush fold carries its own
+    /// 「🖌 Paint area」 / 「Clear area」 pair.
+    #[test]
+    fn every_side_panel_text_verb_is_laid_in_a_cell_and_the_sections_align() {
+        use crate::buttons::DRAWN;
+        for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
+            let ctx = egui::Context::default();
+            crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+            let mut app = app_with_every_button(lang);
+            let input = || egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
+                ..Default::default()
+            };
+            let mut rects = [egui::Rect::NOTHING; 2];
+            let mut sections: Vec<(&'static str, f32, f32)> = Vec::new();
+            for _ in 0..3 {
+                DRAWN.with_borrow_mut(Vec::clear);
+                let mut inner = Vec::new();
+                let _ = ctx.run(input(), |ctx| {
+                    ctx.memory_mut(|m| m.set_everything_is_visible(true));
+                    app.upd_top_bar(ctx);
+                    let gallery = egui::SidePanel::left("gallery")
+                        .default_width(240.0)
+                        .show(ctx, |ui| app.gallery_panel(ui));
+                    let controls = egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            let y0 = ui.min_rect().top();
+                            app.ai_panel(ui);
+                            let y1 = ui.min_rect().bottom();
+                            app.develop_panel(ui);
+                            let y2 = ui.min_rect().bottom();
+                            app.retouch_panel(ui);
+                            let y3 = ui.min_rect().bottom();
+                            inner = vec![("ai", y0, y1), ("develop", y1, y2), ("retouch", y2, y3)];
+                        });
+                    });
+                    rects = [gallery.response.rect, controls.response.rect];
+                });
+                sections = inner;
+            }
+            let drawn = DRAWN.with_borrow(|d| d.clone());
+            let text = |d: &crate::buttons::Drawn| !d.kind.starts_with("glyph");
+            let load = tr(lang, "Load");
+            let open = tr(lang, "🗂 Open folder…");
+            for d in drawn.iter().filter(|d| text(d)) {
+                let c = d.rect.center();
+                let (panel, exempt) = if rects[1].contains(c) {
+                    ("controls", d.label == load)
+                } else if rects[0].contains(c) {
+                    ("gallery", d.label == open)
+                } else {
+                    continue;
+                };
+                assert!(
+                    d.cell || exempt,
+                    "{lang:?}: {} {:?} in the {panel} panel is laid at its own width ({:.0} px), not in a cell",
+                    d.kind, d.label, d.rect.width()
+                );
+            }
+            let left_of = |name: &str| -> f32 {
+                let (_, y0, y1) = sections.iter().find(|s| s.0 == name).copied().expect("the section was laid");
+                drawn
+                    .iter()
+                    .filter(|d| text(d) && rects[1].contains(d.rect.center()))
+                    .filter(|d| d.rect.center().y >= y0 && d.rect.center().y < y1)
+                    .map(|d| d.rect.left())
+                    .fold(f32::INFINITY, f32::min)
+            };
+            let (ai, dev, ret) = (left_of("ai"), left_of("develop"), left_of("retouch"));
+            assert!(ai.is_finite() && dev.is_finite() && ret.is_finite(), "{lang:?}: every section drew a text verb");
+            assert!(
+                (ai - dev).abs() <= 0.5 && (dev - ret).abs() <= 0.5,
+                "{lang:?}: the sections' rows start at different x: ai {ai}, develop {dev}, retouch {ret}"
+            );
+            let count = |label: &str| drawn.iter().filter(|d| d.label == label).count();
+            assert_eq!(count(tr(lang, "🖌 Paint area")), 3, "{lang:?}: Fill, Heal and Adjust each carry their own brush toggle");
+            assert_eq!(count(tr(lang, "Clear area")), 4, "{lang:?}: Fill, Heal, the Stamp and Adjust each carry their own clear verb");
+        }
+    }
+
+    /// Each tool keeps its own painted area (user decision 2026-09-27): what
+    /// is painted for Heal is not what Fill, the Stamp or Adjust read; a mask
+    /// brush session stashes the live area and gives it back; a plate rebind
+    /// starts every tool blank; a landing clears only the area its result
+    /// consumed.
+    #[test]
+    fn each_tool_keeps_its_own_painted_area() {
+        let paint = |app: &mut AutoShadeApp| {
+            app.mask_paint.as_mut().unwrap().put_pixel(1, 1, image::Rgba([255, 64, 64, 160]));
+            app.paint_mask_changed(Some(true));
+        };
+        let mut app = AutoShadeApp {
+            base_preview: Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6))),
+            ..Default::default()
+        };
+        app.rebind_paint_canvas(8, 6);
+        assert_eq!(app.paint_owner, BrushOwner::Fill, "Fill's area is the canvas by default");
+
+        app.arm_brush(BrushOwner::Heal);
+        assert!(app.paint_mode && app.brush_armed(BrushOwner::Heal) && !app.brush_armed(BrushOwner::Fill));
+        paint(&mut app);
+        assert!(app.area_painted(BrushOwner::Heal));
+        assert!(!app.area_painted(BrushOwner::Fill) && !app.area_painted(BrushOwner::Adjust));
+
+        // Fill's turn: a blank canvas, and Heal's strokes wait in the store
+        // with their memo — reading them back scans nothing.
+        let scans = app.mask_presence_scans.get();
+        app.arm_brush(BrushOwner::Fill);
+        assert!(!app.has_painted_mask(), "Fill sees its own blank area, not Heal's strokes");
+        assert!(app.area_painted(BrushOwner::Heal), "Heal's strokes survive off the canvas");
+        assert_eq!(app.mask_presence_scans.get(), scans, "a stored memo answers without a scan");
+        assert!(app.export_area_png(BrushOwner::Heal).is_some());
+        assert!(app.export_area_png(BrushOwner::Fill).is_none());
+
+        // The Stamp arms through clone_mode and takes the paint flag down.
+        app.arm_brush(BrushOwner::Stamp);
+        assert!(app.clone_mode && !app.paint_mode && app.brush_armed(BrushOwner::Stamp));
+        paint(&mut app);
+        assert!(app.area_painted(BrushOwner::Stamp) && app.area_painted(BrushOwner::Heal));
+
+        // Clearing one tool's area leaves the others'.
+        app.clear_area(BrushOwner::Heal);
+        assert!(!app.area_painted(BrushOwner::Heal) && app.area_painted(BrushOwner::Stamp));
+        app.arm_brush(BrushOwner::Heal);
+        assert!(!app.has_painted_mask(), "Heal comes back blank");
+
+        // A mask-brush session stashes the live area and gives it back.
+        app.arm_brush(BrushOwner::Adjust);
+        paint(&mut app);
+        app.start_mask_brush(None);
+        assert!(!app.has_painted_mask(), "the session starts on its own blank canvas");
+        assert!(app.area_painted(BrushOwner::Adjust), "Adjust's strokes wait in the store");
+        assert!(!app.brush_armed(BrushOwner::Adjust), "a session belongs to no tool");
+        app.disarm_brush();
+        assert!(app.mask_brush.is_none() && !app.paint_mode);
+        assert!(
+            app.has_painted_mask() && app.paint_owner == BrushOwner::Adjust,
+            "the session's end restores Adjust's area"
+        );
+
+        // The landing clears only the area its result consumed.
+        assert_eq!(RetouchNote::Filled(PathBuf::from("x.png")).consumed_area(), Some(BrushOwner::Fill));
+        assert_eq!(RetouchNote::Cloned { n: 1, out: PathBuf::from("x.png") }.consumed_area(), Some(BrushOwner::Stamp));
+        assert_eq!(
+            RetouchNote::Reimagined { out: PathBuf::from("x.png"), divergence: 0.1, discarded: None }.consumed_area(),
+            None
+        );
+        assert!(
+            include_str!("workers.rs").contains("if let Some(owner) = note.consumed_area()"),
+            "the landing clears through consumed_area"
+        );
+
+        // A plate rebind starts every tool blank.
+        app.rebind_paint_canvas(8, 6);
+        assert!(!app.area_painted(BrushOwner::Adjust) && !app.area_painted(BrushOwner::Stamp));
+        assert!(app.paint_store.iter().all(Option::is_none));
     }
