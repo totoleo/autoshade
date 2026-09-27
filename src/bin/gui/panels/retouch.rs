@@ -154,8 +154,8 @@ impl AutoShadeApp {
 
     /// Clone-stamp interaction: Alt+click picks the SOURCE point (stored in
     /// the original frame like every pixel-path coordinate); plain drags paint
-    /// the target with the shared brush. The picked source stays marked with
-    /// a crosshair ring so the offset is always visible.
+    /// the target into the Stamp's own area. The picked source stays marked
+    /// with a crosshair ring so the offset is always visible.
     pub(crate) fn handle_clone(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
         let alt = ui.input(|i| i.modifiers.alt);
         if alt {
@@ -258,8 +258,8 @@ impl AutoShadeApp {
         // (`generative::fill_prompt`), so an empty box is a verb, not an
         // error — the mask already says what should go.
         let prompt = self.fill_prompt.trim().to_string();
-        let Some(mask_png) = self.export_mask_png() else {
-            self.status = tr(lang, "paint the area to remove/fill first (tick Paint mask)").into();
+        let Some(mask_png) = self.export_area_png(BrushOwner::Fill) else {
+            self.status = tr(lang, "paint the area to remove or fill first (🖌 Paint area, in this fold)").into();
             return;
         };
         let Some(out) = unique_out(&src, "fill") else {
@@ -333,8 +333,9 @@ impl AutoShadeApp {
         );
     }
 
-    /// Edit the active generated card's live picture. The optional shared
-    /// brush chooses the region path at the click; blank means remove there.
+    /// Edit the active generated card's live picture. The fold's own painted
+    /// area (`BrushOwner::Adjust`) chooses the region path at the click; blank
+    /// means remove there.
     /// Every answer is a new ✨ card, so the source stays immutable and the
     /// result can be adjusted again or reverse-fit like any generated card.
     pub(crate) fn start_adjust(&mut self) {
@@ -345,7 +346,7 @@ impl AutoShadeApp {
         }
         let lang = self.lang;
         let prompt = self.adjust_prompt.trim().to_string();
-        let mask_png = self.export_mask_png();
+        let mask_png = self.export_area_png(BrushOwner::Adjust);
         let region = mask_png.is_some();
         let Some(out) = unique_out(&src, "adjust") else {
             self.status = tr(lang, "over 999 retouch masters for this photo — clean up ./out first").into();
@@ -420,11 +421,11 @@ impl AutoShadeApp {
         }
         let lang = self.lang; // pre-spawn UI statuses only; results land as FACTS (L12#4)
         let mask_png = if use_mask {
-            match self.export_mask_png() {
+            match self.export_area_png(BrushOwner::Heal) {
                 Some(b) => Some(b),
                 None => {
                     self.status =
-                        tr(lang, "tick Paint mask and paint the spots, then Heal painted area").into();
+                        tr(lang, "paint the spots first (🖌 Paint area, in this fold), then Heal area").into();
                     return;
                 }
             }
@@ -664,7 +665,7 @@ impl AutoShadeApp {
             self.status = tr(lang, "Alt+click to set the clone source first").into();
             return;
         };
-        let Some(mask_png) = self.export_mask_png() else {
+        let Some(mask_png) = self.export_area_png(BrushOwner::Stamp) else {
             self.status = tr(lang, "Brush the area to clone over first").into();
             return;
         };
@@ -925,6 +926,39 @@ impl AutoShadeApp {
         }
     }
 
+    /// ONE tool's brush controls, drawn inside that tool's fold (user
+    /// decision 2026-09-27: the brush a fold's verb reads sits in that fold,
+    /// and each fold has a painted area of its own — `BrushOwner`). The arm
+    /// toggle and the clear verb share a two-cell row; the radius slider
+    /// follows while this tool's brush is armed. The Clone Stamp arms through
+    /// its own 「⎘ Enter stamp」 toggle and lays its row itself.
+    pub(crate) fn brush_row(&mut self, ui: &mut egui::Ui, owner: BrushOwner) {
+        let lang = self.lang;
+        let armed = self.brush_armed(owner);
+        ui.horizontal(|ui| {
+            let cell = columns(ui, 2);
+            if toggle_in(ui, cell, armed, tr(lang, "🖌 Paint area"))
+                .on_hover_text(tr(lang, "Brush over the area this tool works on (box-select pauses while the brush is armed); click again or press Esc to put the brush away. Each tool keeps its own painted area."))
+                .clicked()
+            {
+                if armed {
+                    self.disarm_brush();
+                } else {
+                    self.arm_brush(owner);
+                }
+            }
+            if action_in(ui, cell, true, tr(lang, "Clear area"))
+                .on_hover_text(tr(lang, "Wipe this tool's painted area (the other tools' areas stay)"))
+                .clicked()
+            {
+                self.clear_area(owner);
+            }
+        });
+        if armed {
+            self.brush_size_slider(ui);
+        }
+    }
+
     pub(crate) fn retouch_panel(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         ui.separator();
@@ -973,8 +1007,8 @@ impl AutoShadeApp {
                     .small(),
                 );
                 ui.add_enabled_ui(!self.busy, |ui| {
-                    if action(ui, true, tr(lang, "✨ Regenerate those areas"))
-                        .on_hover_text(tr(lang, "Paint the synthesised areas into the shared brush mask and run the generative model over exactly them — an empty prompt removes, and the result lands as a new ✨ AI generated card (gpt-image API call — costs per image)"))
+                    if action_row(ui, true, tr(lang, "✨ Regenerate those areas"))
+                        .on_hover_text(tr(lang, "Paint the synthesised areas into Generative Fill's painted area and run the generative model over exactly them — an empty prompt removes, and the result lands as a new ✨ AI generated card (gpt-image API call — costs per image)"))
                         .clicked()
                     {
                         // Paint first, and only spawn if something landed —
@@ -988,34 +1022,12 @@ impl AutoShadeApp {
             }
         }
 
-        // Mask tools shared by Fill AND Heal — one brush, two consumers. They
-        // hang BARE between the sections that use them (#14b), which read as
-        // three peers with three loose controls above them; the caption says
-        // whose they are. NOT a collapsible on purpose: both Fill and Heal need
-        // to see the brush without opening anything. No fence of its own: the
-        // panel's separator + heading directly above IS this group's boundary,
-        // and a second hairline two lines under the first read as a stutter.
+        // Every brush lives in the fold whose verb reads it, with a painted
+        // area of its own (user decision 2026-09-27; `brush_row`, `BrushOwner`)
+        // — the one 「Brush (shared)」 group that hung bare above these three
+        // folds, and that the AI panel's Adjust fold read without a control of
+        // its own, is gone.
         ui.add_space(SPACE_XS);
-        group_caption(ui, tr(lang, "Brush (shared)"));
-        ui.horizontal(|ui| {
-            let r = ui
-                .checkbox(&mut self.paint_mode, tr(lang, "Paint mask"))
-                .on_hover_text(tr(lang, "Brush over the area; box-select is paused while on. Shared by Fill and Heal."));
-            if r.changed() {
-                // Both directions: arm (sweep the other tools) or un-arm
-                // (end a live mask-brush session instead of orphaning it).
-                // See paint_mode_toggled in actions.rs.
-                self.paint_mode_toggled();
-            }
-            if action(ui, true, tr(lang, "Clear brush"))
-                .on_hover_text(tr(lang, "Wipe the painted area (shared by Fill, Heal and Stamp)"))
-                .clicked()
-            {
-                self.clear_mask();
-            }
-        });
-        self.brush_size_slider(ui);
-
         egui::CollapsingHeader::new(tr(lang, "Generative Fill"))
             .id_salt("sec_fill")
             .default_open(false)
@@ -1033,10 +1045,10 @@ impl AutoShadeApp {
                 {
                     self.prompt_rects.push(_field.rect);
                 }
-                // R38: wrapped — quality, the full-res switch and the verb are
-                // 321 px at the 320 px default, and a plain row widened the
-                // panel; the verb is enabled on itself, not in a scope (a scope
-                // is laid at the cursor and never wraps).
+                self.brush_row(ui, BrushOwner::Fill);
+                // R38: wrapped — quality and the full-res switch share a row
+                // that wraps when short; the verb fills the row under them
+                // (2026-09-27: a row's one verb takes the whole row).
                 ui.horizontal_wrapped(|ui| {
                     egui::ComboBox::from_id_salt("fill_quality")
                         .selected_text(tr(lang, ["high", "medium", "low"][self.fill_quality.min(2)]))
@@ -1057,13 +1069,13 @@ impl AutoShadeApp {
                     // was a twin of the other three.
                     ui.add_enabled(src_is_raw, egui::Checkbox::new(&mut self.fill_fullres, tr(lang, "Full-res fill")))
                         .on_hover_text(tr(lang, "Composite onto the full-sensor develop (slow, RAW only)"));
-                    if primary(ui, !self.busy, tr(lang, "Remove / Fill"))
-                        .on_hover_text(tr(lang, "Regenerate ONLY the painted area — from your prompt, or as a removal when the prompt is empty (gpt-image API call — costs per image); the model sees this card's look, and the result is a new ✨ AI generated card — this card stays as it is"))
-                        .clicked()
-                    {
-                        self.start_fill();
-                    }
                 });
+                if primary_row(ui, !self.busy, tr(lang, "Remove / Fill"))
+                    .on_hover_text(tr(lang, "Regenerate ONLY the painted area — from your prompt, or as a removal when the prompt is empty (gpt-image API call — costs per image); the model sees this card's look, and the result is a new ✨ AI generated card — this card stays as it is"))
+                    .clicked()
+                {
+                    self.start_fill();
+                }
                 ui.label(
                     egui::RichText::new(tr(lang,
                         "Paint the area, then Remove/Fill. An empty prompt removes what you painted (the surroundings continue into it); write what belongs there to fill it with something else. The model sees this card's look and the result lands as a new ✨ AI generated card (crop / straighten are not carried — set them there); this card is untouched. Needs an image API (OPENAI_API_KEY, or the OAuth image bridge in Settings).",
@@ -1077,6 +1089,7 @@ impl AutoShadeApp {
             .id_salt("sec_heal")
             .default_open(false)
             .show(ui, |ui| {
+                self.brush_row(ui, BrushOwner::Heal);
                 // R38: the two heal verbs share one aligned row and the
                 // full-res switch sits under them — three free-width controls
                 // in a non-wrapping row overran the default panel width.
@@ -1121,36 +1134,45 @@ impl AutoShadeApp {
             .id_salt("sec_clone")
             .default_open(false)
             .show(ui, |ui| {
-                // R38: the arm/finish toggle and the stamp's one verb share an
-                // aligned row; the full-res switch sits under them.
+                // The stamp's arm toggle IS its brush toggle (Alt+click samples
+                // a source, plain drags paint the Stamp's own area), so the
+                // clear verb sits beside it, the radius follows while armed,
+                // and the stamp's one verb fills the row under them.
+                let armed = self.brush_armed(BrushOwner::Stamp);
                 ui.horizontal(|ui| {
                     let cell = columns(ui, 2);
-                    let label = if self.clone_mode { tr(lang, "✓ Done") } else { tr(lang, "⎘ Enter stamp") };
+                    let label = if armed { tr(lang, "✓ Done") } else { tr(lang, "⎘ Enter stamp") };
                     if action_in(ui, cell, true, label)
                         .on_hover_text(tr(lang, "Arm the stamp: Alt+click samples a source, the brush paints the target; your painted mask survives"))
                         .clicked()
                     {
-                        let on = !self.clone_mode;
-                        self.disarm_tools();
-                        self.clone_mode = on;
-                        // The painted canvas SURVIVES arming — it used to be
-                        // wiped here with no undo, so a mask painted for
-                        // Fill/Heal died the moment the user peeked at the
-                        // stamp. The explicit Clear button owns wiping.
-                        if on {
+                        if armed {
+                            self.disarm_brush();
+                        } else {
+                            // Arming brings the Stamp's own area onto the
+                            // canvas; what was painted for Fill / Heal stays
+                            // theirs. Only 「Clear area」 wipes.
+                            self.arm_brush(BrushOwner::Stamp);
                             self.status =
                                 tr(lang, "Stamp: Alt+click to set the source → brush the target area → 「⎘ Clone painted area」").into();
                         }
                     }
-                    ui.add_enabled_ui(!self.busy && self.clone_mode, |ui| {
-                        if primary_in(ui, cell, true, tr(lang, "⎘ Clone area"))
-                            .on_hover_text(tr(lang, "Copy the sampled source over the brushed area verbatim (feathered edges, no tone matching) — local compute"))
-                            .clicked()
-                        {
-                            self.start_clone();
-                        }
-                    });
+                    if action_in(ui, cell, true, tr(lang, "Clear area"))
+                        .on_hover_text(tr(lang, "Wipe this tool's painted area (the other tools' areas stay)"))
+                        .clicked()
+                    {
+                        self.clear_area(BrushOwner::Stamp);
+                    }
                 });
+                if armed {
+                    self.brush_size_slider(ui);
+                }
+                if primary_row(ui, !self.busy && self.clone_mode, tr(lang, "⎘ Clone area"))
+                    .on_hover_text(tr(lang, "Copy the sampled source over the brushed area verbatim (feathered edges, no tone matching) — local compute"))
+                    .clicked()
+                {
+                    self.start_clone();
+                }
                 // Enabled for BAKED sources too — clone_stamp honours
                 // the flag on both source types (retouch.rs), the same
                 // rule as Heal beside it (L15-7).

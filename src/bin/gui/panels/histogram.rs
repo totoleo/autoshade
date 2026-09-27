@@ -12,10 +12,18 @@ impl AutoShadeApp {
         let lang = self.lang;
         let Some(hist) = &self.histogram else { return };
         let h = 72.0;
+        // The readout keeps the panel's readable ceiling (`FIELD_W_MAX`), as
+        // the prompt fields and the button rows do: the side panel itself is
+        // free to grow for the curve and HSL editors, and the histogram used
+        // to grow with it without limit (user report 2026-09-27).
         let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(ui.available_width(), h),
+            egui::vec2(ui.available_width().min(FIELD_W_MAX), h),
             egui::Sense::hover(),
         );
+        #[cfg(test)]
+        {
+            self.histogram_rect = Some(rect);
+        }
         let p = ui.painter_at(rect);
         p.rect_filled(rect, RADIUS_SM, egui::Color32::from_gray(16));
         let n = hist.len().max(1);

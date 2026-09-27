@@ -71,9 +71,9 @@ impl AutoShadeApp {
         );
     }
 
-    /// Paint the imported removals ADOBE SYNTHESISED into the shared brush
-    /// mask, so the generative verb can be run over exactly them and nothing
-    /// else (v1.5.0 F9, the second half of the user's ruling: local repair at
+    /// Paint the imported removals ADOBE SYNTHESISED into Generative Fill's
+    /// painted area, so the generative verb can be run over exactly them and
+    /// nothing else (v1.5.0 F9, the second half of the user's ruling: local repair at
     /// import, generative re-solve on request).
     ///
     /// Returns how many areas were painted, so the caller can stay silent when
@@ -102,6 +102,8 @@ impl AutoShadeApp {
         if wanted.is_empty() {
             return 0;
         }
+        // Fill's own area — the verb these shapes are painted for.
+        self.select_brush_owner(BrushOwner::Fill);
         // At the PREVIEW's dimensions, which is the frame the brush paints in
         // and the frame `export_mask_png` hands on.
         if self.mask_paint.as_ref().is_none_or(|m| m.dimensions() != (mw, mh)) {
@@ -180,18 +182,7 @@ impl AutoShadeApp {
         if !self.has_painted_mask() {
             return None;
         }
-        let m = self.mask_paint.as_ref()?;
-        let (w, h) = (m.width(), m.height());
-        let mut out = image::RgbaImage::new(w, h);
-        for (x, y, p) in m.enumerate_pixels() {
-            let painted = p.0[3] > 10;
-            out.put_pixel(x, y, image::Rgba([0, 0, 0, if painted { 0 } else { 255 }]));
-        }
-        let mut buf = Vec::new();
-        image::DynamicImage::ImageRgba8(out)
-            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
-            .ok()?;
-        Some(buf)
+        export_png_of(self.mask_paint.as_ref()?)
     }
 
     pub(crate) fn clear_mask(&mut self) {
@@ -219,6 +210,142 @@ impl AutoShadeApp {
         self.paint_last = None;
     }
 
+    /// Bring `owner`'s area onto the canvas. The owner that was there goes to
+    /// the store with its presence memo; the requested one comes back the
+    /// same way, or blank at the canvas' size when it has none. A live
+    /// mask-brush session ends first (its strokes belong to no tool, and
+    /// `end_mask_brush` puts the stashed area back before the swap).
+    pub(crate) fn select_brush_owner(&mut self, owner: BrushOwner) {
+        self.end_mask_brush();
+        if owner == self.paint_owner {
+            return;
+        }
+        let Some(cur) = self.mask_paint.take() else {
+            // No canvas yet (no photo open): only the label moves.
+            self.paint_owner = owner;
+            return;
+        };
+        let (w, h) = cur.dimensions();
+        self.paint_store[self.paint_owner.slot()] =
+            Some(PaintArea { canvas: cur, painted: std::cell::Cell::new(self.mask_painted.get()) });
+        let (canvas, painted) = match self.paint_store[owner.slot()].take() {
+            Some(a) => (a.canvas, a.painted.get()),
+            None => (image::RgbaImage::new(w, h), Some(false)),
+        };
+        self.mask_paint = Some(canvas);
+        self.paint_mask_changed(painted);
+        // The whole canvas changed (see clear_mask on the pending sub-rect).
+        self.mask_dirty_rect = None;
+        self.paint_last = None;
+        self.paint_owner = owner;
+    }
+
+    /// Stash the live owner's area for a mask-brush session, which takes the
+    /// canvas; `end_mask_brush` puts it back through `unstash_owner_area`.
+    fn stash_owner_area(&mut self) {
+        if let Some(cur) = self.mask_paint.take() {
+            self.paint_store[self.paint_owner.slot()] =
+                Some(PaintArea { canvas: cur, painted: std::cell::Cell::new(self.mask_painted.get()) });
+        }
+    }
+
+    /// The twin of `stash_owner_area`, once the session's canvas is gone: the
+    /// owner's area returns unscanned; with nothing stashed the canvas stays
+    /// as the caller left it (blank).
+    pub(crate) fn unstash_owner_area(&mut self) {
+        if let Some(a) = self.paint_store[self.paint_owner.slot()].take() {
+            let painted = a.painted.get();
+            self.mask_paint = Some(a.canvas);
+            self.paint_mask_changed(painted);
+            self.mask_dirty_rect = None;
+            self.paint_last = None;
+        }
+    }
+
+    /// Whether `owner`'s brush is the armed canvas tool: the Stamp paints
+    /// through `clone_mode`, the other three through `paint_mode`, and a
+    /// live mask-brush session belongs to none of them.
+    pub(crate) fn brush_armed(&self, owner: BrushOwner) -> bool {
+        self.mask_brush.is_none()
+            && self.paint_owner == owner
+            && if owner == BrushOwner::Stamp { self.clone_mode } else { self.paint_mode }
+    }
+
+    /// Arm `owner`'s brush: its area comes onto the canvas, every other
+    /// canvas tool is swept (the one exclusion, `disarm_tools`), then the
+    /// brush flag goes up — the Stamp's `clone_mode`, the others' `paint_mode`.
+    pub(crate) fn arm_brush(&mut self, owner: BrushOwner) {
+        self.select_brush_owner(owner);
+        self.disarm_tools();
+        if owner == BrushOwner::Stamp {
+            self.clone_mode = true;
+        } else {
+            self.paint_mode = true;
+        }
+    }
+
+    /// Put the brush away — the arm toggle's second click. A live mask-brush
+    /// session is a cancel too (R22-3: an orphaned session's Apply row would
+    /// bake stale weights), and `end_mask_brush` restores the owner's area.
+    pub(crate) fn disarm_brush(&mut self) {
+        self.paint_mode = false;
+        self.clone_mode = false;
+        self.paint_last = None;
+        self.end_mask_brush();
+    }
+
+    /// The K key: toggle the brush of the tool whose area is on the canvas;
+    /// during a mask-brush session it is that session's Esc, as before.
+    pub(crate) fn toggle_brush_key(&mut self) {
+        if self.mask_brush.is_some() {
+            self.disarm_tools();
+        } else if self.brush_armed(self.paint_owner) {
+            self.disarm_brush();
+        } else {
+            self.arm_brush(self.paint_owner);
+        }
+    }
+
+    /// Wipe `owner`'s area, on the canvas or in the store; the other tools'
+    /// areas stay.
+    pub(crate) fn clear_area(&mut self, owner: BrushOwner) {
+        if owner == self.paint_owner && self.mask_brush.is_none() {
+            self.clear_mask();
+        } else {
+            self.paint_store[owner.slot()] = None;
+        }
+    }
+
+    /// Whether `owner`'s area has strokes (the export's alpha > 10 predicate),
+    /// memoised per area exactly as `has_painted_mask` memoises the canvas'.
+    pub(crate) fn area_painted(&self, owner: BrushOwner) -> bool {
+        if owner == self.paint_owner && self.mask_brush.is_none() {
+            return self.has_painted_mask();
+        }
+        self.paint_store[owner.slot()].as_ref().is_some_and(|a| {
+            if let Some(p) = a.painted.get() {
+                return p;
+            }
+            #[cfg(test)]
+            self.mask_presence_scans.set(self.mask_presence_scans.get() + 1);
+            let p = a.canvas.pixels().any(|px| px[3] > 10);
+            a.painted.set(Some(p));
+            p
+        })
+    }
+
+    /// PNG bytes of `owner`'s EXPORT mask (see `export_mask_png`); None when
+    /// nothing is painted there.
+    pub(crate) fn export_area_png(&self, owner: BrushOwner) -> Option<Vec<u8>> {
+        if owner == self.paint_owner && self.mask_brush.is_none() {
+            return self.export_mask_png();
+        }
+        if !self.area_painted(owner) {
+            return None;
+        }
+        export_png_of(&self.paint_store[owner.slot()].as_ref()?.canvas)
+    }
+
     /// Arm a mask-brush session: `target = None` paints a NEW Bitmap mask on
     /// Apply; `Some(i)` edits mask `i`'s raster — seeded into the canvas (as
     /// the red display wash) and the greyscale weight buffer, at canvas
@@ -227,6 +354,8 @@ impl AutoShadeApp {
         self.disarm_tools();
         let Some(base) = self.base_preview.as_ref() else { return };
         let (mw, mh) = base.dimensions();
+        // The session takes the canvas; the owner's area waits in the store.
+        self.stash_owner_area();
         let mut gray = image::GrayImage::new(mw, mh);
         let mut canvas = image::RgbaImage::new(mw, mh);
         // The raster this session SEEDS from, asked by file and not by variant
@@ -520,4 +649,20 @@ impl AutoShadeApp {
             |e| Msg::MaskRefined(Err(e)),
         );
     }
+}
+
+/// PNG bytes of one canvas' EXPORT mask: painted → transparent (regenerate /
+/// heal here), unpainted → opaque — the alpha > 10 predicate of `has_painted_mask`.
+fn export_png_of(m: &image::RgbaImage) -> Option<Vec<u8>> {
+    let (w, h) = (m.width(), m.height());
+    let mut out = image::RgbaImage::new(w, h);
+    for (x, y, p) in m.enumerate_pixels() {
+        let painted = p.0[3] > 10;
+        out.put_pixel(x, y, image::Rgba([0, 0, 0, if painted { 0 } else { 255 }]));
+    }
+    let mut buf = Vec::new();
+    image::DynamicImage::ImageRgba8(out)
+        .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+        .ok()?;
+    Some(buf)
 }

@@ -2545,7 +2545,11 @@ impl AutoShadeApp {
                     match done {
                     Ok((img, note, saved, kind)) => {
                         let msg = Self::render_retouch_note(lang, &note);
-                        self.clear_mask();
+                        // The tool this result consumed starts clean; the
+                        // other tools' areas are theirs to keep (2026-09-27).
+                        if let Some(owner) = note.consumed_area() {
+                            self.clear_area(owner);
+                        }
                         match kind {
                             RetouchKind::NewGenerated => {
                                 // Whole-frame reimagine → a NEW「AI 生成」variant

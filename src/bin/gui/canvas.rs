@@ -498,7 +498,12 @@ impl AutoShadeApp {
             if self.mask_brush.is_some() {
                 tr(lang, "Mask brush — paint to select · 「Erase」 removes · 「Apply」 bakes · Esc cancels")
             } else {
-                tr(lang, "Brush — paint over the area to fill / heal · Esc to exit")
+                match self.paint_owner {
+                    BrushOwner::Fill => tr(lang, "Brush — paint the area to remove or fill · Esc to exit"),
+                    BrushOwner::Heal => tr(lang, "Brush — paint the area to heal · Esc to exit"),
+                    BrushOwner::Stamp => tr(lang, "Brush — paint the area to clone over · Esc to exit"),
+                    BrushOwner::Adjust => tr(lang, "Brush — paint the area to adjust · Esc to exit"),
+                }
             }
         } else {
             tr(lang, "After — drag a box = local AI · scroll to zoom · space/middle-drag to pan · hold B to compare")

@@ -841,6 +841,9 @@ impl AutoShadeApp {
                 // and a plain `horizontal` never wraps: it widened the
                 // auto-fitting panel by 64 px, the widest row in this panel.
                 ui.horizontal_wrapped(|ui| {
+                    // One cell of the grid for the eyedropper, measured at the
+                    // row's start (2026-09-27); it wraps under the checkbox.
+                    let cell = columns(ui, 2);
                     // A nonzero tint IS a WB edit (recipes saved before the
                     // uncheck-zeroes-tint fix can carry one with no Temp) —
                     // showing "off = as-shot" over an active tint, with its
@@ -862,7 +865,7 @@ impl AutoShadeApp {
                         changed = true;
                     }
                     let label = if self.wb_picking { tr(lang, "💧 Click in image…") } else { tr(lang, "💧 Eyedropper") };
-                    if action(ui, true, label)
+                    if action_in(ui, cell, true, label)
                         .on_hover_text(tr(lang,
                             "Click a spot in the image that should be neutral grey/white to auto-solve Temp/Tint (same forward model as the engine). Click again to cancel.",
                         ))
@@ -1110,6 +1113,8 @@ impl AutoShadeApp {
         // the two switches produced it (v1.5.0 F7 — see the mixer above).
         ui.add_enabled_ui(!self.recipe.renders_grayscale(), |ui| {
             ui.horizontal_wrapped(|ui| {
+                // One cell of the grid beside the caption (2026-09-27).
+                let cell = columns(ui, 2);
                 ui.label(egui::RichText::new(tr(lang, "Point Color")).weak().small());
                 let label = if self.point_color_picking {
                     tr(lang, "💧 Click in image…")
@@ -1117,7 +1122,7 @@ impl AutoShadeApp {
                     tr(lang, "💧 Pick a color")
                 };
                 let room = self.recipe.point_colors.len() < MAX_POINT_COLORS;
-                if action(ui, room, label)
+                if action_in(ui, cell, room, label)
                     .on_hover_text(tr(lang,
                         "Click a colour in the image to add a swatch; its sliders then move that colour alone. Click again to cancel.",
                     ))
@@ -1437,7 +1442,7 @@ impl AutoShadeApp {
                     let missing = tr(lang,
                         "this build did not ship the python sidecars — run AutoShade from the project directory, or point AUTOSHADE_DENOISE_SCRIPT and AUTOSHADE_DENOISE_RAW_SCRIPT at python/denoise.py and python/denoise_raw.py",
                     );
-                    if action(ui, ready, tr(lang, "🤖 AI Denoise now"))
+                    if action_row(ui, ready, tr(lang, "🤖 AI Denoise now"))
                         // 🤖 + the cross-reference line (#4): this verb stays
                         // beside Noise Reduction on purpose, so its tooltip is
                         // where it says the rest of the AI moved to. On the arm
@@ -1511,7 +1516,7 @@ impl AutoShadeApp {
                 ui.add_space(SPACE_SM);
                 ui.horizontal(|ui| {
                     let ready = self.src_path.is_some() && !self.busy;
-                    if action(ui, ready, tr(lang, "▦ Stack with other frames…"))
+                    if action_row(ui, ready, tr(lang, "▦ Stack with other frames…"))
                         .on_hover_text(tr(
                             lang,
                             "Pick the other frames of this scene. They must be the same size as this one; the merge runs at full resolution and lands as a new ▦ card carrying this card's develop, and the frame you started from keeps its pixels.",
@@ -1949,15 +1954,30 @@ impl AutoShadeApp {
             .id_salt("sec_crop")
             .default_open(false)
             .show(ui, |ui| {
+                // The two verbs share the row as equal cells and the aspect
+                // preset sits under them on a captioned row of its own
+                // (2026-09-27): a 70 px combo between two own-width verbs was
+                // the one three-item row in this panel.
                 ui.horizontal(|ui| {
+                    let cell = columns(ui, 2);
                     // ✓ (geometric) — same finish-glyph as 「✓ Apply」; the
                     // emoji ✅ was the odd one out of the check family.
                     let label = if self.crop_mode { tr(lang, "✓ Done") } else { tr(lang, "Enter crop") };
-                    if action(ui, true, label).clicked() {
+                    if action_in(ui, cell, true, label).clicked() {
                         let on = !self.crop_mode;
                         self.disarm_tools();
                         self.set_crop_mode(on);
                     }
+                    if action_in(ui, cell, true, tr(lang, "Clear crop")).clicked()
+                        && self.recipe.crop.take().is_some()
+                    {
+                        // Through the panel's own change path: clamp + dirty,
+                        // so the crop-restricted histogram/clipping refresh.
+                        changed = true;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(tr(lang, "Aspect")).weak().small());
                     let prev_aspect = self.crop_aspect;
                     egui::ComboBox::from_id_salt("crop_aspect")
                         .selected_text(tr(lang, CROP_ASPECTS[self.crop_aspect].0))
@@ -1978,13 +1998,6 @@ impl AutoShadeApp {
                     // arm-for-the-next-drag meaning.
                     if self.crop_aspect != prev_aspect && self.crop_mode {
                         self.crop_aspect_pending = true;
-                    }
-                    if action(ui, true, tr(lang, "Clear crop")).clicked()
-                        && self.recipe.crop.take().is_some()
-                    {
-                        // Through the panel's own change path: clamp + dirty,
-                        // so the crop-restricted histogram/clipping refresh.
-                        changed = true;
                     }
                 });
                 // Straighten: rotate + auto-crop (engine rotate_straighten);
@@ -2952,13 +2965,21 @@ impl AutoShadeApp {
                         }
                         Some(RangeMask::Color { r, g, b, amount, .. }) => {
                             ui.horizontal(|ui| {
+                                let full = columns(ui, 1);
                                 let mut c = [*r, *g, *b];
-                                if ui.color_edit_button_rgb(&mut c).changed() {
+                                let swatch = ui.color_edit_button_rgb(&mut c);
+                                if swatch.changed() {
                                     [*r, *g, *b] = [c[0], c[1], c[2]];
                                     changed = true;
                                 }
+                                // The verb fills the rest of the row after the
+                                // swatch (2026-09-27), as the gallery's ✕ row does.
+                                let cell = egui::vec2(
+                                    (full.x - swatch.rect.width() - ui.spacing().item_spacing.x).max(0.0),
+                                    full.y,
+                                );
                                 let label = if picking_this { tr(lang, "💧 Click in image…") } else { tr(lang, "💧 Sample") };
-                                if action(ui, true, label).on_hover_text(tr(lang, "Click the color to pick in the image (the same color at other brightnesses is also selected; clicking this button again cancels sampling)")).clicked() {
+                                if action_in(ui, cell, true, label).on_hover_text(tr(lang, "Click the color to pick in the image (the same color at other brightnesses is also selected; clicking this button again cancels sampling)")).clicked() {
                                     want_pick = true;
                                 }
                             });
@@ -3077,13 +3098,16 @@ impl AutoShadeApp {
                 // slider — a disclosure plus the one action that makes sense
                 // on a value the user never typed.
                 if m.color_gains.is_some() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        // One cell of the grid, measured at the row's start;
+                        // it wraps under the note when the note is long (2026-09-27).
+                        let cell = columns(ui, 2);
                         ui.label(
                             egui::RichText::new(tr(lang, "carries reverse-fit recolour (not exported to XMP)"))
                                 .weak()
                                 .small(),
                         );
-                        if action(ui, true, tr(lang, "↺ Clear"))
+                        if action_in(ui, cell, true, tr(lang, "↺ Clear"))
                             .on_hover_text(tr(lang, "Drop this mask's per-channel recolour gains (one Ctrl+Z to undo)"))
                             .clicked()
                         {
@@ -3653,7 +3677,7 @@ impl AutoShadeApp {
                 } else {
                     tr(lang, "Copy this photo's stored Lightroom/ACR sidecar into the photo's own folder, where Lightroom reads it. Save the develop first — this delivers what is stored, not what is unsaved on the canvas.")
                 };
-                if action(ui, raw && !self.busy, label)
+                if action_row(ui, raw && !self.busy, label)
                     .on_hover_text(hint)
                     .clicked()
                 {

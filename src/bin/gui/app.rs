@@ -280,6 +280,10 @@ pub(crate) struct AutoShadeApp {
     // Presence is independent of the texture upload flag: None means one
     // scan is due after a change; Some is an O(1) answer on every frame.
     pub(crate) mask_painted: std::cell::Cell<Option<bool>>,
+    /// Whose area the canvas holds (`BrushOwner`); the other tools' areas
+    /// wait in `paint_store`, by `BrushOwner::slot` (None = blank).
+    pub(crate) paint_owner: BrushOwner,
+    pub(crate) paint_store: [Option<PaintArea>; BrushOwner::COUNT],
     #[cfg(test)]
     pub(crate) mask_presence_scans: std::cell::Cell<usize>,
     pub(crate) mask_tex: Option<egui::TextureHandle>, // overlay texture
@@ -418,6 +422,8 @@ pub(crate) struct AutoShadeApp {
     pub(crate) gallery_thumb_rect: Option<egui::Rect>, // test seam: … and the image drawn inside it
     #[cfg(test)]
     pub(crate) brush_slider_rect: Option<egui::Rect>, // test seam: the last Brush size slider's rect
+    #[cfg(test)]
+    pub(crate) histogram_rect: Option<egui::Rect>, // test seam: the histogram readout's rect
     /// Test seam (#14a): every prompt field laid out this frame, in draw order
     /// (Direction, Reimagine, Generative Fill). A Vec, not three Options: the
     /// width cap is ONE rule and the test asserts it over the whole set, so a
@@ -850,9 +856,7 @@ impl AutoShadeApp {
                 self.clone_mode = on;
             }
             if do_brush && self.src_path.is_some() {
-                let on = !self.paint_mode;
-                self.disarm_tools();
-                self.paint_mode = on;
+                self.toggle_brush_key();
             }
             if do_linear && self.src_path.is_some() {
                 let armed = matches!(self.placing_mask, Some((MaskKind::Linear, PlaceTarget::NewMask)));
@@ -1743,6 +1747,8 @@ impl Default for AutoShadeApp {
             brush: 30.0,
             mask_paint: None,
             mask_painted: std::cell::Cell::new(None),
+            paint_owner: BrushOwner::Fill,
+            paint_store: Default::default(),
             #[cfg(test)]
             mask_presence_scans: std::cell::Cell::new(0),
             mask_tex: None,
@@ -1809,6 +1815,8 @@ impl Default for AutoShadeApp {
             gallery_thumb_rect: None,
             #[cfg(test)]
             brush_slider_rect: None,
+            #[cfg(test)]
+            histogram_rect: None,
             #[cfg(test)]
             prompt_rects: Vec::new(),
             #[cfg(test)]

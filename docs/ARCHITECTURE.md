@@ -2761,8 +2761,13 @@ landing for an active Generated or Edited card. Its own prompt and quality
 live in `ai_adjust`, directly after `ai_generate`; `can_adjust` requires
 `!busy && active_on_ai_pixels() && (has_painted_mask() || !adjust_prompt.trim().is_empty())`.
 The prompt stays transient like Reimagine's; `Prefs::adjust_quality` persists
-with a default of high for older files. The shared brush is the only input
-outside the fold, and its status uses the export's alpha > 10 predicate.
+with a default of high for older files. Each brush tool keeps its own painted
+area (`BrushOwner`, 2026-09-27): the canvas holds the selected owner's, the
+others wait in `paint_store`, `select_brush_owner` swaps them with their
+presence memos, and each fold's `brush_row` arms and clears its own. A Local
+Masks brush session stashes the owner's area and `end_mask_brush` restores it.
+`can_adjust` reads `area_painted(BrushOwner::Adjust)` — the export's alpha > 10
+predicate, memoised per area; a landing clears only the area its note consumed.
 `has_painted_mask` memoizes that answer beside the buffer, independently of the
 texture-upload flag: at most one scan after an unknown change, O(1) on unchanged
 frames. All buffer replacements and writes notify `paint_mask_changed`, the

@@ -98,33 +98,57 @@ impl AutoShadeApp {
         // develop_panel wraps its sections, so the two read the same mid-open
         // (greyed) instead of one panel looking live beside a dead one.
         ui.add_enabled_ui(editable, |ui| {
-            egui::CollapsingHeader::new(section_title(tr(lang, "AI"), ai_active))
-                .id_salt("sec_ai")
-                .default_open(true)
-                .show(ui, |ui| {
-                    #[cfg(test)]
-                    {
-                        // The gate's own witness: a comment cannot keep it here.
-                        self.ai_gate_enabled = Some(ui.is_enabled());
-                    }
-                    self.ai_analysis(ui);
-                    self.ai_libraries(ui);
-                    self.ai_generate(ui);
-                    self.ai_adjust(ui);
-                    self.ai_reverse_fit(ui);
-                    // Where the AI verbs that did NOT move to this panel live.
-                    // A panel called "AI" reads as the complete inventory
-                    // otherwise, and the pixel-level tools are deliberately
-                    // elsewhere.
-                    ui.add_space(SPACE_XS);
-                    ui.label(
-                        egui::RichText::new(tr(lang,
-                            "Pixel-level AI tools stay at their tools: select subject / select sky in Local Masks, denoise in Detail, heal and fill in Retouch.",
-                        ))
-                        .weak()
-                        .small(),
-                    );
-                });
+            // A section header like Develop's and Retouch's, only collapsible.
+            // `CollapsingHeader` indents its body, which set every AI row
+            // 18 px right of the other two panels' rows and cut its cells by
+            // 9 px (2026-09-27): the body is laid UNINDENTED, and the folds
+            // inside keep their own indent, so their rows start where a
+            // Develop fold's do. Same persistent id as the header it
+            // replaces, so an open state a user already has carries over.
+            let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                ui.ctx(),
+                ui.make_persistent_id("sec_ai"),
+                true,
+            );
+            let header = ui.horizontal(|ui| {
+                state.show_toggle_button(ui, egui::collapsing_header::paint_default_icon);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(section_title(tr(lang, "AI"), ai_active))
+                            .text_style(egui::TextStyle::Button),
+                    )
+                    .sense(egui::Sense::click()),
+                )
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+            });
+            if header.inner.clicked() {
+                state.toggle(ui);
+            }
+            state.show_body_unindented(ui, |ui| {
+                #[cfg(test)]
+                {
+                    // The gate's own witness: a comment cannot keep it here.
+                    self.ai_gate_enabled = Some(ui.is_enabled());
+                }
+                self.ai_analysis(ui);
+                self.ai_libraries(ui);
+                self.ai_generate(ui);
+                self.ai_adjust(ui);
+                self.ai_reverse_fit(ui);
+                // Where the AI verbs that did NOT move to this panel live.
+                // A panel called "AI" reads as the complete inventory
+                // otherwise, and the pixel-level tools are deliberately
+                // elsewhere.
+                ui.add_space(SPACE_XS);
+                ui.label(
+                    egui::RichText::new(tr(lang,
+                        "Pixel-level AI tools stay at their tools: select subject / select sky in Local Masks, denoise in Detail, heal and fill in Retouch.",
+                    ))
+                    .weak()
+                    .small(),
+                );
+            });
+            state.store(ui.ctx());
         });
         ui.add_space(SPACE_MD); // fence to the Develop heading below
     }
@@ -1002,11 +1026,11 @@ impl AutoShadeApp {
             });
     }
 
-    /// Adjust owns every input except the explicitly shared painted mask.
+    /// Adjust owns every input, its painted area included (`BrushOwner::Adjust`).
     /// Generated and Edited both read AI pixels; the negative never does.
     pub(crate) fn can_adjust(&self) -> bool {
         !self.busy && self.active_on_ai_pixels()
-            && (self.has_painted_mask() || !self.adjust_prompt.trim().is_empty())
+            && (self.area_painted(BrushOwner::Adjust) || !self.adjust_prompt.trim().is_empty())
     }
 
     fn ai_adjust(&mut self, ui: &mut egui::Ui) {
@@ -1035,17 +1059,20 @@ impl AutoShadeApp {
                     })
                     .response
                     .on_hover_text(tr(lang, "gpt-image render quality — higher looks better and costs more per image"));
+                // This fold's own brush and painted area (2026-09-27): it used
+                // to read the Retouch panel's shared mask with no control here.
+                self.brush_row(ui, BrushOwner::Adjust);
                 let note = if !self.active_on_ai_pixels() {
                     tr(lang, "select a ✨ AI generated card (or its ✎ edit) first")
-                } else if self.has_painted_mask() {
-                    tr(lang, "painted area only (shared brush)")
+                } else if self.area_painted(BrushOwner::Adjust) {
+                    tr(lang, "painted area only")
                 } else {
                     tr(lang, "whole image (paint an area to limit it)")
                 };
                 ui.label(egui::RichText::new(note).weak().small());
-                let resp = primary(ui, self.can_adjust(), tr(lang, "✨ Adjust"))
+                let resp = primary_row(ui, self.can_adjust(), tr(lang, "✨ Adjust"))
                     .on_hover_text(tr(lang,
-                        "Change the generated picture with the prompt: the whole image, or only the painted area when the shared brush has strokes (blank = remove there). One gpt-image call per adjust — costs per image. The result is a new ✨ AI generated card; this card stays as it is; crop / straighten are not carried (set them on the new card). Needs an image API (OPENAI_API_KEY, or the OAuth image bridge in Settings).",
+                        "Change the generated picture with the prompt: the whole image, or only the painted area when this fold's brush has strokes (blank = remove there). One gpt-image call per adjust — costs per image. The result is a new ✨ AI generated card; this card stays as it is; crop / straighten are not carried (set them on the new card). Needs an image API (OPENAI_API_KEY, or the OAuth image bridge in Settings).",
                     ));
                 #[cfg(test)]
                 {
@@ -1106,7 +1133,10 @@ impl AutoShadeApp {
             let mut pick_ref = false;
             let mut clear_ref = false;
             ui.horizontal_wrapped(|ui| {
-                if action(ui, !self.busy, tr(lang, "Choose reference…"))
+                // One cell of the grid, measured at the row's start; the file
+                // name and its ✕ follow, wrapping under when short (2026-09-27).
+                let cell = columns(ui, 2);
+                if action_in(ui, cell, !self.busy, tr(lang, "Choose reference…"))
                     .on_hover_text(tr(lang,
                         "Reverse-fit toward ANY finished version of THIS SAME photo — your own \
                          Lightroom/Capture One export, the camera's JPEG, a TIFF, or another RAW \

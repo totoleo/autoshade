@@ -28,7 +28,14 @@
 //! Rows of equal verbs in the side panels lay out on [`columns`]: every
 //! button in the row takes the same width, so the row lands in aligned
 //! columns, left-aligned within the same [`FIELD_W_MAX`] readable ceiling
-//! as the prompt fields, even when the panel is wider. The toolbar wraps only
+//! as the prompt fields, even when the panel is wider. Since 2026-09-27 (user
+//! decision, after a probe of every drawn button) EVERY text verb in a side
+//! panel is laid in a cell: a row's one verb fills the row ([`action_row`] /
+//! [`primary_row`]), two or three share it equally, and a verb beside a
+//! checkbox or a label takes one cell of the two-column grid measured at the
+//! row's start — so every row of a panel ends on the same right edge, and no
+//! verb is sized by the length of its own label. The toolbar, the dialogs and
+//! the Settings window keep own-width verbs, as toolbars do. The toolbar wraps only
 //! between its [`group`]s, each measured from its labels so egui can place it whole.
 //! `every_button_stands_one_row_tall_at_the_default_widths` renders every
 //! panel in both languages over three frames and pins the height, the
@@ -65,6 +72,9 @@ pub(crate) struct Drawn {
     pub(crate) rect: egui::Rect,
     /// Whether the label fit its cell on one line — measured, not assumed.
     pub(crate) fits: bool,
+    /// Whether the button was laid in a grid cell (the side-panel rule) or at
+    /// its own width (the toolbar's).
+    pub(crate) cell: bool,
 }
 
 #[cfg(test)]
@@ -122,7 +132,7 @@ fn place(
         None => ui.add_enabled(enabled, button),
     };
     #[cfg(test)]
-    DRAWN.with_borrow_mut(|d| d.push(Drawn { kind, label, rect: response.rect, fits }));
+    DRAWN.with_borrow_mut(|d| d.push(Drawn { kind, label, rect: response.rect, fits, cell: cell.is_some() }));
     response
 }
 
@@ -193,6 +203,18 @@ pub(crate) fn primary(ui: &mut egui::Ui, enabled: bool, text: impl Into<String>)
 /// The group's one main verb filling one grid cell of the row.
 pub(crate) fn primary_in(ui: &mut egui::Ui, cell: egui::Vec2, enabled: bool, text: impl Into<String>) -> egui::Response {
     place(ui, "primary", Some(cell), enabled, primary_text(text), |b| b.fill(PILL))
+}
+
+/// A row's one secondary verb, filling the row (one cell of [`columns`] 1).
+pub(crate) fn action_row(ui: &mut egui::Ui, enabled: bool, text: impl Into<egui::WidgetText>) -> egui::Response {
+    let cell = columns(ui, 1);
+    action_in(ui, cell, enabled, text)
+}
+
+/// A row's one main verb, filling the row.
+pub(crate) fn primary_row(ui: &mut egui::Ui, enabled: bool, text: impl Into<String>) -> egui::Response {
+    let cell = columns(ui, 1);
+    primary_in(ui, cell, enabled, text)
 }
 
 /// The primary verb as a builder, for the one row that sizes its button by

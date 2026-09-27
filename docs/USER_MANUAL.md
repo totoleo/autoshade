@@ -427,13 +427,16 @@ it found, and the canvas already has them off. Those repairs are AutoShade's
 own: for all but the plainest kind Lightroom keeps its result in Adobe's store
 rather than in the sidecar, so the panel also says how many areas Adobe
 synthesised and leaves a **✨ Regenerate those areas** button, which paints
-exactly those shapes into the shared brush mask and re-runs the generative
+exactly those shapes into Generative Fill's painted area and re-runs the generative
 model over them (an empty prompt removes; the result lands as a new ✨ card
 like any other fill). One thing to know when you save: a merge into an existing
 `.xmp` keeps your original removal block untouched, but a sidecar written where
 none existed carries no removals at all, and the save line names that.
 
-A generative fill is not an in-place retouch. The model is shown the active
+Each of Generative Fill, Heal and Clone Stamp carries its own **🖌 Paint area**
+/ **Clear area** row and its own painted area — what you paint for one tool is
+not what another reads — and the **Brush size** slider appears under whichever
+brush is armed. A generative fill is not an in-place retouch. The model is shown the active
 card's developed picture — its sliders and masks applied, in the uncropped
 frame the brush paints in — the painted area is regenerated (an empty prompt
 removes it), and the result lands as a new **✨ AI generated** card: its look
@@ -1035,11 +1038,14 @@ settings file can supply them.
 
 - **Adjust generated image · paid API:** the fold directly after Reimagine in
   the AI panel edits the selected **✨ AI generated** card or its **✎** edit.
-  It has its own prompt and remembered high/medium/low quality. With no brush
-  strokes, enter what to change (for example, "make the sky bluer") and click
-  **✨ Adjust** to edit the whole image. With strokes in the shared brush mask,
-  only the painted area is regenerated; leave the prompt blank to remove what
-  you painted. The line above the button says which area it will read. A blank
+  It has its own prompt, remembered high/medium/low quality, and its own
+  **🖌 Paint area** / **Clear area** pair: every tool that takes a brush
+  (Generative Fill, Heal, Clone Stamp and this fold) keeps a painted area of
+  its own, and only that tool's verb reads it. With no strokes, enter what to
+  change (for example, "make the sky bluer") and click **✨ Adjust** to edit
+  the whole image. With strokes in this fold's area, only the painted area is
+  regenerated; leave the prompt blank to remove what you painted. The line
+  above the button says which area it will read. A blank
   prompt without strokes, another kind of card, or a running job disables it.
   The model sees this card's pixels under its current sliders and masks. Each
   adjust costs one gpt-image generation and lands as a new **✨** card at

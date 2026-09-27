@@ -1099,6 +1099,8 @@ impl AutoShadeApp {
             // raster and the source neutral can differ in dimensions).
             self.mask_paint = Some(image::RgbaImage::new(mw, mh));
             self.paint_mask_changed(Some(false));
+            // Every tool's area is per card, like the canvas itself.
+            self.paint_store = Default::default();
             self.mask_tex = None;
             self.mask_dirty = false;
             self.paint_last = None;
@@ -2255,31 +2257,11 @@ impl AutoShadeApp {
             self.mask_brush_gray = None;
             self.paint_mode = false;
             self.clear_mask();
+            // The owner's area the session displaced comes back (2026-09-27).
+            self.unstash_owner_area();
             true
         } else {
             false
-        }
-    }
-
-    /// The 「Paint mask」 checkbox was just flipped (it writes `paint_mode`
-    /// itself; this is what runs after it). Ticking it sweeps the other canvas
-    /// tools, exactly as before. UN-ticking it used to do nothing at all —
-    /// and `paint_mode` is ALSO the flag a live MASK-brush session paints
-    /// through (`start_mask_brush` sets it), so un-ticking left an orphan
-    /// session: ⌫ / ✓ Apply / ✕ Cancel still on screen, the brush inert, and
-    /// 「Apply」 ready to bake whatever stale weights the buffer still held.
-    /// Un-ticking IS a cancel, so it takes the session's one teardown — the
-    /// same silent discard ✕ Cancel performs. Lives here, next to that
-    /// teardown, so the panel closure holds no logic to drift (R22-3).
-    pub(crate) fn paint_mode_toggled(&mut self) {
-        if self.paint_mode {
-            // Mutual exclusion lives in ONE place (disarm_tools) — the old
-            // hand copy at the call site drifted once and made a ticked brush
-            // completely inert (dispatch tries the other tools first).
-            self.disarm_tools();
-            self.paint_mode = true; // re-arm after the sweep
-        } else {
-            self.end_mask_brush();
         }
     }
 
@@ -2495,6 +2477,8 @@ impl AutoShadeApp {
         }
         self.mask_paint = Some(image::RgbaImage::new(w, h));
         self.paint_mask_changed(Some(false));
+        // The other tools' areas were in the old frame too.
+        self.paint_store = Default::default();
         self.mask_tex = None;
         self.mask_dirty = false;
         self.paint_last = None;

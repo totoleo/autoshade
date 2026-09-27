@@ -413,6 +413,45 @@ pub(crate) const HSL_SWATCH: [egui::Color32; 8] = [
 
 pub(crate) const GRADE_REGIONS: [&str; 4] = ["Shadows", "Midtones", "Highlights", "Global"];
 
+/// The tool a painted area belongs to. Each tool keeps its own strokes
+/// (user decision 2026-09-27, 「各区各一块」): the area painted for Heal is
+/// not what Fill, the Stamp or Adjust read, and each fold carries its own
+/// 「🖌 Paint area」 / 「Clear area」 pair. The canvas (`mask_paint`) holds the
+/// selected owner's area; the others wait in `paint_store`. The Local-Masks
+/// brush is a SESSION on the canvas, not an owner: its strokes bake into a
+/// raster, and the owner's area is stashed for the session's duration
+/// (`stash_owner_area` / `unstash_owner_area`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) enum BrushOwner {
+    #[default]
+    Fill,
+    Heal,
+    Stamp,
+    Adjust,
+}
+
+impl BrushOwner {
+    pub(crate) const COUNT: usize = 4;
+
+    /// The store slot of this owner's area while it is off the canvas.
+    pub(crate) fn slot(self) -> usize {
+        match self {
+            BrushOwner::Fill => 0,
+            BrushOwner::Heal => 1,
+            BrushOwner::Stamp => 2,
+            BrushOwner::Adjust => 3,
+        }
+    }
+}
+
+/// One tool's painted area while it is off the canvas: the red display
+/// canvas and the same presence memo `has_painted_mask` keeps for the live
+/// one (None = one scan is due; a swap back restores it unscanned).
+pub(crate) struct PaintArea {
+    pub(crate) canvas: image::RgbaImage,
+    pub(crate) painted: std::cell::Cell<Option<bool>>,
+}
+
 /// How a finished retouch enters the variant strip.
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum RetouchKind {
@@ -480,6 +519,21 @@ pub(crate) enum RetouchNote {
     /// divergence D, and the discarded attempt's D when the opt-in retry
     /// bought a second generation.
     Reimagined { out: PathBuf, divergence: f32, discarded: Option<f32> },
+}
+
+impl RetouchNote {
+    /// The painted area this result consumed, cleared at the landing so the
+    /// tool starts clean for its next use; a whole-frame result (reimagine,
+    /// denoise, stack) painted nothing and clears nothing.
+    pub(crate) fn consumed_area(&self) -> Option<BrushOwner> {
+        match self {
+            RetouchNote::Filled(_) => Some(BrushOwner::Fill),
+            RetouchNote::Adjusted { .. } => Some(BrushOwner::Adjust),
+            RetouchNote::Healed { .. } => Some(BrushOwner::Heal),
+            RetouchNote::Cloned { .. } => Some(BrushOwner::Stamp),
+            RetouchNote::Stacked { .. } | RetouchNote::Denoised { .. } | RetouchNote::Reimagined { .. } => None,
+        }
+    }
 }
 
 /// A finished retouch from the pixel paths (fill/adjust/heal/denoise/stack/
