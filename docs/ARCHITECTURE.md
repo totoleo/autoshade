@@ -1871,7 +1871,9 @@ spaces, ICC tagging, the file writers) and `tests.rs` (the module's own tests).
 The sub-modules that were already files — `denoise_grain.rs`, `detail.rs`,
 `finish.rs`, `hdr.rs`, `lens.rs`, `perspective.rs`, `profile.rs` — are as they
 were. The split moved code and did not edit it: beyond visibility and include
-paths, every non-blank line of the old file lands once in the new ones.
+paths, every non-blank line of the old file lands once in the new ones. The
+tests sit in parts under `tests/`, spliced into `tests.rs` by `include!`, so
+every test keeps its name and its path.
 
 The pixel stage, in this order: anchored white balance →
 **camera calibration** (the Calibration panel's three primaries and shadow
@@ -6638,7 +6640,9 @@ masks, dabs and strokes, base and parametric geometry, the one-correction
 parsers) and `tests.rs` (the module's own tests). The sub-modules that were
 already files — `payload.rs` and the two test files beside it — are as they
 were. The split moved code and did not edit it: beyond visibility and include
-paths, every non-blank line of the old file lands once in the new ones.
+paths, every non-blank line of the old file lands once in the new ones. The
+tests sit in parts under `tests/`, spliced into `tests.rs` by `include!`, so
+every test keeps its name and its path.
 
 ## 6. Open questions
 
