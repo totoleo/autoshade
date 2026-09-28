@@ -75,7 +75,7 @@ def alpha_text(value):
     "at the floor", not a number the fit does not resolve."""
     return "at the floor" if abs(value) < ALPHA_FLOOR else f"{value:.4f}"
 
-#: The exponent `render.rs`'s `LINEAR_FALLOFF_WARP` ships. It is fitted BELOW,
+#: The exponent `render/mask_falloff.rs`'s `LINEAR_FALLOFF_WARP` ships. It is fitted BELOW,
 #: per gradient, as `fit_warp_q`; this constant only says which value the engine
 #: was given, so `fit_warped` scores the shipped law rather than a fresh fit.
 SHIPPED_WARP = 1.124

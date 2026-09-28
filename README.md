@@ -485,7 +485,7 @@ and pan it at [autoshade.dev/architecture.html](https://autoshade.dev/architectu
   histogram; the advisor in [`src/advisor/`](src/advisor/) turns those into an
   `EditRecipe` ([`src/recipe.rs`](src/recipe.rs)), which a verifier checks
   from recipe, EXIF, histogram and clipping data — never pixels.
-- [`src/render.rs`](src/render.rs) applies it; the image, the recipe and a
+- [`src/render/`](src/render/) applies it; the image, the recipe and a
   Lightroom-readable sidecar ([`src/xmp.rs`](src/xmp.rs)) go to the per-user
   develop store, and local masks, style retrieval, reverse-fit and the
   generative tools hang off that path unchanged.
@@ -755,7 +755,7 @@ before demosaic.
 
 #### Develop pipeline and tone model
 
-`src/render.rs` is a deterministic f32
+The engine under `src/render/` is a deterministic f32
 pipeline: linear-light vignette and dehaze, a monotone Fritsch–Carlson tone
 LUT with Highlights inside it, then RGB curves, HSL, colour grade,
 clarity/Texture (two measured low-pass arms, `A1=0.172443`,

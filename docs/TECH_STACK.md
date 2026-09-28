@@ -113,7 +113,7 @@ demosaic and calibration, and in linear light `1 − strength` of the LUMINANCE
 difference returns along the grey axis (the Y row of the working space's own
 matrix), so the chroma stays clean at every strength (`render/denoise_grain`).
 Before the grain source and the cleaner read the mosaic, hot pixels are mapped
-(`denoise::hot_pixels`, hooked unconditionally in `src/render.rs`): an isolated
+(`denoise::hot_pixels`, hooked unconditionally in `src/render/source.rs`): an isolated
 site stronger than 20 sigma of its own neighbourhood (half the MAD of the 24
 same-colour samples within 4 px, or the tile's sigma if larger), where a
 clipped sample never measures noise and eight neighbours must vouch.
@@ -343,8 +343,9 @@ bundled; a machine with no profiles gets a named refusal.
 
 - `src/decode.rs` — extension dispatch, camera count, fallback rendition,
   decoder-failure classification, parser-panic containment, and RAW gate.
-- `src/render.rs` — CFA geometry fit, Bayer/X-Trans selection, `orient_f32`,
-  the oriented full-resolution buffer, and `resolve_camera_profile`.
+- `src/render/source.rs` — CFA geometry fit, Bayer/X-Trans selection and the
+  oriented full-resolution buffer; `src/render/resample.rs` — `orient_f32`;
+  `src/render/camera.rs` — `resolve_camera_profile`.
 - `src/dcp.rs` — `.dcp` parse, table lookup and profile discovery (v1.5.0).
 - `src/adobe.rs` — the Adobe Camera Raw roots `dcp.rs` and `lcp.rs` share.
 - `src/render/profile.rs` — the profile render stage (v1.5.0).
@@ -600,12 +601,13 @@ keeps none.
 
 ### Source
 
-- `src/render.rs` — pipeline order, transfer LUTs, dehaze, tone LUT,
-  `tone_knot_weights`, the parametric curve, Texture arms, and clarity.
+- `src/render/develop.rs` — pipeline order and dehaze; `src/render/wb.rs` —
+  transfer LUTs; `src/render/tone.rs` — tone LUT, `tone_knot_weights`, the
+  parametric curve; `src/render/luma.rs` — Texture arms and clarity.
 - `src/render/detail.rs` — `FilmScale`, sharpening, luminance and colour noise
   reduction (v1.5.0).
-- `src/render.rs` — `camera_base_look`, `camera_base_knots`, `block_lumas`,
-  `corner_residual` (calibration era 3, v1.6.0); `src/pipeline.rs` —
+- `src/render/base_look.rs` — `camera_base_look`, `camera_base_knots`,
+  `block_lumas`, `corner_residual` (calibration era 3, v1.6.0); `src/pipeline.rs` —
   `base_curve_is_pre_era`, the re-estimate on open.
 - `src/render/hdr.rs` — HDR edit mode and the SDR rendition, the develop's last
   stage (v1.5.0 F8).
@@ -732,8 +734,9 @@ validates its envelope and bounds, Brotli-decompresses it, then parses the
 
 ### Source
 
-- `src/render.rs` — `radial_falloff`, linear projection, brush kernel,
-  accumulation, range weights, and `MASK_SAMPLE_CENTRE`.
+- `src/render/mask_falloff.rs` — `radial_falloff` and the linear projection;
+  `src/render/brush.rs` — brush kernel and accumulation;
+  `src/render/mask_weight.rs` — range weights and `MASK_SAMPLE_CENTRE`.
 - `src/recipe.rs` — mask geometry, component operations, brush state, and local
   adjustment schema.
 - `src/xmp.rs` — `MaskBrushTable` discovery, MD5 lookup, `.acr` envelope,
@@ -798,7 +801,7 @@ a luminance reading only.
 - `src/fit.rs` — fixed 17-bin evidence verdict and contiguous-run folding.
 - `src/fit_zoned.rs` — residual runs, multi-region semantic/generalized weighted attachment, range
   boundary gate, disclosures, and conservation tests.
-- `src/render.rs` — sequential range evaluation on current rendered pixels.
+- `src/render/masks.rs` — sequential range evaluation on current rendered pixels.
 - `src/xmp.rs` — intersected native luminance- and colour-range projection
   (`Type="1"`, `crs:ColorAmount`, one `PointModels` sample).
 
@@ -941,8 +944,8 @@ cap for the quadtree, a `FieldShape` label, and the ceiling / realized / stop
 disclosures the sequencer appends — the stop only when the ceiling actually
 beat the producer-free frame. The
 field is analysis-only — it never reaches `render::` or an `EditRecipe`, which
-a test pins by grepping `src/render.rs` and `src/recipe.rs` for the module
-name.
+a test pins by grepping the engine's files (`src/render.rs` and `src/render/`)
+and `src/recipe.rs` for the module name.
 
 ### Parameters and measurements
 
@@ -1292,8 +1295,8 @@ frame.
   fisheye refusals.
 - `src/lensmeta.rs` — Sony `0x7037`, native sample placement, and canonical
   resampling.
-- `src/render.rs` — half-diagonal normalization, `s_p`, image geometry,
-  `lr_mask_warp_norm`, inverse mask map, and H2 evaluation.
+- `src/render/mask_warp.rs` — half-diagonal normalization, `s_p`, image
+  geometry, `lr_mask_warp_norm`, inverse mask map, and H2 evaluation.
 - `src/recipe.rs` and `src/xmp.rs` — stored centre, linear handle warp, schema
   gates, and Lightroom import/export.
 - `docs/ROADMAP-archive.md` — D1/D2 measurement verdicts; the remaining R2

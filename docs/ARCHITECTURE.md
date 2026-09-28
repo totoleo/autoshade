@@ -1848,6 +1848,31 @@ they cannot drift; the two previews pass `CropPolicy::Keep`, which positions
 the finishing pass on the crop rectangle while leaving the frame whole for
 slider feedback.
 
+The engine's source is `src/render.rs` and the files under `src/render/`.
+Through v1.6.5 the root was one file of 21,842 lines holding everything that was
+not already a named sub-module; it is now the module doc, the imports, the `mod`
+declarations, two constants and a re-export of every moved item in the
+visibility it had (no `render::` path changed), and the code sits where its
+stage sits: `source.rs` (RAW decode over the sensor's CFA geometry, the
+baked-image door, the develop-to-image entry), `camera.rs` (the camera's colour
+matrix, as-shot white balance, calibration and profile), `wb.rs` (white balance
+and the transfer curves), `develop.rs` (the pipeline proper: previews, the
+per-pixel and spatial passes, the colour field, vignettes, dehaze), `tone.rs`
+(the tone model and its LUTs), `colour.rs` (saturation and vibrance, HSL,
+colour grading, Calibration, the B&W mix, Point Color), `luma.rs` (the luma
+writes, clarity and texture, the blurs), `masks.rs` (the mask pass and the
+frame a mask is sampled in), `mask_weight.rs` / `mask_falloff.rs` /
+`mask_raster.rs` / `mask_warp.rs` / `brush.rs` (coverage and range masks, the
+measured falloffs, rasters, Lightroom's stored mask frame, the brush),
+`geometry.rs` (lens geometry), `orient.rs` (orientation and coordinate frames),
+`resample.rs` (flips, downscale, straightening, the bilinear fetches),
+`base_look.rs` (the camera-matched base look), `export.rs` (delivery colour
+spaces, ICC tagging, the file writers) and `tests.rs` (the module's own tests).
+The sub-modules that were already files — `denoise_grain.rs`, `detail.rs`,
+`finish.rs`, `hdr.rs`, `lens.rs`, `perspective.rs`, `profile.rs` — are as they
+were. The split moved code and did not edit it: beyond visibility and include
+paths, every non-blank line of the old file lands once in the new ones.
+
 The pixel stage, in this order: anchored white balance →
 **camera calibration** (the Calibration panel's three primaries and shadow
 tint, first because they belong to the camera profile every later stage reads
@@ -5718,7 +5743,8 @@ every save and a field the user asked for says so out loud.
 ([`src/fit_field.rs`](../src/fit_field.rs)) and reads shape verdicts off it. It
 was DISCLOSURE ONLY until R33 §G (v1.3.0): the field is an owned local of
 `fit_recipe_zoned_inner`, never a `FitReport` member, and a test greps
-`render.rs` and `recipe.rs` for any mention of the module. It now also SHIPS,
+the engine's files (`render.rs` and `render/`) and `recipe.rs` for any mention
+of the module. It now also SHIPS,
 as `EditRecipe.colour_field`, from the default Strength up — see **The colour
 field as a control** below; the grep pin survives in the one direction that
 still matters (`the_engine_renders_the_field_from_the_recipe_and_never_calls_the_analyzer`),
