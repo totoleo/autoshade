@@ -140,7 +140,20 @@ pub(crate) const SOURCE_FILES: [(&str, &str); 14] = [
 
 /// The module's own tests, which `xmp.rs` carried inline before the split.
 #[cfg(test)]
-pub(crate) const TESTS_SOURCE: &str = include_str!("xmp/tests.rs");
+pub(crate) const TESTS_SOURCE: &str = concat!(
+    include_str!("xmp/tests/globals_and_scope.rs"),
+    include_str!("xmp/tests/detail_passthrough_looks.rs"),
+    include_str!("xmp/tests/render_gaps_and_radials.rs"),
+    include_str!("xmp/tests/crops_hdr_orientation.rs"),
+    include_str!("xmp/tests/inversion_and_era_gates.rs"),
+    include_str!("xmp/tests/curves_calibration_losses.rs"),
+    include_str!("xmp/tests/brush_groups_and_real_sidecars.rs"),
+    include_str!("xmp/tests/bands_prerename_merge.rs"),
+    include_str!("xmp/tests/round_trips_and_attribute_forms.rs"),
+    include_str!("xmp/tests/ai_masks_and_frame_scope.rs"),
+    include_str!("xmp/tests/mask_brush_tables.rs"),
+    include_str!("xmp/tests.rs"),
+);
 
 #[cfg(test)]
 pub(crate) fn source_text() -> String {

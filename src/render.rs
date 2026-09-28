@@ -223,7 +223,22 @@ pub(crate) const SOURCE_FILES: [(&str, &str); 19] = [
 
 /// The engine's own tests, the module `render.rs` carried inline before the split.
 #[cfg(test)]
-pub(crate) const TESTS_SOURCE: &str = include_str!("render/tests.rs");
+pub(crate) const TESTS_SOURCE: &str = concat!(
+    include_str!("render/tests/sources_and_base_look.rs"),
+    include_str!("render/tests/tone_and_colour.rs"),
+    include_str!("render/tests/local_wb_and_colour_management.rs"),
+    include_str!("render/tests/geometry_and_lens.rs"),
+    include_str!("render/tests/radial_and_bitmap_masks.rs"),
+    include_str!("render/tests/orientation_and_shift.rs"),
+    include_str!("render/tests/brush.rs"),
+    include_str!("render/tests/coverage_and_ramps.rs"),
+    include_str!("render/tests/dehaze_texture_clarity.rs"),
+    include_str!("render/tests/local_effects_and_hsl.rs"),
+    include_str!("render/tests/budgets_and_refine.rs"),
+    include_str!("render/tests/raw_matrix_and_ca.rs"),
+    include_str!("render/tests/ai_masks_and_cfa.rs"),
+    include_str!("render/tests.rs"),
+);
 
 #[cfg(test)]
 pub(crate) fn engine_source() -> String {
