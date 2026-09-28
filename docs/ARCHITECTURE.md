@@ -1,6 +1,10 @@
 # AutoShade — Architecture
 
-> Status: **implemented** (v1.6.5 — capture sharpening is measured against
+> Status: **implemented** (v1.6.6 — the six source files over ten thousand lines
+> (the develop engine, the sidecar layer, the reverse fit, the zoned fit, the style
+> library, the develop store) and the three test files that size are split into
+> files, code moved and not edited, every render and sidecar byte-identical;
+> v1.6.5 — capture sharpening is measured against
 > Lightroom 9.4: one 61 MP star-field frame exported at Sharpness 0 / 40 / 80,
 > the law's constants fitted per pixel, the dark halo bounded by the pixel's own
 > luminance;
