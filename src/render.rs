@@ -12,9 +12,10 @@
 //! orientation + crop.
 //!
 //! HONEST SCOPE: these ops are tasteful **approximations**, not bit-exact
-//! Lightroom — clarity is a luma unsharp mask, the Detail panel (capture
-//! sharpening, luminance and colour noise reduction, v1.5.0) is built from
-//! Adobe's documented slider behaviour in `detail.rs`, dehaze is a pointwise
+//! Lightroom — clarity is a luma unsharp mask, the Detail panel's capture
+//! sharpening (v1.5.0) is the law measured against Lightroom 9.4 in v1.6.5 and
+//! its luminance and colour noise reduction are built from Adobe's documented
+//! slider behaviour, all in `detail.rs`, dehaze is a pointwise
 //! scattering inversion (see [`apply_dehaze`]). LOCAL-mask clarity/dehaze/texture ARE engine-rendered
 //! since R22 (local temperature/tint since batch #2-B) — see [`apply_masks`]
 //! for the pass order and the two documented residues vs the global chain.
