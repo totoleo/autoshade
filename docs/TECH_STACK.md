@@ -739,8 +739,9 @@ validates its envelope and bounds, Brotli-decompresses it, then parses the
   `src/render/mask_weight.rs` — range weights and `MASK_SAMPLE_CENTRE`.
 - `src/recipe.rs` — mask geometry, component operations, brush state, and local
   adjustment schema.
-- `src/xmp.rs` — `MaskBrushTable` discovery, MD5 lookup, `.acr` envelope,
-  Brotli decode, and dab-token parser.
+- `src/xmp/brush_table.rs` — `MaskBrushTable` discovery, MD5 lookup, `.acr`
+  envelope and Brotli decode; `src/xmp/read_corrections.rs` — the dab-token
+  parser.
 - `docs/ARCHITECTURE.md` and `docs/V2_PLAN.md` — mask measurement ledger.
 
 ## Reverse-fit luminance and colour ranges
@@ -802,8 +803,9 @@ a luminance reading only.
 - `src/fit_zoned.rs` — residual runs, multi-region semantic/generalized weighted attachment, range
   boundary gate, disclosures, and conservation tests.
 - `src/render/masks.rs` — sequential range evaluation on current rendered pixels.
-- `src/xmp.rs` — intersected native luminance- and colour-range projection
-  (`Type="1"`, `crs:ColorAmount`, one `PointModels` sample).
+- `src/xmp/mask_xml.rs` (written) and `src/xmp/read_corrections.rs` (read) —
+  intersected native luminance- and colour-range projection (`Type="1"`,
+  `crs:ColorAmount`, one `PointModels` sample).
 
 ## Zone-scoped evidence view
 
@@ -1156,7 +1158,8 @@ reading.
   boundary/frame arbitration, rationale facts and conservation tests.
 - `src/mask_refine.rs` — guided filter, collar restoration and acceptance laws.
 - `src/store.rs` — atomic `OwnedRaster::claim_sibling` ownership.
-- `src/xmp.rs` — existing bitmap-mask omission and named loss.
+- `src/xmp/write.rs` and `src/xmp/losses.rs` — existing bitmap-mask omission
+  and named loss.
 
 ## AI masks
 
@@ -1217,7 +1220,8 @@ therefore invalidated when the pinned BiRefNet backend later becomes available.
 - `python/ade20k_class_table.json` — the 150-class semantic table.
 - `src/segment.rs` — bounded sidecar process, `gp1` IPC, cache key, provenance,
   and backend generation.
-- `src/recipe.rs` and `src/xmp.rs` — AI-mask intent and XMP round trip.
+- `src/recipe.rs`, `src/xmp/mask_xml.rs` and `src/xmp/read_corrections.rs` —
+  AI-mask intent and XMP round trip.
 
 ## Lens correction and Lightroom mask-frame laws
 
@@ -1297,7 +1301,8 @@ frame.
   resampling.
 - `src/render/mask_warp.rs` — half-diagonal normalization, `s_p`, image
   geometry, `lr_mask_warp_norm`, inverse mask map, and H2 evaluation.
-- `src/recipe.rs` and `src/xmp.rs` — stored centre, linear handle warp, schema
+- `src/recipe.rs`, `src/xmp/geometry.rs`, `src/xmp/mask_xml.rs` and
+  `src/xmp/read_corrections.rs` — stored centre, linear handle warp, schema
   gates, and Lightroom import/export.
 - `docs/ROADMAP-archive.md` — D1/D2 measurement verdicts; the remaining R2
   residual is a measured number under the README's *Measured numbers*.
@@ -1423,8 +1428,11 @@ readers, never by the silent probes.
 
 ### Source
 
-- `src/xmp.rs` — scope selection, typed XML traversal, local/global scaling,
-  polarity, mask geometry, conservative merge, and writer.
+- `src/xmp.rs` and the files under `src/xmp/` — scope selection and typed XML
+  traversal (`scan.rs`, `crs_source.rs`), local/global scaling (`xml.rs`),
+  polarity and mask geometry (`geometry.rs`, `mask_xml.rs`,
+  `read_corrections.rs`), conservative merge (`merge.rs`), and the writer
+  (`write.rs`).
 - `src/xmp/payload.rs` — the AutoShade payload: writer, reader, the
   reconciliation rule, raster placement, the zone-role name fallback.
 - `src/pipeline.rs` — sidecar read/merge/save/export orchestration.

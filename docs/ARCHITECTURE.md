@@ -6510,6 +6510,32 @@ dependency. That is a choice, not an omission: a Lightroom sidecar must be
 pass-through key set), and a serialise-from-a-DOM round trip cannot promise
 that.
 
+The sidecar module's source is `src/xmp.rs` and the files under `src/xmp/`.
+Through v1.6.5 the root was one file of 19,726 lines holding everything that
+was not already a named sub-module; it is now the module doc, the imports, the
+`mod` declarations and a re-export of every moved item in the visibility it had
+(no `xmp::` path changed), and the code sits where its job sits: `xml.rs`
+(ACR's number spelling, character admission, escaping), `frame.rs` (the mask
+frame: Lightroom's stored frame scale, the frame aspect and scope, the declared
+orientation, the fallbacks), `geometry.rs` (mask geometry between Lightroom
+and the engine: the radial ellipse, the crop rectangle both ways),
+`mask_xml.rs` (masks as crs XML: geometry, AI and brush masks, the combine
+spelling, the intent attribute, the range masks), `losses.rs` (what a sidecar
+cannot carry, both ways, and the pass-through and look-rendered key sets),
+`write.rs` (the recipe rendered as a crs description and the `recipe_to_xmp`
+entry points), `scan.rs` (the XML scanner: tags, attributes, landmarks,
+matching closes, the crs scope), `merge.rs` (merging a recipe into an existing
+sidecar), `read.rs` (`xmp_to_recipe` and its clamped, diagnosed and per-photo
+forms, the era markers), `crs_source.rs` (the typed crs source, unescaping,
+the curve and point-colour parsers), `read_masks.rs` (the retouch areas, the
+mask summaries, the import reasons), `brush_table.rs` (the ACR blob index and
+the Brotli-compressed brush table), `read_corrections.rs` (brush groups, AI
+masks, dabs and strokes, base and parametric geometry, the one-correction
+parsers) and `tests.rs` (the module's own tests). The sub-modules that were
+already files — `payload.rs` and the two test files beside it — are as they
+were. The split moved code and did not edit it: beyond visibility and include
+paths, every non-blank line of the old file lands once in the new ones.
+
 ## 6. Open questions
 
 | # | Question | Status |
