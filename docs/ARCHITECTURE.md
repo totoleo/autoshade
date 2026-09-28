@@ -4051,7 +4051,7 @@ reads it: `xmp::lr_net_inverted` (so `ai_mask_xml` and `brush_mask_xml` write
 the NET as the component's `crs:MaskInverted`, never the raw geometry bit),
 `mask_habit::bucket_of`, and the GUI's `draw_mask_overlay`. The land zone sets
 the correction's flag and leaves the component's at `false`
-(`fit_zoned.rs`'s `land_attachment`); Lightroom has only the component, so the
+(`src/fit_zoned/attach.rs`'s `land_attachment`); Lightroom has only the component, so the
 sidecar carries the net there, and re-importing our own file lands the bit in
 the OTHER home with the net unchanged — which is why the round trip renders
 byte-identically
@@ -5142,6 +5142,34 @@ edge that reaches the ceiling is charged its raw step bit-for-bit, so
 textured borders are governed by exactly the number they were governed by
 before; a crossing in smooth sky must fit inside what its own
 neighbourhood can actually mask, and a smooth gradient masks nothing.
+
+The zoned fit's source is `src/fit_zoned.rs` and the files under `src/fit_zoned/`.
+Through v1.6.5 the root was one file of 11,388 lines beside the children it
+already had (`field.rs`, `range.rs`, `spatial.rs`, `semantic.rs`, `subzones.rs`,
+`freemask.rs` and their own files); it is now the module doc, the imports, the
+`mod` declarations and a re-export of every moved item in the visibility it had
+(no `fit_zoned::` path changed), and the code sits where its stage sits:
+`limits.rs` (the layer options, the zone share and pixel floors, the per-zone
+budgets, the boundary maxima, the acceptance ratios), `zone_fit.rs` (fitting one
+zone: modes and acceptance arms, moments and dials, the saturation step, gain
+shrinking, local quality, the shrink of a zone's corrections, the zone error and
+luma CDF), `boundary.rs` (the boundary ruler: readings, crossing samples and
+step frames, the line walks, cell sums and shares, the rims and the steps a
+zone's edge may show), `joint.rs` (the joint family: luma bands and chroma
+classes, the far-error cause, joint buckets and readings, the family's own
+acceptance ladder), `entry.rs` (the entry points: the seeded and multi-region
+solves, the paired layout, the local sequencer, raster release, feather widening
+and the refinement notes), `regions.rs` (semantic regions: multi-class
+segmentation of both renditions and attaching the regions), `attach.rs` (the
+divergence and attachment records, segmentation of both renditions, and
+`attach_zones` with its divergence gate), `accept.rs` (the accepted-zone record,
+the refusal of shrunk zones, the boundary gates and the attached note),
+`one_zone.rs` (`attach_one_zone`: the per-zone solve and its acceptance, the
+zone confidence slope), `rasters.rs` (the centroid, the colour and tone refusal
+classifiers, the mask weights) and `tests.rs` (the module's own tests). The
+split moved code and did not edit it: beyond visibility and the two lines of
+the one test that read the file as text, every non-blank line of the old file
+lands once in the new ones.
 
 **R40 (v1.6.0): the hard family reads discontinuities, not 3-px
 differences.** Until R40 each crossing's reading was the plain `(inside −

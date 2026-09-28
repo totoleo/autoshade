@@ -800,8 +800,9 @@ a luminance reading only.
 ### Source
 
 - `src/fit/evidence.rs` — fixed 17-bin evidence verdict and contiguous-run folding.
-- `src/fit_zoned.rs` — residual runs, multi-region semantic/generalized weighted attachment, range
-  boundary gate, disclosures, and conservation tests.
+- `src/fit_zoned/` (`attach.rs`, `regions.rs`, `accept.rs`, `boundary.rs`, `tests.rs`) — residual
+  runs, multi-region semantic/generalized weighted attachment, range boundary gate,
+  disclosures, and conservation tests.
 - `src/render/masks.rs` — sequential range evaluation on current rendered pixels.
 - `src/xmp/mask_xml.rs` (written) and `src/xmp/read_corrections.rs` (read) —
   intersected native luminance- and colour-range projection (`Type="1"`,
@@ -894,8 +895,8 @@ residual, the same quantity the zone is then accepted on.
 ### Source
 
 - `src/fit/evidence.rs` — `EvidenceModel::scoped`, `aggregate_ranges`, `population`.
-- `src/fit_zoned.rs` — `ZoneAttachment.coverage`, scoped vetoes, luma-only
-  skip line.
+- `src/fit_zoned/attach.rs` — `ZoneAttachment.coverage`; `src/fit_zoned/one_zone.rs` — the
+  scoped zone evidence and its vetoes, the luma-only skip line (`accept.rs` carries the flag).
 - `src/fit_zoned/spatial.rs` — tile readings and coverage.
 
 ## Local-field analyzer
@@ -1034,7 +1035,7 @@ and `src/recipe.rs` for the module name.
   saturation count.
 - `src/fit_zoned/field.rs` — shape verdicts, band proposals, `realized_share`,
   `stop_verdict`, the five disclosures.
-- `src/fit_zoned.rs` — `fit_recipe_zoned_inner`, the sequencer that owns the
+- `src/fit_zoned/entry.rs` — `fit_recipe_zoned_inner`, the sequencer that owns the
   realized and stop notes.
 - `src/fit_zoned/range.rs` — the proposal union inside
   `derive_luminance_bands`.
