@@ -350,6 +350,19 @@ those fits were re-measured in v1.2.4 against Lightroom's own coverage on a
 (α rms 0.0293 → 0.0074), and the radial boundary is a pure 0.99876 scale of
 the stored ellipse — no dilation law.
 
+Since v1.6.5 the Sharpening slider is measured too: one 61 MP star-field
+frame exported from Lightroom at Sharpness 0 / 40 / 80 (Radius 1.0, Detail
+25, Masking 0), and the operator's gains, its shadow rolloff and its two
+halo limits fitted per pixel to what moved between the exports — R² 0.93 at
+40 and 0.92 at 80 over the frame, 0.95 on the edges and stars one actually
+sees, where the plain unsharp mask it replaced explained 0.62. Lightroom's
+dark ring around a bright star turned out to be bounded by the pixel's own
+luminance rather than by one constant, so the ring digs with the star:
+0.02 / 0.04 / 0.07 for faint / mid / bright stars against Lightroom's
+0.02 / 0.04 / 0.08. Masking and the rest of Detail's band are unmeasured.
+Details:
+[docs/TECH_STACK.md#develop-pipeline-and-tone-model](docs/TECH_STACK.md#develop-pipeline-and-tone-model).
+
 ### 5. The RAW denoiser is trained here and judged by pass marks written before the run
 
 <img src="docs/images/showcase-denoise-star-field.jpg" alt="One 1:1 window of a 61 MP star field, four ways: Lightroom's develop with Denoise off and at 50, AutoShade's neutral develop with no denoise and with its own denoiser at the 71 % default" />
@@ -453,12 +466,6 @@ this moved 0.3075 → 0.2922 (Lightroom 0.2701, limit ±0.03) and 0.0387 (limit
   training runs were designed against exactly this, trained, and refused by
   their own pre-written pass marks; the denoiser ships with both readings
   recorded as behind.
-- **The sharpening amount's scale against Lightroom's.** A RAW that carries no
-  amount renders at Lightroom's own default of 40 since v1.6.0 (radius 1.0,
-  detail 25, masking 0; a baked raster at 0; an absent amount is left to
-  Lightroom in the sidecar), but the operator is this engine's own, so 40 here
-  and 40 there are the same default, not a measured equivalence. The
-  calibration needs three same-frame Lightroom exports at Sharpness 0 / 40 / 80.
 
 ## How it works
 
@@ -500,9 +507,10 @@ the tests [`scripts/check_docs.py`](scripts/check_docs.py) re-derives.
 
 | What | Measured | Where |
 |---|---|---|
-| Automated test battery | 1767 library / 27 CLI / 225 GUI / 2+2 contract tests; `check_docs` re-derives the pinned release claims | [Tech stack](#tech-stack-algorithms-and-design-philosophy) |
+| Automated test battery | 1768 library / 27 CLI / 225 GUI / 2+2 contract tests; `check_docs` re-derives the pinned release claims | [Tech stack](#tech-stack-algorithms-and-design-philosophy) |
 | RAW coverage | 24 extensions, 725 camera bodies; nine-camera format zoo 9/9 at the last release gate | [Supported formats](#supported-formats) |
 | Lightroom Texture parity | 45 of 45 period/depth anchors within ±0.02 | [Develop pipeline](#develop-pipeline-and-tone-model) |
+| Lightroom Sharpening parity (v1.6.5; one star-field frame at Sharpness 0 / 40 / 80, Radius 1.0, Detail 25, Masking 0) | per-pixel R² 0.93 / 0.92 over the frame, 0.95 on the edges and stars; star peaks +0.07 / +0.11 / +0.12 in Lightroom against the law's +0.08 / +0.11 / +0.13; the ring around them 0.02 / 0.04 / 0.08 against 0.02 / 0.04 / 0.07 | [What is new §4](#4-lightroom-parity-is-measured-and-the-residuals-are-published) |
 | Radial mask closure | 41 of 41 measured vectors within ≤1 px | [Lens correction](#lens-correction-and-lightroom-mask-frame-laws) |
 | Linear mask closure (openly not pixel-closed) | RMS 9.748 / 7.025 / 6.336 px with lens correction on, 12.449 / 9.943 / 4.979 px off | [Lens correction](#lens-correction-and-lightroom-mask-frame-laws) |
 | Linear falloff vs Lightroom coverage (46-export pack) | smoothstep on `t^1.124`: α rms 0.0064 against 0.0315 for the plain smoothstep and 0.0598 for a straight ramp; half-coverage contour +34.2/+38.2 px → +0.9/+5.0 px | [Lens correction](#lens-correction-and-lightroom-mask-frame-laws) |
@@ -751,8 +759,9 @@ before demosaic.
 pipeline: linear-light vignette and dehaze, a monotone Fritsch–Carlson tone
 LUT with Highlights inside it, then RGB curves, HSL, colour grade,
 clarity/Texture (two measured low-pass arms, `A1=0.172443`,
-`A2=0.304888`), saturation, NR, sharpening (a RAW with no amount at
-Lightroom's default of 40, a baked raster at 0) and local edits, under the
+`A2=0.304888`), saturation, NR, sharpening (measured against Lightroom's
+since v1.6.5; a RAW with no amount at Lightroom's default of 40, a baked
+raster at 0) and local edits, under the
 per-photo base look of §6.
 
 #### Masks
@@ -810,7 +819,7 @@ denoise's success requires the typed `sidecar_wrote` contract; a 1771 MB
 reference probe sets the 1800 MB per-photo budget and a 4 GiB RAW gate
 bounds admission. The [`build` workflow](.github/workflows/build.yml)
 covers default and GUI feature sets on Ubuntu and macOS; the
-current battery is **1767 library (1752 pass + 15 `#[ignore]`d forensic probes) / 27 CLI / 225 GUI / 2+2 contract** tests, and
+current battery is **1768 library (1753 pass + 15 `#[ignore]`d forensic probes) / 27 CLI / 225 GUI / 2+2 contract** tests, and
 [`scripts/check_docs.py`](scripts/check_docs.py) re-derives the pinned
 release claims.
 

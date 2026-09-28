@@ -74,8 +74,12 @@ them, with the default Lightroom itself uses for the kind of file — 40 on a
 RAW, 0 on a JPEG or TIFF — so a RAW you never sharpened here is sharpened the
 way Lightroom sharpens it by default, a sidecar that says nothing about the
 amount lets Lightroom keep its own, and dragging the slider to 0 on a RAW is a
-real 0. These operators are AutoShade's own, built from
-what Adobe documents about each slider — close to Lightroom, not identical.
+real 0. Since v1.6.5 the Sharpening slider is calibrated against Lightroom's on
+a measured frame: the same number sharpens about the same, light edges and
+star cores lift the way Lightroom's do, the dark ring around a bright star
+digs as deep as Lightroom's and no deeper, and deep shadows are left alone.
+The two noise reductions are AutoShade's own, built from what Adobe documents
+about each slider — close to Lightroom, not identical.
 
 The **Lens** fold finishes the set since v1.5.0. **Remove chromatic
 aberration** used to be carried to the sidecar and nothing else — it is an

@@ -77,13 +77,17 @@ fn sharpening_overshoots_a_step_and_leaves_a_flat_field_alone() {
 
 #[test]
 fn detail_zero_damps_the_halo_detail_hundred_does_not() {
+    // A 0.15 / 0.45 step: the Detail-100 overshoot at Amount 150 needs headroom
+    // under the luma clamp at 1.0 (on the 0.3 / 0.6 step it clips to 0.4).
     let overshoot = |detail: f32| {
-        let mut s = step(32, 4);
+        let mut s = frame(32, 4, |x, _| if x < 16 { [0.15; 3] } else { [0.45; 3] });
         sharpen(&mut s, 32, 4, &sharp(1.5, detail, 0.0), FilmScale::NATIVE, everywhere);
-        s[16][0] - 0.6
+        s[16][0] - 0.45
     };
     let (low, high) = (overshoot(0.0), overshoot(1.0));
-    assert!(low > 0.0 && low <= SHARPEN.halo.at(0.0) + 1e-4, "Detail 0 caps the overshoot: {low}");
+    // Detail 0's cap on the bright side at Amount 150, the law's own number.
+    let cap0 = cap_at_detail(SHARPEN.cap_bright * (1.5f32 / 0.4).powf(SHARPEN.cap_power), 0.0);
+    assert!(low > 0.0 && low <= cap0 + 1e-4, "Detail 0 caps the overshoot: {low} vs {cap0}");
     assert!(high > 3.0 * low, "Detail 100 lets it through: {high} vs {low}");
 }
 
@@ -107,10 +111,10 @@ fn masking_spares_flat_noise_but_still_sharpens_the_edge() {
 
 #[test]
 fn a_downscaled_raster_sharpens_by_what_survives_the_downscale() {
-    // A 1280 px preview of a 6336 px short edge: the export's one-pixel
-    // radius lifts a few percent of what the sampled σ would at Nyquist.
+    // A 1280 px preview of a 6336 px short edge: the export's Radius 1.0 (a
+    // 0.75 px σ) lifts a few percent of what the sampled σ would at Nyquist.
     let film = FilmScale::of(Some(6336), 1280, 853);
-    let fade = usm_transfer(film.raster_px(1.0)) / usm_transfer(SHARPEN_MIN_SIGMA_PX);
+    let fade = usm_transfer(film.raster_px(SHARPEN.sigma_per_radius)) / usm_transfer(SHARPEN_MIN_SIGMA_PX);
     assert!(fade > 0.02 && fade < 0.2, "{fade}");
     let (mut full, mut preview) = (step(32, 4), step(32, 4));
     sharpen(&mut full, 32, 4, &sharp(1.0, 1.0, 0.0), FilmScale::NATIVE, everywhere);
@@ -123,6 +127,26 @@ fn negative_local_sharpness_softens() {
     let mut s = step(32, 4);
     sharpen(&mut s, 32, 4, &sharp(-1.0, 0.25, 0.0), FilmScale::NATIVE, everywhere);
     assert!(s[16][0] < 0.6 && s[15][0] > 0.3, "{:?}", &s[15..17]);
+}
+
+#[test]
+fn the_dark_halo_digs_with_the_pixels_own_luminance() {
+    // Two steps of one height (0.30) at two levels, at Lightroom's RAW default
+    // of 40. The law's dark cap is `dark_cap_luma·Y₀ − dark_cap_free·f` on the
+    // pixel's OWN luminance, so the dark side of the dim step (0.10 → 0.40)
+    // hardly dips while the dark side of the bright step (0.40 → 0.70) dips by
+    // two orders more — the ring Lightroom's export dug around a bright star
+    // and not around a faint one. The light side of both steps lifts alike.
+    let edge = |lo: f32, hi: f32| {
+        let mut s = frame(32, 4, |x, _| if x < 16 { [lo; 3] } else { [hi; 3] });
+        sharpen(&mut s, 32, 4, &sharp(0.4, 0.25, 0.0), FilmScale::NATIVE, everywhere);
+        (lo - s[15][0], s[16][0] - hi)
+    };
+    let (dim_dip, dim_lift) = edge(0.10, 0.40);
+    let (bright_dip, bright_lift) = edge(0.40, 0.70);
+    assert!(dim_dip > 0.0 && dim_dip < 0.01, "a dim edge's dark side is held: {dim_dip}");
+    assert!(bright_dip > 0.05 && bright_dip > 20.0 * dim_dip, "a bright edge's digs: {bright_dip} vs {dim_dip}");
+    assert!(dim_lift > 0.05 && (bright_lift - dim_lift).abs() < 0.02, "both light sides lift alike: {dim_lift} {bright_lift}");
 }
 
 #[test]

@@ -486,21 +486,34 @@ supposed to remove.
   (**designed**). This retires the V2 §4c/§4d rules (sharpening σ =
   `clamp(0.0008·short_edge, 0.7, 2.0)` raster px, NR at a raster-pixel radius),
   under which one slider value meant two structures at preview and at export.
-- Sharpening: unsharp mask on luma, true Gaussian σ = Radius (0.5–3.0 film px;
-  an absent key reads Lightroom's 1.0), sampled no finer than 0.6 raster px
-  with the amount faded by the ratio of the two `1 − Ĝ` transfers at Nyquist;
-  gain 1.0 at Amount 100; halo limiter `L·tanh(boost/L)` with
-  `L = 0.02 → 1.0` over Detail²; Laplacian fine band `0 → 0.5` over Detail;
-  Masking edge gate full at a blurred-luma gradient of `0 → 0.04` per film px
-  (**designed, provisional** until the kit's `SH-*` ladder).
+- Sharpening (v1.6.5, **measured against Lightroom 9.4**): unsharp mask on
+  luma, true Gaussian σ = 0.75 × Radius film px (Radius 0.5–3.0; an absent key
+  reads Lightroom's 1.0), sampled no finer than 0.6 raster px with the amount
+  faded by the ratio of the two `1 − Ĝ` transfers at Nyquist. Per pixel, with
+  `s` the unsharp signal, `Y` a luminance in the exports' gamma 2.2 and `ρ` the
+  shadow rolloff `Y_b^2.78 / (Y_b^2.78 + 0.0139^2.78)` on the blurred luma:
+  bright side (`s ≥ 0`) free move `f = 1.892·(Amount/40)^1.124·ρ·s` under the
+  cap `0.145·(Amount/40)^0.206`; dark side `f = 2.524·(Amount/40)^1.007·ρ·|s|`
+  under the cap `1.107·Y₀ − 0.0707·f` (`Y₀` the pixel's own luminance, floor
+  1e-4); the move is `±f / √(1 + (f/cap)²)`, the caps carried across Detail on
+  a log ramp over Detail² (no cap at 100); added to R, G, B alike. Fitted per
+  pixel on one 61 MP frame exported at Sharpness 0 / 40 / 80 (Radius 1.0,
+  Detail 25, Masking 0): R² 0.93 / 0.92 over the frame, 0.95 / 0.95 on the
+  pixels with |s| ≥ 0.03, the replaced unsharp mask 0.62; star peaks +0.07 /
+  +0.11 / +0.12 (faint / mid / bright) in Lightroom against +0.08 / +0.11 /
+  +0.13 in the law, ring dips 0.02 / 0.04 / 0.08 against 0.02 / 0.04 / 0.07;
+  the engine reproduces the law on its own renders at R² 0.9997. Masking edge
+  gate full at a blurred-luma gradient of `0 → 0.04` per film px
+  (**unmeasured**: every export was at Masking 0); Detail's other values,
+  Radius ≠ 1.0 and Amount past 80 are the law's own extrapolation.
 - Sharpening default (v1.6.0): a recipe that holds no amount renders at
   `LR_RAW_SHARPENING` = 40 on a RAW negative — Lightroom's own default for a
   RAW (radius 1.0, detail 25, masking 0) — and at nothing on a baked raster;
   an explicit 0 is a real 0; the sidecar leaves an absent amount out so
   Lightroom applies its own default, and the 40 it writes back reads as a
   materialisation, not an edit (**designed to Lightroom's documented
-  default**; the amount's SCALE is not calibrated against Lightroom, which
-  needs three same-frame exports at Sharpness 0 / 40 / 80).
+  default**; the amount's SCALE is measured since v1.6.5 — the Sharpening
+  bullet above).
 - Luminance noise reduction: self-guided filter on luma, box radius
   `1 → 4` film px and noise threshold `0.004 → 0.054` (gamma units) over
   Luminance, the threshold scaled `1.6 → 0.4` over Detail, ε = threshold²;
@@ -2057,9 +2070,9 @@ than the pre-call state; model weights remain outside the repository.
   1996 MiB / 10.247 s at 0.71: +231 MiB and +5.116 s for luminance return.
   This excludes the Python/model process. Batch rendering does not request
   AI denoise, so its ordinary 1800 MB planning constant is unchanged.
-- The current battery is **1767 library (1752 pass + 15 `#[ignore]`d forensic
+- The current battery is **1768 library (1753 pass + 15 `#[ignore]`d forensic
   probes) / 27 CLI / 225 GUI / 2+2 contract** tests — the v1.6.4 battery; v1.6.0
-  shipped with 1683 library and 215 GUI, and the eighty-five library names and
+  shipped with 1683 library and 215 GUI, and the eighty-six library names and
   eleven GUI names added since (one GUI name retired) are listed in
   ARCHITECTURE. Environment-gated real
   Lightroom, brush-table, and RAW-zoo suites are additional and are not

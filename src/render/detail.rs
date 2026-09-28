@@ -15,8 +15,9 @@
 //! moves), in the engine's gamma-encoded working domain, and every free
 //! constant is named: the Lightroom kit's ladders (`SH-*`, `NR-*`, `CNR-*` in
 //! `autoshade-lr-kit-v150/pack-spec.json`) exist to pin them against exported
-//! pixels. Until that measurement lands, the constants are first-principles
-//! values and say so.
+//! pixels. The sharpening ladder was exported and fitted on 2026-09-27
+//! ([`SHARPEN`] carries the measured law and its readings); the two
+//! noise-reduction operators are still first-principles values and say so.
 //!
 //! # Film pixels
 //!
@@ -34,7 +35,7 @@
 use rayon::prelude::*;
 
 use super::{
-    bilinear_plane, box_blur_h, box_blur_v, gauss_blur_plane, luma601, neighbours4, smoothstep,
+    bilinear_plane, box_blur_h, box_blur_v, gauss_blur_plane, luma601, smoothstep, write_luma_additive,
     write_luma_weighted,
 };
 use crate::recipe::EditRecipe;
@@ -108,27 +109,124 @@ const SHARPEN_RADIUS_MIN: f32 = 0.5;
 /// sharpening still contributes once it is downscaled to this raster.
 const SHARPEN_MIN_SIGMA_PX: f32 = 0.6;
 
-/// The shaping laws, all provisional until the kit pins them:
+/// Capture sharpening's law, MEASURED against Lightroom 9.4 on 2026-09-27
+/// (v1.6.5): one 61 MP frame — ILCE-7RM4A, ISO 2500, 20 s, a star field over
+/// dark ground, Lightroom's Denoise 50 on — exported at Sharpness 0 / 40 / 80
+/// with Radius 1.0, Detail 25, Masking 0, and this operator's constants fitted
+/// to what moved between the exports, in gamma-encoded luma (the calibration
+/// lane's `fit_enc6.py`, a per-pixel least squares on a sample stratified over
+/// local luminance × signal amplitude × edge side: per-pixel R² 0.93 at 40 and
+/// 0.92 at 80 over the whole frame, 0.95 on the pixels whose unsharp signal is
+/// past 0.03 — the edges and stars one sees — against 0.62 for the plain
+/// unsharp mask this replaced). What each constant is, and what the frame read:
 ///
-/// * `gain` — Amount 100 lifts this many times the unsharp detail signal
-///   (`SH-40`, `SH-100`);
-/// * `halo` — the soft limiter's amplitude `L` (gamma-encoded luma) over
-///   Detail: Adobe documents Detail as halo suppression, so the boost goes
-///   through `L·tanh(boost/L)` with `L` a small floor at Detail 0 and no
-///   practical limit at Detail 100 (`SH-100-D0`, quadratic in between);
-/// * `fine` — the weight of the finest band (a 4-neighbour Laplacian), the
-///   "higher Detail brings out texture" half of the description (`SH-100-D100`);
-/// * `edge` — the blurred-luma gradient, per FILM pixel, at which Masking
-///   opens fully; Masking 0 applies everywhere (`SH-100-M50`, `SH-100-M100`).
+/// * `sigma_per_radius` — the Gaussian σ in film pixels per unit of Radius.
+///   Radius 1.0 is a 0.75 px kernel BEFORE the limiters below; they broaden
+///   the apparent kernel to the 1.17 px a plain unsharp-mask fit reads off the
+///   Amount 40 export (this law reads 1.09 there, 1.05 at 80 against 0.86).
+/// * `gain_bright` / `gain_dark` — the gain on the unsharp signal at Amount
+///   40 in a region brighter than the rolloff, on the BRIGHT side of an edge
+///   (`s ≥ 0`) and on its DARK side, each ∝ (Amount ÷ 40)^`power_*` — both
+///   about linear in the slider (× 2.2 and × 2.0 from 40 to 80). The dark
+///   side's gain is the larger; what holds dark halos is its cap.
+/// * `rolloff_y0` / `rolloff_p` — the gain falls to half at a local luminance
+///   of 0.014 in the exports' gamma-2.2 encoding (0.15 encoded), Hill slope
+///   2.8: the frame's ground (0.002) was sharpened at 0.03 of the sky's gain.
+///   Deep shadows, and the noise in them, are left alone.
+/// * `cap_bright` (∝ (Amount ÷ 40)^`cap_power`) — the soft limit on the
+///   bright side's move, `f / √(1 + (f / cap)²)` on the free move `f`, at
+///   Detail 25: 0.145 at 40, 0.167 at 80. Star peaks lifted +0.07 / +0.11 /
+///   +0.12 at 40 (faint / mid / bright) and +0.13 / +0.15 / +0.13 at 80; the
+///   law reads +0.08 / +0.11 / +0.13 and +0.13 / +0.15 / +0.16.
+/// * `dark_cap_luma` / `dark_cap_free` — the dark side's cap is not a
+///   constant: `dark_cap_luma × Y₀ − dark_cap_free × f`, with `Y₀` the pixel's
+///   OWN luminance (gamma 2.2) and `f` its free move. A pixel may lose about
+///   1.1 × its luminance, less the more it is being pushed. The ring around a
+///   star therefore dips with the star: 0.02 / 0.04 / 0.08 at 40 for the three
+///   classes (the law reads 0.02 / 0.04 / 0.07), and a ring below encoded
+///   ~0.15 does not dip at all; the same limiter is what leaves shadow noise
+///   alone on the dark side. [`cap_at_detail`] carries both caps to the rest
+///   of the Detail band.
+/// * `edge` — Masking's gate (the blurred-luma gradient per FILM pixel at
+///   which it opens fully; Masking 0 applies everywhere), unmeasured: every
+///   export was at Masking 0 (`SH-100-M50`, `SH-100-M100` still to pin).
 struct SharpenLaw {
-    gain: f32,
-    halo: Ramp,
-    fine: Ramp,
+    sigma_per_radius: f32,
+    gain_bright: f32,
+    power_bright: f32,
+    gain_dark: f32,
+    power_dark: f32,
+    rolloff_y0: f32,
+    rolloff_p: f32,
+    cap_bright: f32,
+    cap_power: f32,
+    dark_cap_luma: f32,
+    dark_cap_free: f32,
     edge: Ramp,
 }
 
-const SHARPEN: SharpenLaw =
-    SharpenLaw { gain: 1.0, halo: Ramp(0.02, 1.0), fine: Ramp(0.0, 0.5), edge: Ramp(0.0, 0.04) };
+const SHARPEN: SharpenLaw = SharpenLaw {
+    sigma_per_radius: 0.75,
+    gain_bright: 1.892,
+    power_bright: 1.124,
+    gain_dark: 2.524,
+    power_dark: 1.007,
+    rolloff_y0: 0.0139,
+    rolloff_p: 2.78,
+    cap_bright: 0.145,
+    cap_power: 0.206,
+    dark_cap_luma: 1.107,
+    dark_cap_free: 0.0707,
+    edge: Ramp(0.0, 0.04),
+};
+
+/// The encoding the law's luminances are stated in: the exports' gamma 2.2,
+/// applied to the engine's encoded luma as it was to the export's. The law is
+/// a function of the encoded value a viewer sees, so the same encoded luma
+/// gets the same move here as it did in Lightroom.
+const FIT_GAMMA: f32 = 2.2;
+
+/// The smallest dark-side cap: the move a pixel too dark for any dark halo
+/// still takes, a 150th of an 8-bit code.
+const DARK_CAP_FLOOR: f32 = 1e-4;
+
+/// A cap stated at Detail 25 (the one Detail the kit exported), carried to the
+/// rest of the band on a log ramp over Detail²: no cap (1.0, the whole luma
+/// range) at Detail 100, the pinned value at 25, a little below it at 0.
+/// Adobe documents Detail as halo suppression, the low end suppressing most.
+fn cap_at_detail(cap25: f32, detail: f32) -> f32 {
+    cap25.powf(detail_exponent(detail))
+}
+
+/// The exponent [`cap_at_detail`] raises a cap to: 1 at Detail 25.
+fn detail_exponent(detail: f32) -> f32 {
+    const PIN: f32 = 0.25 * 0.25;
+    (1.0 - detail * detail) / (1.0 - PIN)
+}
+
+/// `f / √(1 + (f / cap)²)`: `f` for a free move well under the cap, the cap
+/// for one well over it, the quadratic-mean knee between (the knee the exports
+/// have; `tanh` sits 12 % high through the middle of it).
+fn soft_cap(f: f32, cap: f32) -> f32 {
+    f * cap / (cap * cap + f * f).sqrt()
+}
+
+/// Steps of [`rolloff_table`] over the encoded luma 0..=1.
+const ROLLOFF_STEPS: usize = 1024;
+
+/// The shadow rolloff `ρ(Y) = Yᵖ / (Yᵖ + Y₀ᵖ)` on the local luminance (the
+/// blurred luma, [`FIT_GAMMA`]-decoded), tabulated over the encoded luma the
+/// blur plane holds — ρ is smooth, and the nearest of 1025 steps is within a
+/// thousandth of the value.
+fn rolloff_table() -> Vec<f32> {
+    let y0p = SHARPEN.rolloff_y0.powf(SHARPEN.rolloff_p);
+    (0..=ROLLOFF_STEPS)
+        .map(|i| {
+            let yp = (i as f32 / ROLLOFF_STEPS as f32).powf(FIT_GAMMA * SHARPEN.rolloff_p);
+            yp / (yp + y0p)
+        })
+        .collect()
+}
 
 /// The Sharpening sliders, resolved: `amount` is the slider ÷ 100 (negative
 /// only for a mask's local Sharpness), `radius` in film pixels, `detail` and
@@ -171,21 +269,28 @@ fn usm_transfer(sigma: f32) -> f32 {
     1.0 - (-2.0 * pi * pi * sigma * sigma * 0.25).exp()
 }
 
-/// Capture sharpening on luma (chroma-preserving, like every detail pass in
-/// this engine). `weight(x, y, px)` is the mask arm's coverage; the global
-/// stage passes 1.
+/// Capture sharpening on luma, [`SHARPEN`]'s measured law. `weight(x, y, px)`
+/// is the mask arm's coverage; the global stage passes 1.
 ///
-/// Per pixel, with `l` the luma and `G_σ` a Gaussian of the Radius:
+/// Per pixel, with `l` the luma, `G_σ` a Gaussian of the Radius (σ =
+/// `sigma_per_radius` film px per unit), `s = l − G_σ∗l` the unsharp signal,
+/// `ρ` the shadow rolloff read at the local (blurred) luma and `Y₀ = l^2.2`:
 ///
 /// ```text
-///   signal = (l − G_σ∗l) + fine(detail)·(l − mean₄(l))
-///   boost  = amount·gain·signal          (then  L·tanh(boost/L), L = halo(detail²))
-///   l'     = l + boost·edge_mask·weight
+///   s ≥ 0:  f = gain_bright·ρ·s,    cap = cap_bright
+///   s < 0:  f = gain_dark·ρ·|s|,    cap = dark_cap_luma·Y₀ − dark_cap_free·f
+///   move    = ±f / √(1 + (f / cap)²)                       (the sign of s)
+///   l'      = l + move·edge_mask·weight          (added to R, G and B alike)
 /// ```
 ///
-/// A NEGATIVE amount (a mask softening its background) skips the limiter and
-/// the fine band: it is a blur toward `G_σ∗l`, which is what the old engine's
-/// signed unsharp mask did and what Lightroom's local −Sharpness looks like.
+/// The move is ADDED to the three channels — neutral light in or out — which
+/// is how the Lightroom export moved (`write_luma_additive`); every other luma
+/// pass in this engine scales chroma instead.
+///
+/// A NEGATIVE amount (a mask softening its background) is the plain signed
+/// unsharp mask it always was — a blur toward `G_σ∗l` through the
+/// chroma-scaling write, no rolloff and no cap: Lightroom's local −Sharpness is
+/// unmeasured, and this is what it looks like.
 pub(crate) fn sharpen(
     data: &mut [[f32; 3]],
     w: usize,
@@ -197,7 +302,7 @@ pub(crate) fn sharpen(
     if w == 0 || h == 0 || p.amount == 0.0 || !p.amount.is_finite() {
         return;
     }
-    let sigma_true = film.raster_px(p.radius.max(SHARPEN_RADIUS_MIN));
+    let sigma_true = film.raster_px(SHARPEN.sigma_per_radius * p.radius.max(SHARPEN_RADIUS_MIN));
     let sigma = sigma_true.max(SHARPEN_MIN_SIGMA_PX);
     let fade = (usm_transfer(sigma_true) / usm_transfer(sigma)).clamp(0.0, 1.0);
     if fade < 1e-3 {
@@ -206,19 +311,33 @@ pub(crate) fn sharpen(
     let luma: Vec<f32> = data.par_iter().map(luma601).collect();
     let blur = gauss_blur_plane(&luma, w, h, sigma);
     let edge = (p.masking > 0.0).then(|| edge_mask(&blur, w, h, p.masking, film));
-    let softening = p.amount < 0.0;
-    let k = p.amount * SHARPEN.gain * fade;
-    let limit = SHARPEN.halo.at(p.detail * p.detail);
-    let fine = if softening { 0.0 } else { SHARPEN.fine.at(p.detail) };
-    write_luma_weighted(data, w, weight, |i, l, wgt| {
-        let mut signal = l - blur[i];
-        if fine > 0.0 {
-            let n = neighbours4(&luma, w, h, i % w, i / w);
-            signal += fine * (l - 0.25 * n.iter().sum::<f32>());
-        }
-        let boost = k * signal;
-        let boost = if softening { boost } else { limit * (boost / limit).tanh() };
-        l + boost * edge.as_ref().map_or(1.0, |e| e[i]) * wgt
+    let gate = |i: usize| edge.as_ref().map_or(1.0, |e| e[i]);
+    if p.amount < 0.0 {
+        let k = p.amount * fade;
+        write_luma_weighted(data, w, weight, |i, l, wgt| l + k * (l - blur[i]) * gate(i) * wgt);
+        return;
+    }
+    // The slider over Lightroom's RAW default of 40, the amount the law is
+    // stated at (`amount` is the slider ÷ 100).
+    let over40 = p.amount / 0.4;
+    let gain_bright = SHARPEN.gain_bright * over40.powf(SHARPEN.power_bright) * fade;
+    let gain_dark = SHARPEN.gain_dark * over40.powf(SHARPEN.power_dark) * fade;
+    let cap_bright = cap_at_detail(SHARPEN.cap_bright * over40.powf(SHARPEN.cap_power), p.detail);
+    let detail_exp = detail_exponent(p.detail);
+    let rolloff = rolloff_table();
+    write_luma_additive(data, w, weight, |i, l, wgt| {
+        let s = l - blur[i];
+        let rho = rolloff[(blur[i].clamp(0.0, 1.0) * ROLLOFF_STEPS as f32).round() as usize];
+        let mv = if s >= 0.0 {
+            soft_cap(gain_bright * rho * s, cap_bright)
+        } else {
+            let f = gain_dark * rho * -s;
+            let y0 = l.clamp(0.0, 1.0).powf(FIT_GAMMA);
+            let cap25 = (SHARPEN.dark_cap_luma * y0 - SHARPEN.dark_cap_free * f).max(DARK_CAP_FLOOR);
+            let cap = if detail_exp == 1.0 { cap25 } else { cap25.powf(detail_exp) };
+            -soft_cap(f, cap)
+        };
+        l + mv * gate(i) * wgt
     });
 }
 

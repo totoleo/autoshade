@@ -168,8 +168,8 @@
 > wrong reason; it writes a `=== name ===` transcript that
 > `scripts/check_docs.py --gates` reads the counts and the lane set back out
 > of, and it prints the by-name test-set difference against a saved baseline.
-> 1767 library + 27 CLI + 225 GUI + 2+2 contract tests are enumerated in the GUI
-> build; the library result is 1752 pass + 15 `#[ignore]`d forensic probes and
+> 1768 library + 27 CLI + 225 GUI + 2+2 contract tests are enumerated in the GUI
+> build; the library result is 1753 pass + 15 `#[ignore]`d forensic probes and
 > the GUI result is 224 pass + one explicit scratch-recipe export probe ignored
 > in the ordinary battery. The one CLI name added for v1.6.2 is the `--negative`
 > refusal pair (a RAW source, a baked negative); the library and GUI lists are
@@ -183,8 +183,10 @@
 > is laid in a cell and the three sections align; each tool keeps its own
 > painted area; arming a brush sweeps the other tools and putting it away ends
 > a mask session — this last replacing the R22-3 pin on the retired 「Paint
-> mask」 checkbox, so +3 / −1 by name against v1.6.3); the library and CLI
-> lists are v1.6.3's. Counts refreshed 2026-09-24 for v1.6.1 (the
+> mask」 checkbox, so +3 / −1 by name against v1.6.3). For v1.6.5, one library
+> name (the dark halo digs with the pixel's own luminance — the measured
+> sharpening law's luminance-bound dark cap); the CLI list is v1.6.3's. Counts
+> refreshed 2026-09-24 for v1.6.1 (the
 > 2026-09-24 audit's findings closed, issues #6–#14): +81 / −1 by name against
 > the v1.6.0 tag (`00d3d09`), listed by the test harness itself on both trees
 > (the v1.6.0 list saved on its release day) — eighty-one library names: the
@@ -1944,13 +1946,34 @@ aim"), so all eleven move pixels, as three passes in the order that matters —
 colour noise, then luminance noise, then sharpening, so the sharpener never
 amplifies what the smoothers were asked to remove:
 
-- **Sharpening** is an unsharp mask on luma at σ = Radius. **Detail** is halo
-  control plus texture: the boost goes through a soft limiter `L·tanh(boost/L)`
-  whose `L` opens with Detail², and a 4-neighbour Laplacian band joins the
-  signal as Detail rises. **Masking** gates the boost by the blurred luma's
-  gradient, so a flat sky stays untouched at high Masking. A mask's signed
-  local Sharpness runs the same operator on the global Radius/Detail/Masking;
-  its negative half is a blur toward the Gaussian.
+- **Sharpening** is an unsharp mask on luma whose law was **measured against
+  Lightroom 9.4 on 2026-09-27** (v1.6.5, `render/detail.rs::SHARPEN`): one
+  61 MP star-field frame (ILCE-7RM4A, ISO 2500, Lightroom's Denoise 50 on)
+  exported at Sharpness 0 / 40 / 80 with Radius 1.0, Detail 25, Masking 0, and
+  the constants fitted per pixel to what moved between the exports in the
+  exports' gamma-encoded luma — R² 0.93 at 40 and 0.92 at 80 over the frame,
+  0.95 on the pixels whose unsharp signal is past 0.03 (the edges and stars
+  one sees), where the plain unsharp mask this replaced explains 0.62. Radius
+  1.0 is a 0.75 px Gaussian (the limiters broaden the apparent kernel to the
+  1.17 px a plain fit reads off the export). The gain on the unsharp signal
+  is about linear in the slider on both sides of an edge (1.9 per unit on the
+  bright side, 2.5 on the dark side at Amount 40) and rolls off in the
+  shadows (half at a local luminance of 0.014 in gamma 2.2, Hill slope 2.8:
+  the frame's dark ground took 0.03 of the sky's gain, so shadow noise is left
+  alone). Each side is soft-limited, `f / √(1 + (f / cap)²)` on the free move
+  `f`: the bright side at a constant 0.145 (∝ (Amount/40)^0.21), the dark side
+  at `1.1 × Y₀ − 0.07 × f` with `Y₀` the pixel's own luminance — a pixel may
+  lose about its own luminance and no more, so the ring around a star dips
+  with the star (0.02 / 0.04 / 0.08 for faint / mid / bright peaks at 40, the
+  law reading 0.02 / 0.04 / 0.07) and a ring below encoded ~0.15 does not dip
+  at all. The move is added to R, G and B alike (`write_luma_additive`), as
+  the exports moved. **Detail** carries the two caps across its band (no cap
+  at 100, a little tighter than 25 at 0; only Detail 25 was exported).
+  **Masking** gates the move by the blurred luma's gradient (unmeasured: every
+  export was at Masking 0), so a flat sky stays untouched at high Masking. A
+  mask's signed local Sharpness runs the same operator on the global
+  Radius/Detail/Masking; its negative half is still the plain blur toward the
+  Gaussian.
 - **Luminance noise reduction** is a self-guided filter (He et al. 2010) on
   luma: where a neighbourhood's variance is far above the threshold ε a pixel
   keeps its value, far below it takes the neighbourhood mean. Luminance sets
@@ -1974,9 +1997,10 @@ analysis surfaces (reverse fit, judge) treat their own raster as the film and
 compare like with like. A σ below 0.6 raster px runs at 0.6 with its amount
 faded by the ratio of the two transfers at Nyquist, and the noise thresholds
 divide by the film factor squared, because averaging k × k film pixels already
-cut the noise variance by k². Each constant is a named `Ramp` over its slider:
-first-principles values until the Lightroom kit's ladders (`SH-*`, `NR-*`,
-`CNR-*`) pin them.
+cut the noise variance by k². The noise-reduction constants are named `Ramp`s
+over their sliders: first-principles values until the Lightroom kit's `NR-*`
+and `CNR-*` ladders pin them; the sharpening ladder (`SH-*`) was exported and
+fitted on 2026-09-27, as the bullet above records.
 
 Eleven controls have a non-zero Lightroom default — the Sharpening amount
 (v1.6.0), Radius 1.0, Sharpen Detail 25, the three noise-reduction companions
