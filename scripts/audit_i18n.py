@@ -89,7 +89,10 @@ I18N = (_GUI_DIR / "i18n.rs").read_text(encoding="utf-8")
 RECIPE = (REPO / "src" / "recipe.rs").read_text(encoding="utf-8")
 ADVISOR = (REPO / "src" / "advisor" / "mod.rs").read_text(encoding="utf-8")
 RATIONALE = (REPO / "src" / "rationale.rs").read_text(encoding="utf-8")
-STYLE = (REPO / "src" / "style.rs").read_text(encoding="utf-8")
+# the style module is a directory of files plus its root (the split of 2026-09-28):
+# the extractor below anchors on `impl BuildStage`, wherever that file sits in the join
+_STYLE_PARTS = [*sorted((REPO / "src" / "style").glob("*.rs")), REPO / "src" / "style.rs"]
+STYLE = "\n".join(p.read_text(encoding="utf-8") for p in _STYLE_PARTS)
 STACK = (REPO / "src" / "stack" / "merge.rs").read_text(encoding="utf-8")
 
 # ── Dynamic-key registry ────────────────────────────────────────────────────
