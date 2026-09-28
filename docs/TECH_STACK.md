@@ -799,7 +799,7 @@ a luminance reading only.
 
 ### Source
 
-- `src/fit.rs` — fixed 17-bin evidence verdict and contiguous-run folding.
+- `src/fit/evidence.rs` — fixed 17-bin evidence verdict and contiguous-run folding.
 - `src/fit_zoned.rs` — residual runs, multi-region semantic/generalized weighted attachment, range
   boundary gate, disclosures, and conservation tests.
 - `src/render/masks.rs` — sequential range evaluation on current rendered pixels.
@@ -893,7 +893,7 @@ residual, the same quantity the zone is then accepted on.
 
 ### Source
 
-- `src/fit.rs` — `EvidenceModel::scoped`, `aggregate_ranges`, `population`.
+- `src/fit/evidence.rs` — `EvidenceModel::scoped`, `aggregate_ranges`, `population`.
 - `src/fit_zoned.rs` — `ZoneAttachment.coverage`, scoped vetoes, luma-only
   skip line.
 - `src/fit_zoned/spatial.rs` — tile readings and coverage.
@@ -1995,9 +1995,10 @@ and zero-confidence fields are conservation-tested to change nothing.
   revision gate.
 - `src/style.rs` and `src/embed.rs` — feature index, z-scoring, SigLIP vectors,
   and hybrid distance.
-- `src/fit.rs` and `src/fit_zoned.rs` — structural-divergence modes, bounded
-  atmosphere fitting, CDF/basis tone solves, per-zone quality gates, cast
-  vetoes, and do-no-harm.
+- `src/fit/` (`structure.rs`, `atmosphere.rs`, `tone.rs`, `hue_gates.rs`,
+  `cast_outcome.rs`) and `src/fit_zoned.rs` — structural-divergence modes,
+  bounded atmosphere fitting, CDF/basis tone solves, per-zone quality gates,
+  cast vetoes, and do-no-harm.
 - `src/generative.rs` — gpt-image-2 sizing, streamed refusal attribution,
   staged publication, reimagine, and generative fill.
 - `src/retouch.rs` — deterministic heal, float-native since v1.5.0 F9 so the

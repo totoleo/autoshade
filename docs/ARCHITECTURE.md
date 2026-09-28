@@ -4016,6 +4016,31 @@ opt-in four-class region bitmaps, retained refined tiles and free-form field
 masks stay engine-only with the named bitmap loss; native gradient tiles and
 semantic bands export their complete composition. Deterministic and key-free.
 
+The reverse fit's source is `src/fit.rs` and the files under `src/fit/`. Through
+v1.6.5 the root was one file of 16,910 lines; it is now the module doc, the
+imports, the `mod` declarations and a re-export of every moved item in the
+visibility it had (no `fit::` path changed), and the code sits where its stage
+sits: `budget.rs` (the strength-scaled budget, the veto policy, the white-balance
+search, the global cast detector), `evidence.rs` (the evidence model: fit modes,
+divergence, the luma and hue ranges, their aggregation and withholding, the
+atmosphere white-balance pairing), `structure.rs` (structural divergence and the
+pairing scale), `gates.rs` (the cast gates' calibration: neutral misprediction,
+the foreign-hue veto, the rotation budget, the hue fan, the reported-confidence
+family), `pairing.rs` (same-frame plausibility, the analysis pair, the report
+type, correspondence, the shared population), `solve.rs` (the `fit_recipe` entry
+points and the promoted solve), `atmosphere.rs` (white balance and the
+atmosphere fit), `hsl.rs` (the HSL stage), `report.rs` (the measured facts, the
+composed report, re-scoring), `cast_outcome.rs` (admission and projection notes,
+the gate outcome, terminal harm), `tone.rs` (the paired robust tone solve, the
+tone sliders, the residual tone curve), `curves.rs` (band statistics, residual
+channel curves, the cast-projection search), `hue_gates.rs` (foreign hues,
+rehued shares, the hue fan, unsupported range movement), `pixels.rs` (pixel
+statistics and the neutral-gate misprediction), `detail.rs` (the detail stage),
+`look.rs` (look error and the calibration corpus) and `tests.rs` (the module's
+own tests). The split moved code and did not edit it: beyond visibility and the
+two lines of the one test that read the file as text, every non-blank line of
+the old file lands once in the new ones.
+
 **One inversion bit, one composition, and the zone picks one home.** This
 engine spells a mask's polarity twice — `LocalAdjustment::inverted` (the GUI's
 Invert checkbox, applied by the weight loop) and the geometry's own bit (a
@@ -5590,7 +5615,7 @@ correction a colour band exists to make
 
 **Evidence verdicts follow the population a correction moves (B1,
 2026-08-27).** `EvidenceModel::scoped(tp, source_zone, target_zone)`
-([`src/fit.rs`](../src/fit.rs)) re-aggregates the same 17 luma bins and 8 hue
+([`src/fit/evidence.rs`](../src/fit/evidence.rs)) re-aggregates the same 17 luma bins and 8 hue
 bands over one zone's soft memberships: target luma bins are rank-paired
 within the zone's own target members at the source:target mass ratio, and the
 structural-survival gate (`1 - DIVERGENCE_ZONE = 0.35`) and the per-pixel
