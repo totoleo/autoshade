@@ -551,13 +551,13 @@ unpickled on trust.
 
 | File | Size | SHA-256 |
 |---|---:|---|
-| `autoshade.exe` (CLI) | 23,227,392 bytes | `b9cb443528bc059e1d534838184fabf5608a7d96390401b1a8615f0aba73d6de` |
-| `autoshade-gui.exe` (desktop app) | 29,715,968 bytes | `6b77d12bcdd7816835e09c3fed2436a0a5c709842e39badd5acd9ffa34d8a460` |
-| `AutoShade-Setup-1.6.6.exe` (installer) | 15,417,270 bytes | `e9a32116596178eecbe425de7037dea62726649ba6b192957fdf66ab809902dd` |
-| `autoshade-1.6.6-windows-x64.zip` (portable archive) | 20,771,210 bytes | `6b5d52ac8e0eb2a1589fd46a65b7a621cebd9be05155f7d20bad2ee565e4e2e4` |
-| `AutoShade-1.6.6-macos-universal.zip` (macOS app bundle) | 41,687,339 bytes | `7fded46d545029bd618457ec88fb19599f6dfae3fc3709bb8576768975e63460` |
-| `AutoShade-1.6.6-linux-x64.zip` (Linux command line only) | 10,042,959 bytes | `8cb02fe62fcfbf200fb2a88ac6538203583ece99ce2bb640fa81e3a3b2f701dc` |
-| `AutoShade-1.6.6-macos-cli.zip` (macOS command line only) | 18,140,040 bytes | `8fec56e043499bd4b554987da1e0e55398e502731de39b7db975988ca6e42383` |
+| `autoshade.exe` (CLI) | 23,200,768 bytes | `00ef022e32af596b8b36bf2513f175c7f68b879d2238df2df8363361d603be65` |
+| `autoshade-gui.exe` (desktop app) | 29,680,640 bytes | `b229886fd7c012ba59677d6215d23998e0c8fa9af6be429daf43bdd9c470b517` |
+| `AutoShade-Setup-1.6.6.exe` (installer) | 15,430,229 bytes | `dbe40bbd7f51125ee8b569bfed8c7a7c580bfdabadc53cd1945b5885a841b507` |
+| `autoshade-1.6.6-windows-x64.zip` (portable archive) | 20,742,821 bytes | `5cf08b7c900dd1f6f23f53d605376d0b89fef8093c238597f8afed4718d9c47b` |
+| `AutoShade-1.6.6-macos-universal.zip` (macOS app bundle) | 41,809,941 bytes | `7655593727284c89729f7cddaa9f8ef58f097a3f8047832c136a55afd0a6d043` |
+| `AutoShade-1.6.6-linux-x64.zip` (Linux command line only) | 10,055,812 bytes | `e42ecafe3dab86865ea70355ad2b14e0a5c331115fa25d88ec71374db2023d80` |
+| `AutoShade-1.6.6-macos-cli.zip` (macOS command line only) | 18,206,392 bytes | `b33ece814ef5bab9a5f8631cfa20ea409ee6ced0dd9dce538bd72c7c18399a1f` |
 | `autoshade-raw-denoise-v2.pth` (RAW denoiser weights, fetched on demand from the v1.6.0 release) | 130,590,559 bytes | `ffafa40a53f52092149db2fcf03636117ad6855e1068142d4f6b03b634e9f9c4` |
 
 Download from the
