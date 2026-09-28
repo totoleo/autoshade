@@ -1068,7 +1068,7 @@ CLAIMS: list[Claim | SetClaim] = [
     SetClaim(README, "RAW extension membership", check_readme_raw_ext_membership),
     SetClaim(README, "no-preview format membership", check_readme_no_preview_membership),
     Claim(
-        "src/xmp.rs",
+        "src/xmp/mask_xml.rs",
         "active XMP census",
         r"Current corpus re-derivation: (?P<sidecars>\d+) sidecars; "
         r"(?P<aggregate>\d+) Mask/Aggregate;\s*"

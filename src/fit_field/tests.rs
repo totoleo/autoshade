@@ -412,11 +412,13 @@ fn field_band_dispersion_flags_spatially_structured_bins() {
 #[test]
 fn the_engine_renders_the_field_from_the_recipe_and_never_calls_the_analyzer() {
     let engine = crate::render::engine_source();
+    let sidecar = crate::xmp::source_text();
     for source in [
         engine.as_str(),
         crate::render::TESTS_SOURCE,
         include_str!("../recipe.rs"),
-        include_str!("../xmp.rs"),
+        sidecar.as_str(),
+        crate::xmp::TESTS_SOURCE,
     ] {
         // CODE only. The engine now DOCUMENTS the analyzer it shares its guide
         // and its render with, and an intra-doc link is the opposite of a
