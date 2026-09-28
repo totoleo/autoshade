@@ -1158,7 +1158,7 @@ reading.
 - `src/fit_zoned/spatial.rs` — traversal, tile raster ownership, shared fitting,
   boundary/frame arbitration, rationale facts and conservation tests.
 - `src/mask_refine.rs` — guided filter, collar restoration and acceptance laws.
-- `src/store.rs` — atomic `OwnedRaster::claim_sibling` ownership.
+- `src/store/paths.rs` — atomic `OwnedRaster::claim_sibling` ownership.
 - `src/xmp/write.rs` and `src/xmp/losses.rs` — existing bitmap-mask omission
   and named loss.
 

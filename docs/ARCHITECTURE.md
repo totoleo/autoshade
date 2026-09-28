@@ -2679,6 +2679,34 @@ to what earlier builds wrote), which is what lets a 「反推 Reverse-fit」 or 
 card survive a reopen and lets the quit dialog's Save-all genuinely save
 background variants instead of livelocking.
 
+The store's source is `src/store.rs` and the files under `src/store/`. Through
+v1.6.5 the root was one file of 10,248 lines; it is now the module doc, the
+imports, the `mod` declarations, a re-export of every moved item in the
+visibility it had (no `store::` path changed) and the one inline test module
+that pins raster ownership, and the code sits where its stage sits: `lock.rs`
+(the develop and settings locks: the lock mode, the guard, the per-path lock,
+the OS lock primitives), `root.rs` (the store root: trust, the store directory
+names, the pre-rename adoption, the per-user data directory, the FNV hash),
+`key.rs` (the photo key: the stem and the hash, case folding read off the
+volume, path identity, alias notes, key resolution, orphan adoption), `paths.rs`
+(develop paths and sidecars: the develop directory, the recipe and sidecar
+targets, export beside the photo, raster claims and ownership, the pixel-source
+record), `variants.rs` (the variants record and its entries, reading and writing
+it, the commit member and the active write), `commit.rs` (the develop commit:
+the manifest, the staged members, resolving a pending commit), `snapshot.rs`
+(reading a develop: the render source, revisions, the snapshot, orphan recovery,
+the pixel source), `sidecar.rs` (sidecars and legacy files: the capped readers,
+the stamped sidecar read, the Lightroom sidecar ranking, the legacy out roots),
+`clear.rs` (clearing a develop, listing versions, contained joins, mask-path
+resolution), `backup.rs` (version backups: claiming a version, the frozen
+rasters, deletion and its register), `versions.rs` (version metadata: entries
+and origins, the edit states, naming, deletion and recovery), `durable.rs`
+(durable writes: staging and syncing, the durable replace and rename, the OS
+primitives, no-clobber publishing), `migrate.rs` (migrating legacy stores) and
+`tests.rs` (the module's own tests). The split moved code and did not edit it:
+beyond visibility and the lines of the tests that read the file as text, every
+non-blank line of the old file lands once in the new ones.
+
 The strip record's ACTIVE half (`active_kind` / `active_pos` / `active_id` /
 `active_name`) describes the card whose develop `recipe.json` mirrors, so
 v0.30.0 gives every writer of a develop ONE way to keep it truthful:
@@ -6201,7 +6229,7 @@ the user's own browser*, and the guarantees are:
 - **Bounded inputs.** JSON bodies cap at 256 MiB, uploads at 500 MB, SSE
   assembly at 64 MiB for text and 512 MiB for images, and XMP sidecars —
   metadata the user *receives* — at 16 MiB through one reader
-  ([`store::read_sidecar_checked`](../src/store.rs), which reads BYTES and
+  ([`store::read_sidecar_checked`](../src/store/sidecar.rs), which reads BYTES and
   checks the size before validating UTF-8, so an over-cap sidecar is never
   reported as "not readable text"). Responses we *read back* from the AI
   endpoint are capped too ([`advisor::into_json_capped_at`](../src/advisor/mod.rs)):
