@@ -2465,11 +2465,14 @@ mod tests {
     /// child-side reach survives via `dotenv_child_env` on all three spawns.
     #[test]
     fn out_of_config_consumers_still_honour_a_dotenv_knob() {
+        // The store is a module of files since the split; its consumer is read
+        // through the module's own source text (the files and the root as one).
+        let store = crate::store::source_text();
         let consumers: [(&str, &str, &str); 4] = [
             ("advisor/mod.rs", include_str!("advisor/mod.rs"), "AUTOSHADE_HTTP_TIMEOUT_SECS"),
             ("advisor/claude.rs", include_str!("advisor/claude.rs"), "AUTOSHADE_HTTP_TIMEOUT_SECS"),
             ("denoise.rs", include_str!("denoise.rs"), "AUTOSHADE_SIDECAR_TIMEOUT_SECS"),
-            ("store.rs", include_str!("store.rs"), "AUTOSHADE_LEGACY_OUT"),
+            ("store/*.rs", store.as_str(), "AUTOSHADE_LEGACY_OUT"),
         ];
         for (file, src, knob) in consumers {
             assert!(
