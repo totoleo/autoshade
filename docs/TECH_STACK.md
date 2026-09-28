@@ -1503,7 +1503,7 @@ incomparable indices cannot look identical, and the loader drops the look block
 | `special_tokens_map.json` | 636 | `baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351` |
 
 Look tags are the top four zero-shot SigLIP captions after a per-group
-argmax over the versioned 33-phrase vocabulary in `src/style.rs`; changing a
+argmax over the versioned 33-phrase vocabulary in `src/style/voice.rs`; changing a
 phrase changes every stored score.
 
 `desc_embed` is the SigLIP **text** vector of the record's description when it
@@ -1994,8 +1994,8 @@ and zero-confidence fields are conservation-tested to change nothing.
 - `src/advisor/mod.rs`, `src/advisor/openai.rs`, `src/advisor/claude.rs`, and
   `src/advisor/judge.rs` — proposal, negotiation, data-only verification, and
   revision gate.
-- `src/style.rs` and `src/embed.rs` — feature index, z-scoring, SigLIP vectors,
-  and hybrid distance.
+- `src/style/` (`features.rs`, `standardise.rs`, `exemplar.rs`, `index.rs`) and
+  `src/embed.rs` — feature index, z-scoring, SigLIP vectors, and hybrid distance.
 - `src/fit/` (`structure.rs`, `atmosphere.rs`, `tone.rs`, `hue_gates.rs`,
   `cast_outcome.rs`) and `src/fit_zoned.rs` — structural-divergence modes,
   bounded atmosphere fitting, CDF/basis tone solves, per-zone quality gates,

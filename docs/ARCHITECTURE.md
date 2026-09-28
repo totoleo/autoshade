@@ -3675,6 +3675,29 @@ pipeline, the web handler and the GUI status line alike. The empty-index refusal
 lives in `StyleIndex::save`, so no caller can truncate a good index with a
 failed build.
 
+The style library's source is `src/style.rs` and the files under `src/style/`.
+Through v1.6.5 the root was one file of 10,782 lines; it is now the module doc,
+the imports, the `mod` declarations and a re-export of every moved item in the
+visibility it had (no `style::` path changed), and the code sits where its stage
+sits: `limits.rs` (dimensions, weights, the index versions, the size limits, the
+bounded-text helpers), `switches.rs` (the environment switches: the retrieval
+weights, the embedding and describe switches, their provenance), `voice.rs` (the
+style query, the look vocabulary, the colour-habit floor, the style voice),
+`features.rs` (feature vectors: the library walk, the distilled keys, setting
+bands, the sidecar readers), `exemplar.rs` (the style and look records,
+embedding distances, the staged frame, the intermediates sweep, description
+embeddings), `build.rs` (building the index: the sidecars and stages, the
+exemplar cache, frame embedding, descriptions, the self check),
+`standardise.rs` (finiteness, hubness, the standardised and distance terms,
+retagging), `index.rs` (the style index: its record and everything it does),
+`load.rs` (the effective index, the index info and state, neighbour stems),
+`targets.rs` (style targets: consistency, the exercised and habit means, the
+targets record, blending toward them), `distil.rs` (the distilled fields, the
+preview, the style pull, normalisation) and `tests.rs` (the module's own
+tests). The split moved code and did not edit it: beyond visibility and the one
+test helper that read the file as text, every non-blank line of the old file
+lands once in the new ones.
+
 **ONE RAW/XMP pairing rule ([`src/xmp_pair.rs`](../src/xmp_pair.rs)).** The rule
 used to be open-coded as `raw.with_extension("xmp")` at six sites — the
 style-index pair scan and its sidecar read, `eval`'s pair scan, its per-photo
