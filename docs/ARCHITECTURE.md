@@ -1,6 +1,10 @@
 # AutoShade — Architecture
 
-> Status: **implemented** (v1.6.4 — the desktop app's side panels lay every text
+> Status: **implemented** (v1.6.5 — capture sharpening is measured against
+> Lightroom 9.4: one 61 MP star-field frame exported at Sharpness 0 / 40 / 80,
+> the law's constants fitted per pixel, the dark halo bounded by the pixel's own
+> luminance;
+> v1.6.4 — the desktop app's side panels lay every text
 > verb in a grid cell, the Develop histogram keeps the readable ceiling, and
 > each brush tool keeps its own painted area behind its own 「🖌 Paint area」 /
 > 「Clear area」 row;
