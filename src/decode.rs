@@ -3228,11 +3228,14 @@ mod tests {
     #[test]
     fn every_raw_image_door_measures_the_plane_first() {
         for (file, doors_expected) in [("src/decode.rs", 2usize), ("src/render.rs", 2usize)] {
-            // LF-normalised: this repo has MIXED line endings by design.
-            let text = std::fs::read_to_string(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file),
-            )
-            .unwrap_or_else(|e| panic!("{file} readable: {e}"))
+            // LF-normalised: this repo has MIXED line endings by design. The engine is
+            // read as the one text `render.rs` was before it was split into files.
+            let text = if file == "src/render.rs" {
+                crate::render::engine_source()
+            } else {
+                std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file))
+                    .unwrap_or_else(|e| panic!("{file} readable: {e}"))
+            }
             .replace("\r\n", "\n");
             // TOP-LEVEL functions only. A test helper lives inside `mod tests`
             // and is therefore indented, so it never starts one of these
@@ -3241,6 +3244,7 @@ mod tests {
                 .match_indices("\nfn ")
                 .chain(text.match_indices("\npub fn "))
                 .chain(text.match_indices("\npub(crate) fn "))
+                .chain(text.match_indices("\npub(super) fn "))
                 .map(|(i, _)| i)
                 .collect();
             starts.sort_unstable();
@@ -3588,11 +3592,8 @@ mod tests {
     fn the_one_raw_develop_funnel_charges_the_ceiling_before_it_decompresses() {
         // LF-normalised: this repo has MIXED line endings by design (per-file
         // `.gitattributes` + `core.autocrlf`).
-        let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/render.rs"),
-        )
-        .expect("render.rs readable")
-        .replace("\r\n", "\n");
+        // The engine as the one text `render.rs` was before it was split into files.
+        let text = crate::render::engine_source().replace("\r\n", "\n");
         assert_eq!(
             text.matches("refuse_raw_develop_over_ceiling_for(").count(),
             1,

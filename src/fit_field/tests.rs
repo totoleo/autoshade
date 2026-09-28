@@ -411,8 +411,10 @@ fn field_band_dispersion_flags_spatially_structured_bins() {
 /// fully analysis-side and keeps its original, stronger claim.
 #[test]
 fn the_engine_renders_the_field_from_the_recipe_and_never_calls_the_analyzer() {
+    let engine = crate::render::engine_source();
     for source in [
-        include_str!("../render.rs"),
+        engine.as_str(),
+        crate::render::TESTS_SOURCE,
         include_str!("../recipe.rs"),
         include_str!("../xmp.rs"),
     ] {

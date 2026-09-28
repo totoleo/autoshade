@@ -5811,9 +5811,14 @@ mod tests {
     fn production_text(rel: &str) -> String {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         // LF-normalised: this repo has MIXED line endings by design.
-        let text = std::fs::read_to_string(root.join(rel))
-            .unwrap_or_else(|e| panic!("{rel}: source readable ({e})"))
-            .replace("\r\n", "\n");
+        // `src/render.rs` is read as the one text it was before it was split into files.
+        let text = if rel == "src/render.rs" {
+            crate::render::engine_source()
+        } else {
+            std::fs::read_to_string(root.join(rel))
+                .unwrap_or_else(|e| panic!("{rel}: source readable ({e})"))
+        }
+        .replace("\r\n", "\n");
         let mut out = String::new();
         let (mut cursor, mut search) = (0usize, 0usize);
         while let Some(rel_at) = text[search..].find("\n#[cfg(test)]\n") {

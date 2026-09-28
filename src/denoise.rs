@@ -2044,7 +2044,8 @@ mod tests {
     /// or move it below `develop_intermediate(`, and this names it.
     #[test]
     fn the_mosaic_denoise_runs_before_demosaic() {
-        let src = crate::source_before_tests(include_str!("render.rs"));
+        let engine = crate::render::engine_source();
+        let src = crate::source_before_tests(&engine);
         let start = src.find("fn render_to_image_in(").expect("render_to_image_in moved");
         let body = &src[start..];
         let hook = body.find("crate::denoise::denoise_mosaic(").expect("the mosaic hook is gone");

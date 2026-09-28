@@ -651,7 +651,7 @@ mod tests {
 
     #[test]
     fn hot_mapping_is_unconditional_and_precedes_every_reader_of_the_mosaic() {
-        let source = include_str!("../render.rs");
+        let source = crate::render::engine_source();
         let start = source.find("let strength = denoise.map_or").unwrap();
         let body = &source[start..source.find("fn develop_raw_buffer(").unwrap()];
         // The hook takes the frame and nothing else: no denoise option can switch it off.
