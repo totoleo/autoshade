@@ -17,6 +17,8 @@ mod claude;
 mod heuristic;
 mod judge;
 mod openai;
+/// The tool-use loop (tools / tool_calls / role:"tool").
+mod tool_call;
 // The prompt-injection fence, re-exported: `library-search` prints the SAME
 // block the proposer receives, and a second literal there could drift from it
 // without anything failing.
@@ -1064,7 +1066,10 @@ pub(crate) fn vision_body(family: SseFamily, req: &VisionRequest<'_>) -> serde_j
             body
         }
         SseFamily::Chat => {
-            let mut content = vec![json!({ "type": "text", "text": req.instruction })];
+            // PATCH(local): DeepSeek only supports response_format=json_object and
+            // demands the word "json" in the prompt. Say it once, up front.
+            let instruction = format!("Reply with a single JSON object and nothing else.\n{}", req.instruction);
+            let mut content = vec![json!({ "type": "text", "text": instruction })];
             for f in &req.frames {
                 content.push(json!({ "type": "image_url",
                                      "image_url": {
@@ -1075,11 +1080,10 @@ pub(crate) fn vision_body(family: SseFamily, req: &VisionRequest<'_>) -> serde_j
                 "model": req.model,
                 "messages": [{ "role": "user", "content": content }]
             });
-            if let Some((name, schema)) = &req.schema {
-                body["response_format"] = json!({
-                    "type": "json_schema",
-                    "json_schema": { "name": name, "strict": true, "schema": schema }
-                });
+            if req.schema.is_some() {
+                // PATCH(local): the reply schema already rides the prompt; ask only for
+                // valid JSON so DeepSeek accepts the call on the first attempt.
+                body["response_format"] = json!({ "type": "json_object" });
             }
             body
         }
@@ -1277,6 +1281,27 @@ pub(crate) struct Refused {
 /// [`post_ai_json`] for a caller that will retry at its OWN level: the
 /// capability knowledge is carried in and out instead of being rebuilt from
 /// nothing, so one logical call negotiates once. See [`Refused`].
+
+/// Emit one machine-readable usage line for the cost ledger.
+/// `AUTOSHADE_USAGE_TAG` lets the caller attribute it (the pipeline sets it to the
+/// photo key and runs one child process per photo, so concurrent runs stay readable).
+fn emit_usage(v: &serde_json::Value) {
+    let Some(u) = v.get("usage").filter(|u| !u.is_null()) else {
+        return;
+    };
+    let tag = std::env::var("AUTOSHADE_USAGE_TAG").unwrap_or_default();
+    let inp = u.get("prompt_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
+    let out = u.get("completion_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
+    let cached = u
+        .get("prompt_cache_hit_tokens")
+        .and_then(|x| x.as_i64())
+        .unwrap_or(0);
+    eprintln!(
+        "USAGE {}",
+        serde_json::json!({"tag": tag, "in": inp, "out": out, "cached": cached})
+    );
+}
+
 pub(crate) fn post_ai_json_with(
     url: &str,
     key: &str,
@@ -1322,11 +1347,22 @@ pub(crate) fn post_ai_json_with(
         let mut attempt = body.clone();
         if use_stream {
             attempt["stream"] = serde_json::Value::Bool(true);
+            if matches!(family, SseFamily::Chat) {
+                // PATCH(local): the streaming API omits `usage` unless asked for it.
+                attempt["stream_options"] = serde_json::json!({"include_usage": true});
+            }
         }
         if has_format && !use_format && let Some(o) = attempt.as_object_mut() {
             match family {
                 SseFamily::Responses => o.remove("text"),
-                SseFamily::Chat => o.remove("response_format"),
+                // PATCH(local): a Chat endpoint that refused `json_schema` usually still
+                // honours `json_object` (DeepSeek does). Downgrade rather than drop: with
+                // nothing on the wire the model invents field names like `mid_hue`, and
+                // the whole proposal is thrown away.
+                SseFamily::Chat => {
+                    o.insert("response_format".into(), serde_json::json!({"type": "json_object"}));
+                    None
+                }
             };
         }
         match family {
@@ -1426,7 +1462,10 @@ pub(crate) fn post_ai_json_with(
                 // pin; wrapping all of them puts the question where it can be
                 // answered, in the one `is_ok` test inside it.
                 match into_json_capped(r) {
-                    Ok(v) => return settle_repeat(transient_retried, Ok(v)),
+                    Ok(v) => {
+                        emit_usage(&v);
+                        return settle_repeat(transient_retried, Ok(v));
+                    }
                     Err(e) => {
                         let msg = if e.kind() == std::io::ErrorKind::InvalidData {
                             format!("the AI endpoint answered with unreadable JSON: {e}")
@@ -1497,7 +1536,12 @@ pub(crate) fn post_ai_json_with(
                         error_blames_param(&b, "text.format")
                             || structured_param(&b).as_deref() == Some("text")
                     }
-                    SseFamily::Chat => error_blames_param(&b, "response_format"),
+                    SseFamily::Chat => {
+                        // PATCH(local): DeepSeek answers param=null with a bare, unquoted
+                        // "This response_format type is unavailable now" — accept it too.
+                        error_blames_param(&b, "response_format")
+                            || b.contains("response_format")
+                    }
                 };
                 if negotiable && use_format && names_format {
                     eprintln!(
@@ -1858,16 +1902,23 @@ fn assemble_sse(
         }
         SseFamily::Chat => {
             let mut text = String::new();
+            // PATCH(local): streamed tool calls arrive as fragments keyed by `index`;
+            // reassemble them into the blocking shape the tool loop reads.
+            let mut calls: std::collections::BTreeMap<u64, serde_json::Value> = Default::default();
             let mut failure: Option<String> = None;
             // A clean EOF is NOT success by itself: without a terminal
             // finish_reason a proxy-truncated stream (connection closed
             // mid-generation) would hand partial JSON downstream — the same
             // strictness the Responses arm gets from response.completed.
             let mut finished = false;
+            let mut usage: Option<serde_json::Value> = None;
             let read = for_each_sse_json(r, CAP, progress_budget, |v| {
                 if v.get("error").is_some() {
                     failure = Some(v.to_string());
                     return Break(());
+                }
+                if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
+                    usage = Some(u.clone());
                 }
                 // Select the choice whose "index" is 0 (missing index = 0):
                 // we never request n>1, but a bridge chunk may order or thin
@@ -1887,7 +1938,9 @@ fn assemble_sse(
                     // partial JSON downstream, whose parse error would blame
                     // the wrong thing.
                     if let Some(fr) = c.get("finish_reason").and_then(serde_json::Value::as_str) {
-                        if fr != "stop" {
+                        // PATCH(local): `tool_calls` is a NORMAL terminal reason — the
+                        // answer arrived as a structured call rather than as text.
+                        if fr != "stop" && fr != "tool_calls" {
                             failure = Some(format!(
                                 "chat stream finished with reason '{fr}' — output truncated"
                             ));
@@ -1901,6 +1954,44 @@ fn assemble_sse(
                         .and_then(serde_json::Value::as_str)
                     {
                         text.push_str(delta);
+                    }
+                    if let Some(tcs) = c
+                        .get("delta")
+                        .and_then(|d| d.get("tool_calls"))
+                        .and_then(serde_json::Value::as_array)
+                    {
+                        for tc in tcs {
+                            let idx = tc.get("index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                            let slot = calls.entry(idx).or_insert_with(|| {
+                                serde_json::json!({
+                                    "id": "", "type": "function",
+                                    "function": { "name": "", "arguments": "" }
+                                })
+                            });
+                            if let Some(id) = tc.get("id").and_then(serde_json::Value::as_str) {
+                                if !id.is_empty() {
+                                    slot["id"] = serde_json::json!(id);
+                                }
+                            }
+                            if let Some(n) = tc
+                                .pointer("/function/name")
+                                .and_then(serde_json::Value::as_str)
+                            {
+                                if !n.is_empty() {
+                                    slot["function"]["name"] = serde_json::json!(n);
+                                }
+                            }
+                            if let Some(a) = tc
+                                .pointer("/function/arguments")
+                                .and_then(serde_json::Value::as_str)
+                            {
+                                let cur = slot["function"]["arguments"]
+                                    .as_str()
+                                    .unwrap_or("")
+                                    .to_string();
+                                slot["function"]["arguments"] = serde_json::json!(format!("{cur}{a}"));
+                            }
+                        }
                     }
                 }
                 Continue(())
@@ -1926,7 +2017,7 @@ fn assemble_sse(
                 );
                 return Err(AdvisorError::ModelFailure(safe.into_string()));
             }
-            if text.is_empty() {
+            if text.is_empty() && calls.is_empty() {
                 return Err(AdvisorError::Transport(
                     "chat stream ended without any content deltas".into(),
                 ));
@@ -1937,7 +2028,14 @@ fn assemble_sse(
                         .into(),
                 ));
             }
-            Ok(serde_json::json!({"choices": [{"message": {"content": text}}]}))
+            if let Some(u) = &usage {
+                emit_usage(&serde_json::json!({ "usage": u }));
+            }
+            let tool_calls: Vec<serde_json::Value> = calls.into_values().collect();
+            Ok(serde_json::json!({"choices": [{"message": {
+                "content": text,
+                "tool_calls": tool_calls
+            }}]}))
         }
     }
 }

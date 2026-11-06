@@ -557,7 +557,46 @@ pub fn produce_recipe(
         if verbose {
             println!("proposer : OpenAI ({})", cfg.openai_model);
         }
-        match openai.propose_planned_with_base(&proposer_preview, meta, hist, &propose_ctx, base) {
+        // PATCH(local): the tool-use contract, applied to the proposer. Its reply is a
+        // schema-checked object; when the validator refuses it, the agent gets the
+        // validator's OWN message back and one more turn — the same loop a tool call
+        // gets in an agent harness. Loosening the schema instead would have hidden
+        // the hallucination (and did, briefly: `full_bottom` slipped through).
+        let mut repair_hint: Option<String> = None;
+        let mut repair_count = 0usize;
+        let proposal = loop {
+            let ctx = match &repair_hint {
+                Some(h) => crate::advisor::ProposeContext { hint: Some(h.as_str()), ..propose_ctx },
+                None => propose_ctx,
+            };
+            match openai.propose_planned_with_base(&proposer_preview, meta, hist, &ctx, base) {
+                Ok(p) => break Ok(p),
+                Err(e) => {
+                    let msg = e.to_string();
+                    let schema_refusal = msg.contains("unknown field")
+                        || msg.contains("missing field")
+                        || msg.contains("invalid type")
+                        || msg.contains("no variant of enum")
+                        || msg.contains("expected one of");
+                    if schema_refusal && repair_count < 2 {
+                        repair_count += 1;
+                        diag.warn(format!(
+                            "schema validator rejected the reply ({msg}) → returning the error to the model (repair {repair_count}/2)"
+                        ));
+                        repair_hint = Some(format!(
+                            "YOUR PREVIOUS REPLY WAS REJECTED BY THE SCHEMA VALIDATOR: {msg}\n\
+                             Send the whole answer again as ONE JSON object and make it pass validation.\n\
+                             Use only the field names the schema lists; never invent one. A linear gradient\
+                             mask has exactly zero_x, zero_y, full_x, full_y (there is no full_bottom / full_top /\
+                             x / y / width / height). Do not repeat the rejected reply."
+                        ));
+                        continue;
+                    }
+                    break Err(e);
+                }
+            }
+        };
+        match proposal {
             Ok(p) => {
                 thinking = p.thinking;
                 opinions = p.opinions;

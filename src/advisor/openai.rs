@@ -692,15 +692,32 @@ impl OpenAiProvider {
         // post_ai_json for the full rationale and the blocking fallback). The
         // family — `/responses`, or `/chat/completions` where the endpoint
         // has no such route — is `post_vision`'s to settle.
-        let recipe_json = super::post_vision(
-            &self.base_url,
-            key,
-            &req,
-            super::PROPOSE_TIMEOUT_SECS,
-            effort.as_deref(),
-            self.api_family,
-            "could not locate structured output in OpenAI response (shape mismatch — see openai.rs)",
-        )?;
+        // PATCH(local): the Chat family goes through the tool-use loop — the reply is a
+        // structured `submit_recipe` call, the validator's verdict comes back as a
+        // `role:"tool"` observation, and the model gets bounded steps to correct it.
+        // The other families keep the shipped single-call path.
+        let recipe_json = match (self.api_family, req.schema.as_ref()) {
+            (ApiFamily::Chat, Some((_name, schema))) => {
+                let args = super::tool_call::propose_via_tools(
+                    &self.base_url,
+                    key,
+                    &req,
+                    schema,
+                    super::PROPOSE_TIMEOUT_SECS,
+                    effort.as_deref(),
+                )?;
+                serde_json::to_string(&args)?
+            }
+            _ => super::post_vision(
+                &self.base_url,
+                key,
+                &req,
+                super::PROPOSE_TIMEOUT_SECS,
+                effort.as_deref(),
+                self.api_family,
+                "could not locate structured output in OpenAI response (shape mismatch — see openai.rs)",
+            )?,
+        };
         // Parse to a Value FIRST so a miscounted HSL axis can be repaired
         // instead of throwing the whole paid call away (see
         // `repair_hsl_axis_lengths`).
@@ -867,7 +884,7 @@ pub(crate) fn expand_ai_mask_intents(v: &mut Value) -> Vec<String> {
 /// keys is the registry's (`catalogue::nullable_controls`): the lens trio
 /// since R23-1b, the effects, the B&W treatment and the calibration since
 /// 2026-10-21.
-fn take_opinions(v: &mut Value) -> Opinions {
+pub(crate) fn take_opinions(v: &mut Value) -> Opinions {
     let Some(obj) = v.as_object_mut() else { return Opinions::default() };
     let mut out = Opinions::default();
     for key in catalogue::nullable_controls() {
@@ -984,7 +1001,7 @@ fn take_thinking(v: &mut Value, key: &str) -> Option<Thinking> {
 /// verify round) and dropped the user back to the heuristic baseline. Repair
 /// the axis and keep the rest of the proposal — a missing band reads as
 /// neutral 0 and a surplus one is dropped, both disclosed in the rationale.
-fn repair_hsl_axis_lengths(v: &mut Value) -> Vec<String> {
+pub(crate) fn repair_hsl_axis_lengths(v: &mut Value) -> Vec<String> {
     let mut repaired = Vec::new();
     let Some(hsl) = v.get_mut("hsl").and_then(Value::as_object_mut) else {
         return repaired;
