@@ -549,7 +549,10 @@ pub(super) fn settle_camera_buffer(
 /// develop — when the develop does not rescale, the frame is not a CFA
 /// mosaic, or rawler would demosaic it as four colours.
 fn develop_cfa_signed(raw: &rawler::RawImage, dev: &RawDevelop) -> Option<Intermediate> {
-    use rawler::imgop::sensor::bayer::{ppg::PPGDemosaic, Demosaic};
+    use rawler::imgop::sensor::bayer::ppg::PPGDemosaic;
+    // rawler 0.8: the `Demosaic` trait moved from `imgop::sensor::bayer` up to
+    // `imgop::sensor` (the bayer module re-exports it no longer).
+    use rawler::imgop::sensor::Demosaic;
     use rawler::pixarray::PixF32;
     use rawler::rawimage::RawPhotometricInterpretation as Photo;
     let Photo::Cfa(config) = &raw.photometric else { return None };

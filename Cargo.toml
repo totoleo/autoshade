@@ -86,7 +86,7 @@ image = { version = "0.25", default-features = false, features = [
 # Integrity key for ACR content-addressed objects (not authentication). Already
 # locked through rawler; direct because MaskBrushTable verifies the target blob.
 md5 = "=0.8.0"
-rawler = "0.7.2"
+rawler = "0.8.0"
 # Same version `image` already locks (0.11.3). Direct since 2026-09-24:
 # decode.rs reads a TIFF's ICC tag through the tiff crate itself (image's own
 # probe folds every tiff error into "untagged"), and the ICC regression tests
