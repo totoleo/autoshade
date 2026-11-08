@@ -185,14 +185,33 @@ impl AutoShadeApp {
             let ak = form.analysis_api_key.trim().to_string();
             let ik = form.image_api_key.trim().to_string();
             if !ak.is_empty() {
-                cur.analysis_api_key = Some(ak);
+                cur.analysis_api_key = Some(ak.clone());
                 cur.analysis_api_key_base =
                     cur.analysis_base_url.clone().filter(|s| !s.trim().is_empty());
             }
             if !ik.is_empty() {
-                cur.image_api_key = Some(ik);
+                cur.image_api_key = Some(ik.clone());
                 cur.image_api_key_base =
                     cur.image_base_url.clone().filter(|s| !s.trim().is_empty());
+            }
+            // ONE DeepSeek key for both roles. With the DeepSeek preset both
+            // endpoints are api.deepseek.com, so a key typed in either API Key
+            // field fills the other role when that role has no key of its own
+            // (a key saved for another endpoint is refused at load by its
+            // recorded home, so it does not block this).
+            let is_deepseek = |u: &Option<String>| {
+                u.as_deref()
+                    .is_some_and(|s| s.contains("api.deepseek.com"))
+            };
+            if is_deepseek(&cur.image_base_url) && is_deepseek(&cur.analysis_base_url) {
+                if !ik.is_empty() && cur.analysis_api_key.as_deref().unwrap_or("").is_empty() {
+                    cur.analysis_api_key = Some(ik.clone());
+                    cur.analysis_api_key_base = cur.analysis_base_url.clone();
+                }
+                if !ak.is_empty() && cur.image_api_key.as_deref().unwrap_or("").is_empty() {
+                    cur.image_api_key = Some(ak.clone());
+                    cur.image_api_key_base = cur.image_base_url.clone();
+                }
             }
         });
         // Did the user type a key on this save? Asked BEFORE the fields are
@@ -670,7 +689,7 @@ impl AutoShadeApp {
                 if action(ui, true, label)
                     .on_hover_text(tr(
                         lang,
-                        "OpenAI-compatible: Base URL https://api.deepseek.com, model deepseek-flash. Enter your DeepSeek key in API Key below; a fresh AI Analyze runs through the pi harness with it.",
+                        "Sets BOTH roles (proposer and verifier) to DeepSeek: Base URL https://api.deepseek.com, model deepseek-flash, Chat API family (DeepSeek does not accept OpenAI's json_schema contract). Enter your DeepSeek key in either API Key field; Save fills the other role's key when it is empty.",
                     ))
                     .clicked()
                 {
@@ -678,6 +697,14 @@ impl AutoShadeApp {
                     f.analysis_base_url = "https://api.deepseek.com".to_string();
                     f.analysis_model = "deepseek-flash".to_string();
                     f.analysis_models.clear();
+                    f.image_provider_oauth = false;
+                    f.image_base_url = "https://api.deepseek.com".to_string();
+                    f.image_model = "deepseek-flash".to_string();
+                    f.image_models.clear();
+                    // DeepSeek refuses OpenAI's response_format.json_schema;
+                    // the chat family is the plain chat-completions path the
+                    // legacy proposer/verifier already implement.
+                    f.image_api_family = "chat".to_string();
                 }
             });
             ui.horizontal(|ui| {
