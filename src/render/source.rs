@@ -605,7 +605,7 @@ fn develop_cfa_signed(raw: &rawler::RawImage, dev: &RawDevelop) -> Option<Interm
                     cam2rgb[1][0] * r + cam2rgb[1][1] * g + cam2rgb[1][2] * b,
                     cam2rgb[2][0] * r + cam2rgb[2][1] * g + cam2rgb[2][2] * b,
                 ];
-                *px = super::camera::settle_over_range(out);
+                *px = super::camera::settle_over_range(out, false);
             });
         }
     }

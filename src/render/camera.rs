@@ -235,6 +235,13 @@ pub(super) fn calibrate_camera_buffer(
     let m = camera_to_space_matrix(xyz2cam, space);
     data.par_iter_mut().for_each(|px| {
         let v = [px[0] * wb[0], px[1] * wb[1], px[2] * wb[2]];
+        // A sensor photosite at the white level has CLIPPED: its value no
+        // longer says what colour the light was, and preserving the
+        // chromaticity of a clipped triple invents a hue (bright bokeh lights
+        // came out magenta). Those keep rawler's desaturating blend. A merely
+        // BRIGHT pixel — the sunset sun at 0.56 of white, pushed past 1 only by
+        // the red white-balance multiplier — is not clipped, and keeps its hue.
+        let sensor_clipped = px.iter().any(|c| *c >= 0.98);
         // The camera profile's colour tables act HERE: linear light, before
         // the transfer encode. Everything downstream — exposure, tone, the
         // mixer, the masks — then sees a frame that already carries the
@@ -253,35 +260,45 @@ pub(super) fn calibrate_camera_buffer(
             }
             None => mat_vec3(&m, &v),
         };
-        let t = settle_over_range(t);
+        let t = settle_over_range(t, sensor_clipped);
         *px = [linear_to_srgb(t[0]), linear_to_srgb(t[1]), linear_to_srgb(t[2])];
     });
 }
 
-/// rawler's develop's treatment of a blown pixel (any linear component above
-/// 1): scale-to-max averaged with the euclidean norm; a pixel inside 1 comes
-/// back as it went in. Blown pixels take EXACTLY rawler's formula, including
-/// its negative pre-clip: keeping negatives inside it let the positive
-/// euclidean term drag an out-of-gamut component back into gamut with a hue
-/// shift. Unblown pixels keep their negatives — the wide-gamut win lives
-/// there.
-/// Bring a linear triple whose largest component is above 1 back into range
-/// WITHOUT changing its chromaticity: scale the whole triple by `1/max`.
+/// Bring a linear triple whose largest component is above 1 back into range.
 ///
-/// rawler's `clip_euclidean_norm_avg` averages that scale-to-max triple with
-/// the euclidean norm, which drags every channel toward the mean. For a
-/// genuinely blown white that is a no-op; for a bright SATURATED colour it is
-/// a desaturation, and a sunset's sun (white-balanced [1.32, 0.22, 0.08] —
-/// over 1 because the red multiplier is 2.4, not because the sensor clipped)
-/// came out as a pale pink disc with a hard edge. Scaling keeps the ratios and
-/// lets the final pack clip the one channel that is over, which is what a
-/// camera JPEG and Camera Raw show.
-pub(super) fn settle_over_range(t: [f32; 3]) -> [f32; 3] {
+/// Two cases, because "over 1" means two different things:
+///
+/// * **A clipped sensor photosite** (any camera channel at the white level,
+///   `sensor_clipped`): the value no longer says what colour the light was.
+///   rawler's `clip_euclidean_norm_avg` blend — scale-to-max averaged with the
+///   euclidean norm — desaturates it, which is right: preserving the
+///   chromaticity of a clipped triple invents a hue (bright bokeh lights came
+///   out magenta on DSC00001).
+/// * **A bright, unclipped colour pushed over 1 by white balance** — the
+///   sunset sun at 0.56 of white × 2.4 red = [1.32, 0.22, 0.08]. Its colour is
+///   real, so scale by `1/max`: the ratios survive and the final pack clips
+///   the one channel that is over. rawler's blend turned this into a pale pink
+///   disc with a hard edge (DSC06817).
+///
+/// A negative channel is out of the delivery gamut whatever the sensor did;
+/// that also takes the blend, because scaling would amplify a hue the matrix
+/// invented.
+pub(super) fn settle_over_range(t: [f32; 3], sensor_clipped: bool) -> [f32; 3] {
     let max = t[0].max(t[1]).max(t[2]);
     if max <= 1.0 || max.is_nan() {
         return t;
     }
     let t0 = t.map(|c| c.max(0.0));
+    if sensor_clipped {
+        // A clipped photosite lost its colour on the sensor; desaturate.
+        let eucl = ((t0[0] * t0[0] + t0[1] * t0[1] + t0[2] * t0[2]) / 3.0).sqrt();
+        return t0.map(|c| (c / max + eucl) / 2.0);
+    }
+    // Unclipped: keep the chromaticity. A negative channel is clamped to 0 by
+    // `t0` above — the matrix can put a saturated orange's green below zero,
+    // and clipping that single channel is what a camera JPEG does; blending
+    // instead would desaturate the sun to pink.
     let inverse = 1.0 / max;
     [t0[0] * inverse, t0[1] * inverse, t0[2] * inverse]
 }
@@ -293,18 +310,26 @@ mod tests {
     /// The defect this replaces: rawler's euclidean blend turned the sun's
     /// white-balanced [1.32, 0.22, 0.08] into an almost neutral pink.
     #[test]
-    fn a_bright_saturated_colour_keeps_its_chromaticity() {
-        let out = settle_over_range([1.32, 0.22, 0.08]);
+    fn a_bright_unclipped_colour_keeps_its_chromaticity() {
+        let out = settle_over_range([1.32, 0.22, 0.08], false);
         assert_eq!(out, [1.0, 0.22 / 1.32, 0.08 / 1.32]);
         assert!(out[1] < 0.2 && out[2] < 0.1, "a sunset sun must stay orange: {out:?}");
     }
 
-    /// A genuinely blown pixel still settles to white, and an in-range pixel
-    /// is untouched.
+    /// A CLIPPED pixel loses its colour on the sensor; it must desaturate, not
+    /// keep a hue the clipping invented.
     #[test]
-    fn blown_stays_white_and_range_is_untouched() {
-        assert_eq!(settle_over_range([2.0, 2.0, 2.0]), [1.0, 1.0, 1.0]);
-        assert_eq!(settle_over_range([0.4, 0.2, 0.1]), [0.4, 0.2, 0.1]);
+    fn a_clipped_photosite_takes_the_desaturating_blend() {
+        let out = settle_over_range([1.32, 0.22, 0.08], true);
+        assert!(out[1] > 0.4, "clipped colour must not keep the saturated ratio: {out:?}");
+        let white = settle_over_range([2.0, 2.0, 2.0], true);
+        assert_eq!(white, [1.5, 1.5, 1.5], "a clipped white stays neutral and over 1");
+    }
+
+    /// An in-range pixel is untouched.
+    #[test]
+    fn range_is_untouched() {
+        assert_eq!(settle_over_range([0.4, 0.2, 0.1], false), [0.4, 0.2, 0.1]);
     }
 }
 
