@@ -7,6 +7,7 @@
 //! both call it.
 
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -122,6 +123,18 @@ enum Command {
         /// the standing answer.
         #[arg(long)]
         reference_image: bool,
+    },
+    /// Run the analyze chain through the pi harness: the model drives the MCP
+    /// tools (read, validate, render, critic, commit) instead of the in-process
+    /// pipeline. Needs Node and the harness checkout; see
+    /// `wishes/harness-refactor/S1.md` in the photo repo.
+    PiAnalyze {
+        /// Path to the RAW (or baked) photo.
+        photo: PathBuf,
+        /// The harness entry point. Omitted: `AUTOSHADE_PI_HARNESS`, else
+        /// `harness/pi/analyze.mjs` found above this binary or the cwd.
+        #[arg(long)]
+        harness: Option<PathBuf>,
     },
     /// Render an existing EditRecipe onto a RAW and save the developed image.
     /// The recipe may be the JSON `analyze` writes, or a Lightroom / Camera Raw
@@ -572,6 +585,7 @@ fn main() -> Result<()> {
             let guide = pipeline::Guide::resolve(guide, guidance.as_deref())?;
             analyze_cmd(&raw, out, guidance, guide, style, strength, adherence, deep, reference_image, embed_switch(embed, no_embed))
         }
+        Command::PiAnalyze { photo, harness } => pi_analyze_cmd(&photo, harness),
         Command::Apply { raw, recipe, out, long_edge } => {
             apply_cmd(&raw, &recipe, &out, long_edge)
         }
@@ -1038,6 +1052,103 @@ fn analyze_request(
 }
 
 #[allow(clippy::too_many_arguments)] // one clap subcommand's own flag set, like `auto_cmd`
+/// `pi-analyze`: the harness replaces the in-process pipeline. The photo is the
+/// only user input; the MCP server is this binary, and the develop goes to the
+/// normal store so the result is testable where the app reads it.
+fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
+    let cfg = Config::load();
+    let photo = photo
+        .canonicalize()
+        .with_context(|| format!("photo {}", photo.display()))?;
+    if !photo.is_file() {
+        anyhow::bail!("not a file: {}", photo.display());
+    }
+    let root = photo
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("{} has no parent directory", photo.display()))?;
+    let script = harness.or_else(find_pi_harness).ok_or_else(|| {
+        anyhow::anyhow!(
+            "cannot find harness/pi/analyze.mjs — pass --harness <path>, set \
+             AUTOSHADE_PI_HARNESS, or run from the photo repo"
+        )
+    })?;
+    let script = script
+        .canonicalize()
+        .with_context(|| format!("harness {}", script.display()))?;
+    let exe = std::env::current_exe().context("current exe")?;
+    let store = autoshade::store::store_root();
+    let data = store.join("harness");
+    std::fs::create_dir_all(&data).with_context(|| format!("create {}", data.display()))?;
+    let node = std::env::var("AUTOSHADE_NODE").unwrap_or_else(|_| "node".into());
+    let mut cmd = ProcessCommand::new(&node);
+    cmd.arg(&script);
+    cmd.arg(photo.file_name().unwrap_or(photo.as_os_str()));
+    cmd.env("AUTOSHADE_PHOTO_ROOT", root);
+    cmd.env("AUTOSHADE_MCP_EXE", &exe);
+    cmd.env("AUTOSHADE_MCP_DATA", &data);
+    cmd.env("AUTOSHADE_DATA_DIR", &store);
+    if std::env::var_os("AUTOSHADE_PYTHON").is_none() && !cfg.python_bin.is_empty() {
+        cmd.env("AUTOSHADE_PYTHON", &cfg.python_bin);
+    }
+    if std::env::var_os("DEEPSEEK_API_KEY").is_none() {
+        if let Some(key) = cfg.openai_api_key.as_deref().or(cfg.analysis_api_key.as_deref()) {
+            if !key.is_empty() {
+                cmd.env("DEEPSEEK_API_KEY", key);
+            }
+        }
+    }
+    eprintln!(
+        "pi-analyze: {} via {} (sessions {})",
+        photo.display(),
+        script.display(),
+        data.display()
+    );
+    let status = cmd.status().with_context(|| format!("spawn {node}"))?;
+    if !status.success() {
+        anyhow::bail!("the pi harness failed ({status})");
+    }
+    Ok(())
+}
+
+/// The harness entry point: `$AUTOSHADE_PI_HARNESS`, else `harness/pi/analyze.mjs`
+/// above this binary or the cwd (the dev checkout's layout).
+fn find_pi_harness() -> Option<PathBuf> {
+    if let Some(raw) = std::env::var_os("AUTOSHADE_PI_HARNESS") {
+        let candidate = PathBuf::from(raw);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    let mut starts: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        starts.push(exe);
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        starts.push(cwd);
+    }
+    for start in starts {
+        let mut cur: &Path = if start.is_file() {
+            match start.parent() {
+                Some(parent) => parent,
+                None => continue,
+            }
+        } else {
+            start.as_path()
+        };
+        for _ in 0..8 {
+            let candidate = cur.join("harness").join("pi").join("analyze.mjs");
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            match cur.parent() {
+                Some(parent) if parent != cur => cur = parent,
+                _ => break,
+            }
+        }
+    }
+    None
+}
+
 fn analyze_cmd(
     raw: &Path,
     out: Option<PathBuf>,
