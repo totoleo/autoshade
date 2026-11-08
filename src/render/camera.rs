@@ -265,14 +265,47 @@ pub(super) fn calibrate_camera_buffer(
 /// euclidean term drag an out-of-gamut component back into gamut with a hue
 /// shift. Unblown pixels keep their negatives — the wide-gamut win lives
 /// there.
-fn settle_over_range(t: [f32; 3]) -> [f32; 3] {
+/// Bring a linear triple whose largest component is above 1 back into range
+/// WITHOUT changing its chromaticity: scale the whole triple by `1/max`.
+///
+/// rawler's `clip_euclidean_norm_avg` averages that scale-to-max triple with
+/// the euclidean norm, which drags every channel toward the mean. For a
+/// genuinely blown white that is a no-op; for a bright SATURATED colour it is
+/// a desaturation, and a sunset's sun (white-balanced [1.32, 0.22, 0.08] —
+/// over 1 because the red multiplier is 2.4, not because the sensor clipped)
+/// came out as a pale pink disc with a hard edge. Scaling keeps the ratios and
+/// lets the final pack clip the one channel that is over, which is what a
+/// camera JPEG and Camera Raw show.
+pub(super) fn settle_over_range(t: [f32; 3]) -> [f32; 3] {
     let max = t[0].max(t[1]).max(t[2]);
     if max <= 1.0 || max.is_nan() {
         return t;
     }
     let t0 = t.map(|c| c.max(0.0));
-    let eucl = ((t0[0] * t0[0] + t0[1] * t0[1] + t0[2] * t0[2]) / 3.0).sqrt();
-    t0.map(|c| (c / max + eucl) / 2.0)
+    let inverse = 1.0 / max;
+    [t0[0] * inverse, t0[1] * inverse, t0[2] * inverse]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::settle_over_range;
+
+    /// The defect this replaces: rawler's euclidean blend turned the sun's
+    /// white-balanced [1.32, 0.22, 0.08] into an almost neutral pink.
+    #[test]
+    fn a_bright_saturated_colour_keeps_its_chromaticity() {
+        let out = settle_over_range([1.32, 0.22, 0.08]);
+        assert_eq!(out, [1.0, 0.22 / 1.32, 0.08 / 1.32]);
+        assert!(out[1] < 0.2 && out[2] < 0.1, "a sunset sun must stay orange: {out:?}");
+    }
+
+    /// A genuinely blown pixel still settles to white, and an in-range pixel
+    /// is untouched.
+    #[test]
+    fn blown_stays_white_and_range_is_untouched() {
+        assert_eq!(settle_over_range([2.0, 2.0, 2.0]), [1.0, 1.0, 1.0]);
+        assert_eq!(settle_over_range([0.4, 0.2, 0.1]), [0.4, 0.2, 0.1]);
+    }
 }
 
 /// The creative Look's colour table `r` renders through (`None`: its Look

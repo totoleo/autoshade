@@ -119,12 +119,20 @@ pub(super) fn render_frame(
     // The profile is colour data: its tables, never tone.
     let profile_stage = resolve_camera_profile(&CameraMeta::of(&rawimage, daylight), recipe, working, &diag);
     // A profile is rendered by the engine's OWN calibrate path whatever the
-    // export space asked for. The sRGB path normally leaves white balance and
-    // calibration to rawler and stays byte-identical to it; that byte identity
-    // is worth keeping when nothing else changes, but a profile changes the
-    // colour by design, and an sRGB export that ignored the profile while the
-    // ProPhoto one obeyed it would be two renderings of one photograph.
-    let own_calibrate = wide || profile_stage.is_some();
+    // export space asked for. Every render with a camera matrix now takes it,
+    // too: rawler's develop ends in `clip_euclidean_norm_avg`, which averages
+    // the scale-to-max triple with the euclidean norm and therefore pulls
+    // every channel toward the mean. That turns a bright SATURATED colour into
+    // a pale one — a sunset's sun after white balance is [1.32, 0.22, 0.08]
+    // (max > 1 because the red multiplier is 2.4, not because the sensor
+    // clipped) and rawler drew it as a pale pink disc with a hard edge.
+    // [`camera::settle_over_range`] scales by 1/max instead, keeping the
+    // chromaticity; measured against Camera Raw and reference on DSC06817 the
+    // disc stays orange and the rest of the frame is unchanged (sky/hill/water
+    // means within 0.1 of the rawler path's). A matrix-less camera keeps
+    // rawler's develop: there is nothing to calibrate with.
+    let has_matrix = rawimage.color_matrix.iter().next().is_some();
+    let own_calibrate = has_matrix || wide || profile_stage.is_some();
     // R28 — a non-2×2 RGB CFA is demosaiced HERE, not by rawler, so its
     // develop keeps only the black/white-level rescale: rawler's `Demosaic`
     // step is Bayer-only (`imgop/develop.rs:145-147` hands every `is_rgb`
@@ -158,21 +166,9 @@ pub(super) fn render_frame(
         let xyz2cam = camera_matrix(&rawimage)?;
         validate_calibration(&xyz2cam, rawimage.wb_coeffs, working, raw_path)?;
         Some((xyz2cam, normalise_wb(rawimage.wb_coeffs)))
-    } else if rawimage.color_matrix.iter().next().is_some() {
-        let xyz2cam = camera_matrix(&rawimage)?;
-        // rawler's own develop targets sRGB — validate the matrix it
-        // effectively inverts.
-        validate_calibration(
-            &xyz2cam,
-            rawimage.wb_coeffs,
-            ExportColorSpace::Srgb,
-            raw_path,
-        )?;
-        // The CFA-geometry path stripped rawler's WhiteBalance/Calibrate/SRgb
-        // together with its demosaic, so it performs them here; the Bayer sRGB
-        // path leaves all three to rawler and stays byte-identical.
-        geometry_cfa.is_some().then_some((xyz2cam, normalise_wb(rawimage.wb_coeffs)))
     } else {
+        // A matrix-less camera: rawler's develop skips calibration, and there
+        // is no matrix for this engine to apply.
         None
     };
     let strength = denoise.map_or(1.0, |opts| opts.strength);
@@ -609,7 +605,7 @@ fn develop_cfa_signed(raw: &rawler::RawImage, dev: &RawDevelop) -> Option<Interm
                     cam2rgb[1][0] * r + cam2rgb[1][1] * g + cam2rgb[1][2] * b,
                     cam2rgb[2][0] * r + cam2rgb[2][1] * g + cam2rgb[2][2] * b,
                 ];
-                *px = rawler::imgop::raw::clip_euclidean_norm_avg(&out);
+                *px = super::camera::settle_over_range(out);
             });
         }
     }
