@@ -1982,13 +1982,26 @@ pub const DNG_ONRAMP: &str = "Adobe DNG Converter (free, from Adobe) rewrites it
 ///
 /// The path is always named because a batch scan reports many files at once.
 fn describe_decoder_failure(path: &Path, e: &rawler::RawlerError) -> anyhow::Error {
-    let rawler::RawlerError::Unsupported { what, make, model, .. } = e else {
+    let rawler::RawlerError::Unsupported { what, make, model, mode } = e else {
         // DecoderFailed — the container was recognised and then would not
         // read. That is a file-integrity story, not a camera-support one, so
         // it keeps rawler's own words and gains no on-ramp advice.
         return anyhow!("{} could not be decoded: {e}", path.display());
     };
     let (make, model) = (make.trim(), model.trim());
+    // Some Sony bodies (the A7 V among them) write Sony's newer wavelet
+    // compression (TIFF compression 32766, rawler mode "arw6"). rawler 0.8.0
+    // REGISTERS the mode but its decoder is a literal stub, so the file fails
+    // as "Unknown camera" for a camera the build otherwise supports. The old
+    // "no calibration for that model" sentence sent the user chasing a camera
+    // entry that already exists; say what is actually missing.
+    if mode == "arw6" {
+        return anyhow!(
+            "{} uses Sony's wavelet-compressed ARW (compression 32766 / arw6), which this \
+             build's RAW decoder does not implement yet. {DNG_ONRAMP}",
+            path.display()
+        );
+    }
     if !make.is_empty() && !model.is_empty() {
         anyhow!(
             "{} is a {make} {model}, and this build's RAW decoder has no calibration for that \

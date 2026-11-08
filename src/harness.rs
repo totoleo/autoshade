@@ -181,7 +181,13 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
     }
     if std::env::var_os("DEEPSEEK_API_KEY").is_none() {
         let cfg = crate::config::Config::load();
-        if let Some(key) = cfg.openai_api_key.as_deref().or(cfg.analysis_api_key.as_deref())
+        // The harness IS the analysis role: a DeepSeek key saved there is the
+        // one to send. The image role's OpenAI key is only a fallback (the
+        // Settings panel's DeepSeek preset writes the analysis fields).
+        if let Some(key) = cfg
+            .analysis_api_key
+            .as_deref()
+            .or(cfg.openai_api_key.as_deref())
             && !key.is_empty()
         {
             cmd.env("DEEPSEEK_API_KEY", key);

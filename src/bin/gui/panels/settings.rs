@@ -660,6 +660,26 @@ impl AutoShadeApp {
                     }
                 }
             });
+            // DeepSeek is OpenAI-compatible: one click fills the endpoint and
+            // the model id, and the harness's fresh AI Analyze reads the key
+            // entered below (analysis_api_key, falling back from the image
+            // role's key). Without this the panel read as Claude-vs-OpenAI
+            // only, which is not what this user has.
+            ui.horizontal(|ui| {
+                let label = tr(lang, "Use DeepSeek");
+                if action(ui, true, label)
+                    .on_hover_text(tr(
+                        lang,
+                        "OpenAI-compatible: Base URL https://api.deepseek.com, model deepseek-flash. Enter your DeepSeek key in API Key below; a fresh AI Analyze runs through the pi harness with it.",
+                    ))
+                    .clicked()
+                {
+                    f.analysis_provider_api = true;
+                    f.analysis_base_url = "https://api.deepseek.com".to_string();
+                    f.analysis_model = "deepseek-flash".to_string();
+                    f.analysis_models.clear();
+                }
+            });
             ui.horizontal(|ui| {
                 ui.label(tr(lang, "Model"));
                 // OAuth uses Claude CLI aliases; API uses the ids fetched from
