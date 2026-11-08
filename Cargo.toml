@@ -164,4 +164,3 @@ windows-sys = { version = "0.59", features = ["Win32_System_ProcessStatus"] }
 # ring ONLY; the rest of the workspace keeps full dev debug information.
 [profile.dev.package.ring]
 debug = false
-
