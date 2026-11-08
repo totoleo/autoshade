@@ -721,6 +721,16 @@ mod mcp_tool_tests {
         serde_json::from_str(text).expect("tool body JSON")
     }
 
+    /// Find the JSON text block wherever it sits (image-bearing tools put the
+    /// image first).
+    fn tool_text(reply: &Value) -> Value {
+        let text = reply["content"]
+            .as_array()
+            .and_then(|blocks| blocks.iter().find_map(|b| b["text"].as_str()))
+            .expect("a text block in the tool reply");
+        serde_json::from_str(text).expect("tool body JSON")
+    }
+
     fn is_error(reply: &Value) -> bool {
         reply["isError"].as_bool().unwrap_or(false)
     }
@@ -847,4 +857,74 @@ mod mcp_tool_tests {
             "commit wrote the develop"
         );
     }
-}
+
+    #[test]
+    fn frame_read_and_render_work_on_a_baked_source() {
+        let root = temp_root("render");
+        let mut server = Server::new(vec![root.clone()], root.join("data")).expect("server");
+        let photo = root.join("tiny.png");
+        image::RgbImage::from_pixel(8, 8, image::Rgb([90, 120, 60]))
+            .save(&photo)
+            .expect("write png");
+
+        let read = tool_text(
+            &server
+                .call_tool(&json!({
+                    "name": "frame.read",
+                    "arguments": { "photo": "tiny.png" }
+                }))
+                .expect("frame.read"),
+        );
+        assert_eq!(read["width"], 8);
+        assert!(read["key"].as_str().is_some_and(|k| !k.is_empty()));
+        // The preview rides as a real image content block.
+        let reply = server
+            .call_tool(&json!({
+                "name": "frame.read",
+                "arguments": { "photo": "tiny.png" }
+            }))
+            .expect("frame.read");
+        let types: Vec<&str> = reply["content"]
+            .as_array()
+            .map(|b| b.iter().filter_map(|x| x["type"].as_str()).collect())
+            .unwrap_or_default();
+        assert!(types.contains(&"image"), "frame.read returns an image part: {reply}");
+
+        let recipe = serde_json::to_value(EditRecipe::default()).unwrap();
+        let reply = server
+            .call_tool(&json!({
+                "name": "recipe.render",
+                "arguments": { "photo": "tiny.png", "recipe": recipe, "long_edge": 256 }
+            }))
+            .expect("recipe.render");
+        assert!(!is_error(&reply), "render must succeed: {reply}");
+        let body = tool_text(&reply);
+        assert!(body["width"].as_u64().unwrap_or(0) > 0, "{body}");
+        assert!(body["sha256"].as_str().is_some_and(|s| s.len() == 64));
+        assert!(
+            std::path::Path::new(body["path"].as_str().unwrap()).is_file(),
+            "the artifact is on disk"
+        );
+    }
+
+    #[test]
+    fn masks_cut_refuses_bad_arguments_before_running_the_sidecar() {
+        let root = temp_root("masks");
+        let mut server = Server::new(vec![root.clone()], root.join("data")).expect("server");
+        for (args, why) in [
+            (json!({}), "photo"),
+            (json!({ "photo": "tiny.png" }), "masks"),
+            (json!({ "photo": "tiny.png", "masks": [] }), "at least one mask"),
+        ] {
+            let reply = server
+                .call_tool(&json!({ "name": "masks.cut", "arguments": args }))
+                .expect("masks.cut call");
+            assert!(is_error(&reply), "must refuse: {why}");
+            let body = tool_body(&reply);
+            assert_eq!(body["code"], "invalid_args", "{why}: {body}");
+            assert!(
+                body["message"].as_str().unwrap_or("").contains(why),
+                "the refusal names what is missing: {body}"
+            );
+        }
+    }}
