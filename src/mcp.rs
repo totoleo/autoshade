@@ -30,6 +30,7 @@ pub struct Server {
     validated: HashSet<String>,
 }
 
+#[derive(Debug)]
 struct RpcError {
     code: i64,
     message: String,
@@ -690,5 +691,145 @@ mod tests {
                 "{name} must reject fields it does not list"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod mcp_tool_tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "autoshade-mcp-{tag}-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp root");
+        dir
+    }
+
+    fn tool_body(reply: &Value) -> Value {
+        let text = reply["content"][0]["text"].as_str().expect("tool text body");
+        serde_json::from_str(text).expect("tool body JSON")
+    }
+
+    fn is_error(reply: &Value) -> bool {
+        reply["isError"].as_bool().unwrap_or(false)
+    }
+
+    #[test]
+    fn validate_returns_the_canonical_recipe_and_a_stable_hash() {
+        let root = temp_root("validate");
+        let mut server = Server::new(vec![root.clone()], root.join("data")).expect("server");
+        let mut value = serde_json::to_value(EditRecipe::default()).unwrap();
+        // A short HSL axis is repaired by the canonicaliser; the tool must hand
+        // the repaired recipe back (the deferred GUI seam commits this shape,
+        // not the model's raw candidate).
+        value["hsl"]["hue"] = json!([0.0, 1.0]);
+        let reply = server
+            .call_tool(&json!({
+                "name": "recipe.validate",
+                "arguments": { "recipe": value }
+            }))
+            .expect("validate call");
+        assert!(!is_error(&reply));
+        let body = tool_body(&reply);
+        assert_eq!(body["ok"], true);
+        assert!(body["hash"].as_str().is_some_and(|h| !h.is_empty()));
+        assert_eq!(
+            body["recipe"]["hsl"]["hue"].as_array().map(Vec::len),
+            Some(8),
+            "validate must return the repaired recipe: {}",
+            body["recipe"]["hsl"]["hue"]
+        );
+        assert!(
+            body["warnings"]
+                .as_array()
+                .is_some_and(|w| w.iter().any(|x| x.as_str().unwrap_or("").contains("hsl repaired"))),
+            "the repair is disclosed: {}",
+            body["warnings"]
+        );
+        // Same recipe -> same hash; the canonical form is order-independent.
+        let again = tool_body(
+            &server
+                .call_tool(&json!({
+                    "name": "recipe.validate",
+                    "arguments": { "recipe": body["recipe"] }
+                }))
+                .expect("second validate"),
+        );
+        assert_eq!(again["hash"], body["hash"]);
+    }
+
+    #[test]
+    fn validate_refuses_an_invented_field_with_structured_errors() {
+        let root = temp_root("validate-bad");
+        let mut server = Server::new(vec![root.clone()], root.join("data")).expect("server");
+        let mut value = serde_json::to_value(EditRecipe::default()).unwrap();
+        value["masks"] = json!([{ "mask": { "kind": "linear", "full_bottom": 0.6 } }]);
+        let body = tool_body(
+            &server
+                .call_tool(&json!({
+                    "name": "recipe.validate",
+                    "arguments": { "recipe": value }
+                }))
+                .expect("validate call"),
+        );
+        assert_eq!(body["ok"], false);
+        assert!(body["hash"].is_null());
+        assert!(
+            body["errors"][0].to_string().contains("full_bottom"),
+            "the error names the invented field: {}",
+            body["errors"]
+        );
+    }
+
+    #[test]
+    fn commit_refuses_a_hash_the_session_never_validated_then_accepts_the_real_one() {
+        let root = temp_root("commit");
+        let data = root.join("data");
+        let mut server = Server::new(vec![root.clone()], data).expect("server");
+        // A tiny baked source is enough: commit's gate is the hash, not the
+        // sensor format.
+        let photo = root.join("tiny.png");
+        image::RgbImage::from_pixel(8, 8, image::Rgb([90, 90, 90]))
+            .save(&photo)
+            .expect("write png");
+        let recipe = serde_json::to_value(EditRecipe::default()).unwrap();
+
+        let wrong = server
+            .call_tool(&json!({
+                "name": "recipe.commit",
+                "arguments": { "photo": "tiny.png", "recipe": recipe, "hash": "deadbeef" }
+            }))
+            .expect("commit call");
+        assert!(is_error(&wrong), "an unvalidated hash must be refused");
+        let body = tool_body(&wrong);
+        assert_eq!(body["code"], "commit_unvalidated");
+        assert!(!crate::store::develop_dir(&photo).join("recipe.json").exists());
+
+        let validated = tool_body(
+            &server
+                .call_tool(&json!({
+                    "name": "recipe.validate",
+                    "arguments": { "recipe": recipe }
+                }))
+                .expect("validate"),
+        );
+        let hash = validated["hash"].as_str().expect("hash").to_string();
+        let committed = server
+            .call_tool(&json!({
+                "name": "recipe.commit",
+                "arguments": { "photo": "tiny.png", "recipe": recipe, "hash": hash }
+            }))
+            .expect("commit call");
+        assert!(!is_error(&committed), "the validated hash must commit: {committed}");
+        assert!(
+            crate::store::develop_dir(&photo).join("recipe.json").exists(),
+            "commit wrote the develop"
+        );
     }
 }
