@@ -3487,7 +3487,7 @@ impl AutoShadeApp {
         self.status = if adjusting {
             tr(lang, "adjusting the selected variant with AI…").into()
         } else {
-            tr(lang, "analyzing with AI (GPT + Claude)…").into()
+            tr(lang, "analyzing with the configured AI service…").into()
         };
         // Both style inputs travel as one request (R23-2): the strength, and
         // whether the reference photos go along as images. Read

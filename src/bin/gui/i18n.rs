@@ -1322,7 +1322,7 @@ static ZH_ENTRIES: &[(&str, &str)] = &[
 
     // ── Status bar · AI analyze / render / export / region ───────────────────
     ("adjusting the selected variant with AI…", "AI 调整选中变体中…"),
-    ("analyzing with AI (GPT + Claude)…", "AI 分析中（GPT + Claude）…"),
+    ("analyzing with the configured AI service…", "AI 分析中（使用设置里的服务）…"),
     ("AI develop applied", "AI 显影已应用"),
     ("analyze failed", "分析失败"),
     ("rendering + AI denoise → {path} … (GPU sidecar, can take minutes)",
