@@ -158,3 +158,10 @@ winresource = "0.1"
 windows-sys = { version = "0.59", features = ["Win32_System_ProcessStatus"] }
 
 [dev-dependencies]
+
+# MSVC 14.44 fails to emit C debug info for ring's pregenerated C sources
+# (cc-rs: cl.exe exited 2 with -Z7 → curve25519.c). Disable debug info for
+# ring ONLY; the rest of the workspace keeps full dev debug information.
+[profile.dev.package.ring]
+debug = false
+
