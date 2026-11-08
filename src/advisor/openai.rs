@@ -1725,8 +1725,9 @@ mod tests {
     /// The whole of part C in one scenario: a base URL whose server never
     /// heard of `/responses` (a 404 there) gets the SAME propose as a chat
     /// completion — the frames as `image_url` parts with their detail tier,
-    /// the recipe schema as `response_format.json_schema` under the same
-    /// name — and the recipe parses out of the Chat reply shape.
+    /// and the PATCH(local) contract: `response_format=json_object`, because
+    /// DeepSeek rejects `json_schema` and the schema already rides the prompt.
+    /// The recipe parses out of the Chat reply shape.
     #[test]
     fn a_missing_responses_route_falls_back_to_a_chat_completion() {
         let (url, seen, handle) = stub_endpoint(vec![
@@ -1755,9 +1756,10 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/jpeg;base64,"));
-        assert_eq!(second["response_format"]["type"], "json_schema");
-        assert_eq!(second["response_format"]["json_schema"]["name"], "edit_recipe");
-        assert_eq!(second["response_format"]["json_schema"]["schema"], edit_recipe_schema());
+        // PATCH(local): DeepSeek only takes json_object; the schema is in the
+        // prompt, so no json_schema envelope may be sent.
+        assert_eq!(second["response_format"]["type"], "json_object");
+        assert!(second["response_format"].get("json_schema").is_none());
         assert_eq!(second["reasoning"], Value::Null, "the Chat family carries no reasoning object");
     }
 
@@ -1788,38 +1790,53 @@ mod tests {
         assert!(third.get("messages").is_some(), "the second propose went to chat first");
     }
 
-    /// An explicit `chat` family skips the probe entirely, and the response
-    /// contract negotiates like every other knob: a 400 naming
-    /// `response_format` is answered by the same call without it, once.
+    /// An explicit `chat` family goes straight to the TOOL contract (the
+    /// PATCH(local) proposer loop): `/chat/completions` with
+    /// `tools=[submit_recipe]`, and a structured `tool_calls` reply is what
+    /// carries the recipe — prose is not parsed and no `response_format` is
+    /// sent (the schema rides the tool definition).
     #[test]
-    fn an_explicit_chat_family_posts_chat_first_and_drops_a_refused_contract() {
-        let refused = serde_json::json!({
-            "error": { "message": "response_format is not supported", "param": "response_format" }
+    fn an_explicit_chat_family_uses_the_tool_contract() {
+        let tool_reply = serde_json::json!({
+            "choices": [{
+                "index": 0,
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": serde_json::Value::Null,
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "submit_recipe",
+                            "arguments": "{\"exposure_ev\":0.4}"
+                        }
+                    }]
+                }
+            }]
         })
         .to_string();
-        let (url, seen, handle) = stub_endpoint(vec![
-            (400, "application/json", refused),
-            (200, "application/json", chat_reply("```json\n{\"exposure_ev\":0.4}\n```")),
-        ]);
+        let (url, seen, handle) = stub_endpoint(vec![(200, "application/json", tool_reply)]);
         let mut cfg = cfg_for(&url);
         cfg.image_api_family = "chat".into();
         let p = OpenAiProvider::new(&cfg);
-        // The fence is stripped as every structured parse does.
         p.propose(
             &Preview { jpeg: b"J".to_vec() },
             &meta_fixture(),
             &hist_fixture(),
             &ProposeContext::default(),
         )
-        .expect("the fenced reply parses");
+        .expect("the tool contract yields the recipe");
         join_stub(handle);
         let seen = seen.lock().unwrap();
         let first: Value = serde_json::from_str(&seen[0]).unwrap();
         assert!(first.get("messages").is_some(), "no Responses probe under an explicit family");
-        assert!(first.get("response_format").is_some());
-        let second: Value = serde_json::from_str(&seen[1]).unwrap();
-        assert!(second.get("messages").is_some());
-        assert!(second.get("response_format").is_none(), "the refused contract is dropped");
+        assert!(
+            first.get("response_format").is_none(),
+            "the tool contract carries the schema in `tools`, not response_format"
+        );
+        assert_eq!(first["tools"][0]["function"]["name"], "submit_recipe");
+        assert_eq!(first["tool_choice"], "auto");
     }
 
     /// The Chat reply shapes the extractors must read: a plain string, the

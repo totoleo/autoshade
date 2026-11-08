@@ -290,7 +290,14 @@ pub(crate) const TESTS_SOURCE: &str = concat!(
 
 #[cfg(test)]
 pub(crate) fn engine_source() -> String {
-    SOURCE_FILES.iter().map(|(_, text)| *text).collect()
+    // Strip EACH file's trailing #[cfg(test)] module before concatenating:
+    // truncating the concatenation at the first occurrence cut the engine at
+    // the camera settle tests (file 4 of 20) and hid source.rs from the
+    // source-order assertions.
+    SOURCE_FILES
+        .iter()
+        .map(|(_, text)| crate::source_before_tests(text))
+        .collect()
 }
 
 /// The Lightroom export pack's producer and its pinned measurements — a test

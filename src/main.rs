@@ -1114,7 +1114,7 @@ fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
             }
         }
     }
-    eprintln!(
+    println!(
         "pi-analyze: {} via {} (sessions {})",
         photo.display(),
         script.display(),
@@ -2434,7 +2434,7 @@ fn batch_pi_cmd(
                     ) {
                         Ok((w, h)) => println!("  render -> {} ({} x {})", out.display(), w, h),
                         Err(e) => {
-                            eprintln!("  render failed: {e:#}");
+                            println!("  render failed: {e:#}");
                             failed += 1;
                             continue;
                         }
@@ -2444,7 +2444,7 @@ fn batch_pi_cmd(
                 saved += 1;
             }
             Err(e) => {
-                eprintln!("  failed: {e:#}");
+                println!("  failed: {e:#}");
                 failed += 1;
             }
         }

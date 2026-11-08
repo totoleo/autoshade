@@ -258,7 +258,10 @@ pub fn produce_recipe(
     // of keeping the GUI's save/undo contract intact until the deferred-commit
     // mode lands. Everything the harness does not carry (refine, direction,
     // pixels, deep) stays on the in-process chain.
-    if crate::harness::enabled() && fresh_analysis(pixels, guidance, base, req.think) {
+    if crate::harness::enabled()
+        && crate::harness::key_present(cfg)
+        && fresh_analysis(pixels, guidance, base, req.think)
+    {
         // Deferred: the caller owns persistence (the GUI's on_analyzed backup
         // and undo contract), so the harness must not commit a second time.
         let run = crate::harness::run_deferred(raw)?;

@@ -69,6 +69,28 @@ fn recipe_from_deferred(result: &serde_json::Value) -> Result<EditRecipe> {
     .context("parse deferred recipe")
 }
 
+/// Is there a key the harness can use? Checked BEFORE spawning Node so a
+/// missing key fails fast with the in-process chain's own wording. The rule
+/// mirrors the legacy preflight: an explicitly configured API analysis role
+/// with no analysis key must refuse, not silently borrow the image key.
+pub fn key_present(cfg: &crate::config::Config) -> bool {
+    if std::env::var("DEEPSEEK_API_KEY").is_ok_and(|v| !v.is_empty()) {
+        return true;
+    }
+    if cfg
+        .analysis_api_key
+        .as_deref()
+        .is_some_and(|k| !k.is_empty())
+    {
+        return true;
+    }
+    cfg.analysis_provider != "api"
+        && cfg
+            .openai_api_key
+            .as_deref()
+            .is_some_and(|k| !k.is_empty())
+}
+
 /// Which analyze chain this process uses. Default is the harness; the legacy
 /// chain stays reachable through `AUTOSHADE_PIPELINE=legacy` (the rollback the
 /// plan's S3 requires), and that is the ONLY opt-out.
