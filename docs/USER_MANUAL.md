@@ -979,8 +979,17 @@ autoshade retouch <src> --mask FILE [--prompt TEXT] [--quality low|medium|high|a
 autoshade heal <src> [--mask FILE] [--no-auto] [--full-res] [-o|--out FILE]
 autoshade stack <frame1> <frame2> [frame3 ...] [--kind hdr|fuse|focus|noise] [--no-align] [--long-edge N] [-o|--out FILE]
 autoshade serve <dir> [-p|--port N]
+autoshade mcp --root DIR [--root DIR ...] [--data-dir DIR]
+autoshade pi-analyze <src> [--harness FILE]
+autoshade session
 autoshade recipe-schema
 ```
+
+`autoshade session show <id|path> [--json]` prints one harness transcript —
+verdicts, develop/XMP, turns, tool calls, tokens and USD cost, plus the
+failure class of a failed run; `autoshade session replay <id|path>
+[-o|--out FILE] [--long-edge N] [--photo RAW]` re-renders the committed
+canonical recipe (the deterministic result, not a model replay).
 
 `<src>` is a RAW or baked image. For commands that save develop state, baked
 sources get recipe JSON but no RAW XMP. `apply` also takes a Lightroom `.xmp`
