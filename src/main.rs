@@ -1087,8 +1087,25 @@ fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
     cmd.env("AUTOSHADE_MCP_EXE", &exe);
     cmd.env("AUTOSHADE_MCP_DATA", &data);
     cmd.env("AUTOSHADE_DATA_DIR", &store);
-    if std::env::var_os("AUTOSHADE_PYTHON").is_none() && !cfg.python_bin.is_empty() {
-        cmd.env("AUTOSHADE_PYTHON", &cfg.python_bin);
+    // The harness's Python default is the checkout's `.venv`; only override it
+    // with the configured interpreter when that venv is absent (a configured
+    // bare `python` on this machine can be Python 2, which cannot run the
+    // segment sidecar — the DSC06817 run lost its AI mask that way).
+    if std::env::var_os("AUTOSHADE_PYTHON").is_none() {
+        let venv = script
+            .parent()
+            .and_then(std::path::Path::parent)
+            .and_then(std::path::Path::parent)
+            .map(|repo| repo.join(".venv").join("Scripts").join("python.exe"));
+        match venv {
+            Some(python) if python.is_file() => {
+                cmd.env("AUTOSHADE_PYTHON", python);
+            }
+            _ if !cfg.python_bin.is_empty() => {
+                cmd.env("AUTOSHADE_PYTHON", &cfg.python_bin);
+            }
+            _ => {}
+        }
     }
     if std::env::var_os("DEEPSEEK_API_KEY").is_none() {
         if let Some(key) = cfg.openai_api_key.as_deref().or(cfg.analysis_api_key.as_deref()) {
