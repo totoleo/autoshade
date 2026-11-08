@@ -551,6 +551,15 @@ enum Command {
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
     },
+    /// Serve the deterministic tools over MCP on stdio (for an external harness).
+    Mcp {
+        /// Photo root the server may read. Repeatable; relative paths resolve against the first.
+        #[arg(long = "root", required = true)]
+        root: Vec<PathBuf>,
+        /// Where render/mask artifacts go (default: the develop store's data dir).
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+    },
     /// Print the default EditRecipe as JSON — the exact shape the AI must emit.
     RecipeSchema,
 }
@@ -654,6 +663,10 @@ fn main() -> Result<()> {
         }
         Command::Heal { src, mask, no_auto, full_res, out } => heal_cmd(&src, mask, no_auto, full_res, out),
         Command::Serve { dir, port } => serve::serve(&dir, port),
+        Command::Mcp { root, data_dir } => {
+            let data = data_dir.unwrap_or_else(autoshade::store::store_root);
+            autoshade::mcp::Server::new(root, data)?.run()
+        }
         Command::RecipeSchema => {
             let template = EditRecipe::default();
             println!("{}", serde_json::to_string_pretty(&template)?);

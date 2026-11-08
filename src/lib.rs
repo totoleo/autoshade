@@ -31,6 +31,7 @@ pub mod jobs;
 pub mod lcp;
 pub mod lensmeta;
 pub mod library;
+pub mod mcp;
 pub(crate) mod mask_refine;
 pub mod openai_models;
 pub mod panic_guard;

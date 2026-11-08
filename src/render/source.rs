@@ -182,7 +182,7 @@ pub(super) fn render_frame(
     // itself. The helper leaves any sensor without a 2×2 integer mosaic alone.
     let hot_sites = crate::denoise::hot_pixels::map_for(&mut rawimage)?;
     if hot_sites > 0 {
-        println!("mapped {hot_sites} isolated hot pixels stronger than 20 local sigma");
+        eprintln!("mapped {hot_sites} isolated hot pixels stronger than 20 local sigma");
     }
     let grain_weights = denoise_grain::weights(working);
     let original_y = denoise_grain::capture_original(
@@ -204,7 +204,7 @@ pub(super) fn render_frame(
     // the older developed-frame path below.
     let mut mosaic_denoised = false;
     if let Some(opts) = denoise {
-        println!("AI denoise (RAW mosaic, DRUNet) on {}x{} ...", rawimage.width, rawimage.height);
+        eprintln!("AI denoise (RAW mosaic, DRUNet) on {}x{} ...", rawimage.width, rawimage.height);
         match crate::denoise::denoise_mosaic(opts, &mut rawimage).context("AI denoise")? {
             crate::denoise::MosaicDenoise::Denoised => mosaic_denoised = true,
             crate::denoise::MosaicDenoise::NotApplicable(why) => diag.warn(format!(
@@ -260,7 +260,7 @@ pub(super) fn render_frame(
     // --- AI denoise on the demosaiced pixels: the FALLBACK for a sensor the
     // mosaic path could not take (see above), before tone/sharpen.
     if let Some(opts) = denoise.filter(|_| !mosaic_denoised) {
-        println!("AI denoise ({}) on {}x{} ...", opts.model, w, h);
+        eprintln!("AI denoise ({}) on {}x{} ...", opts.model, w, h);
         crate::denoise::denoise_buffer(opts, &mut data, w, h).context("AI denoise")?;
     }
 
@@ -1087,7 +1087,7 @@ pub fn render_baked_to_image(
     drop(rgb);
 
     if let Some(opts) = denoise {
-        println!("AI denoise ({}) on {}x{} ...", opts.model, w, h);
+        eprintln!("AI denoise ({}) on {}x{} ...", opts.model, w, h);
         crate::denoise::denoise_buffer(opts, &mut data, w, h).context("AI denoise")?;
     }
 
