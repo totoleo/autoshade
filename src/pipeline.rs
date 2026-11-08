@@ -250,6 +250,23 @@ pub fn produce_recipe(
     judge: bool,
     sink: &dyn crate::diag::Sink,
 ) -> Result<(EditRecipe, Verdict, Vec<crate::rationale::Note>)> {
+    // S3: a FRESH analysis (no refine base, no direction, no saved pixels, no
+    // --deep) runs the pi harness by default. This is the seam the desktop GUI
+    // and `eval` come through. The harness commits the develop (its commit
+    // tool) and returns the committed recipe; the GUI's own analyzed handler
+    // then re-writes the same develop — the duplicate write is the known cost
+    // of keeping the GUI's save/undo contract intact until the deferred-commit
+    // mode lands. Everything the harness does not carry (refine, direction,
+    // pixels, deep) stays on the in-process chain.
+    if crate::harness::enabled()
+        && pixels.is_none()
+        && guidance.is_none()
+        && base.is_none()
+        && !req.think
+    {
+        let run = crate::harness::run(raw)?;
+        return Ok((run.recipe, run.verdict, Vec::new()));
+    }
     // The third element (L12#2B): every DETERMINISTIC rationale fragment this
     // call appended, as typed notes rendering the rationale string's SUFFIX
     // (the prefix is the model's own prose). In-process only — the GUI

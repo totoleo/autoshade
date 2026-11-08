@@ -74,6 +74,32 @@ pub fn find_script() -> Option<PathBuf> {
     None
 }
 
+/// The CLI binary that speaks the `mcp` subcommand. `current_exe()` is NOT it
+/// when the caller is `autoshade-gui` or a test binary — those have no `mcp`
+/// subcommand, and the harness died with "Unrecognized option: 'root'".
+fn cli_exe() -> Result<PathBuf> {
+    if let Ok(p) = std::env::var("AUTOSHADE_MCP_EXE") {
+        let p = PathBuf::from(p);
+        if p.is_file() {
+            return Ok(p);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        for name in ["autoshade.exe", "autoshade"] {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+    }
+    anyhow::bail!(
+        "cannot find the autoshade CLI beside {} — set AUTOSHADE_MCP_EXE to it",
+        std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default()
+    )
+}
+
 /// Run the harness on `photo` and read its committed develop back.
 pub fn run(photo: &Path) -> Result<Run> {
     let photo = photo
@@ -94,7 +120,7 @@ pub fn run(photo: &Path) -> Result<Run> {
     let script = script
         .canonicalize()
         .with_context(|| format!("harness {}", script.display()))?;
-    let exe = std::env::current_exe().context("current exe")?;
+    let exe = cli_exe()?;
     let store = crate::store::store_root();
     let data = store.join("harness");
     let sessions = data.join("sessions");
