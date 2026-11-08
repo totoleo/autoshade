@@ -2948,3 +2948,81 @@ mod tests {
             let _ = std::fs::remove_dir_all(dir);
         }
 }
+
+// --- DeepSeek (the user's provider) -----------------------------------------
+
+/// DeepSeek's OpenAI-compatible endpoint.
+pub const DEEPSEEK_BASE: &str = "https://api.deepseek.com";
+/// The model the pi harness runs and the legacy chain is pointed at.
+pub const DEEPSEEK_MODEL: &str = "deepseek-flash";
+/// DeepSeek refuses OpenAI's `response_format.json_schema`; the chat family is
+/// the plain chat-completions contract that both chains implement.
+pub const DEEPSEEK_FAMILY: &str = "chat";
+
+/// The key to store for ONE role when the OTHER role's key was just typed, the
+/// two endpoints are both DeepSeek, and this role has no key of its own.
+/// Returns `(key, key_base)`; `None` means "leave this role alone".
+pub fn fill_deepseek_key(
+    role_base: Option<&str>,
+    other_base: Option<&str>,
+    typed_other_key: &str,
+    role_key_present: bool,
+) -> Option<(String, Option<String>)> {
+    if typed_other_key.is_empty() || role_key_present {
+        return None;
+    }
+    let is_deepseek = |b: Option<&str>| b.is_some_and(|s| s.contains("api.deepseek.com"));
+    if is_deepseek(role_base) && is_deepseek(other_base) {
+        Some((typed_other_key.to_string(), role_base.map(str::to_string)))
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod deepseek_tests {
+    use super::*;
+
+    #[test]
+    fn one_key_fills_the_other_deepseek_role() {
+        let got = fill_deepseek_key(
+            Some(DEEPSEEK_BASE),
+            Some(DEEPSEEK_BASE),
+            "sk-deepseek",
+            false,
+        );
+        assert_eq!(
+            got,
+            Some(("sk-deepseek".to_string(), Some(DEEPSEEK_BASE.to_string())))
+        );
+    }
+
+    #[test]
+    fn a_role_with_its_own_key_is_never_overwritten() {
+        assert_eq!(
+            fill_deepseek_key(Some(DEEPSEEK_BASE), Some(DEEPSEEK_BASE), "sk-new", true),
+            None
+        );
+    }
+
+    #[test]
+    fn one_non_deepseek_endpoint_blocks_the_copy() {
+        assert_eq!(
+            fill_deepseek_key(
+                Some("https://api.openai.com/v1"),
+                Some(DEEPSEEK_BASE),
+                "sk-deepseek",
+                false
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn nothing_typed_copies_nothing() {
+        assert_eq!(
+            fill_deepseek_key(Some(DEEPSEEK_BASE), Some(DEEPSEEK_BASE), "", false),
+            None
+        );
+    }
+}

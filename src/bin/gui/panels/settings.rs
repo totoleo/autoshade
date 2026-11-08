@@ -199,19 +199,23 @@ impl AutoShadeApp {
             // field fills the other role when that role has no key of its own
             // (a key saved for another endpoint is refused at load by its
             // recorded home, so it does not block this).
-            let is_deepseek = |u: &Option<String>| {
-                u.as_deref()
-                    .is_some_and(|s| s.contains("api.deepseek.com"))
-            };
-            if is_deepseek(&cur.image_base_url) && is_deepseek(&cur.analysis_base_url) {
-                if !ik.is_empty() && cur.analysis_api_key.as_deref().unwrap_or("").is_empty() {
-                    cur.analysis_api_key = Some(ik.clone());
-                    cur.analysis_api_key_base = cur.analysis_base_url.clone();
-                }
-                if !ak.is_empty() && cur.image_api_key.as_deref().unwrap_or("").is_empty() {
-                    cur.image_api_key = Some(ak.clone());
-                    cur.image_api_key_base = cur.image_base_url.clone();
-                }
+            if let Some((key, base)) = autoshade::config::fill_deepseek_key(
+                cur.analysis_base_url.as_deref(),
+                cur.image_base_url.as_deref(),
+                &ik,
+                cur.analysis_api_key.as_deref().is_some_and(|s| !s.is_empty()),
+            ) {
+                cur.analysis_api_key = Some(key);
+                cur.analysis_api_key_base = base;
+            }
+            if let Some((key, base)) = autoshade::config::fill_deepseek_key(
+                cur.image_base_url.as_deref(),
+                cur.analysis_base_url.as_deref(),
+                &ak,
+                cur.image_api_key.as_deref().is_some_and(|s| !s.is_empty()),
+            ) {
+                cur.image_api_key = Some(key);
+                cur.image_api_key_base = base;
             }
         });
         // Did the user type a key on this save? Asked BEFORE the fields are
@@ -694,17 +698,17 @@ impl AutoShadeApp {
                     .clicked()
                 {
                     f.analysis_provider_api = true;
-                    f.analysis_base_url = "https://api.deepseek.com".to_string();
-                    f.analysis_model = "deepseek-flash".to_string();
+                    f.analysis_base_url = autoshade::config::DEEPSEEK_BASE.to_string();
+                    f.analysis_model = autoshade::config::DEEPSEEK_MODEL.to_string();
                     f.analysis_models.clear();
                     f.image_provider_oauth = false;
-                    f.image_base_url = "https://api.deepseek.com".to_string();
-                    f.image_model = "deepseek-flash".to_string();
+                    f.image_base_url = autoshade::config::DEEPSEEK_BASE.to_string();
+                    f.image_model = autoshade::config::DEEPSEEK_MODEL.to_string();
                     f.image_models.clear();
                     // DeepSeek refuses OpenAI's response_format.json_schema;
                     // the chat family is the plain chat-completions path the
                     // legacy proposer/verifier already implement.
-                    f.image_api_family = "chat".to_string();
+                    f.image_api_family = autoshade::config::DEEPSEEK_FAMILY.to_string();
                 }
             });
             ui.horizontal(|ui| {

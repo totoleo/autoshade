@@ -258,12 +258,7 @@ pub fn produce_recipe(
     // of keeping the GUI's save/undo contract intact until the deferred-commit
     // mode lands. Everything the harness does not carry (refine, direction,
     // pixels, deep) stays on the in-process chain.
-    if crate::harness::enabled()
-        && pixels.is_none()
-        && guidance.is_none()
-        && base.is_none()
-        && !req.think
-    {
+    if crate::harness::enabled() && fresh_analysis(pixels, guidance, base, req.think) {
         // Deferred: the caller owns persistence (the GUI's on_analyzed backup
         // and undo contract), so the harness must not commit a second time.
         let run = crate::harness::run_deferred(raw)?;
@@ -9554,5 +9549,36 @@ mod develop_surface_tests {
         assert!(hint.contains("./_guard_exports"), "{hint}");
         assert!(!hint.contains("./out"), "{hint}");
         let _ = std::fs::remove_dir_all(&folder);
+    }
+}
+
+/// What the harness can carry: a FRESH analysis. A refine base, a direction,
+/// a saved pixel source and `--deep` still go to the in-process chain.
+pub(crate) fn fresh_analysis(
+    pixels: Option<&Path>,
+    guidance: Option<&str>,
+    base: Option<&EditRecipe>,
+    think: bool,
+) -> bool {
+    pixels.is_none() && guidance.is_none() && base.is_none() && !think
+}
+
+#[cfg(test)]
+mod harness_dispatch_tests {
+    use super::*;
+
+    #[test]
+    fn only_a_fresh_analysis_goes_to_the_harness() {
+        assert!(fresh_analysis(None, None, None, false));
+    }
+
+    #[test]
+    fn every_legacy_only_feature_stays_on_the_in_process_chain() {
+        let base = EditRecipe::default();
+        let pixels = Path::new("master.tif");
+        assert!(!fresh_analysis(Some(pixels), None, None, false), "saved pixels");
+        assert!(!fresh_analysis(None, Some("warmer"), None, false), "direction");
+        assert!(!fresh_analysis(None, None, Some(&base), false), "refine");
+        assert!(!fresh_analysis(None, None, None, true), "--deep");
     }
 }

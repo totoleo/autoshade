@@ -1964,6 +1964,13 @@ pub const DNG_ONRAMP: &str = "Adobe DNG Converter (free, from Adobe) rewrites it
                               which AutoShade develops from the file's own colour tags — that \
                               route works for any body";
 
+/// Does this failure mean "Sony wavelet compression this decoder cannot read"?
+#[cfg(test)]
+fn arw6_error(e: &anyhow::Error) -> bool {
+    let s = format!("{e:#}");
+    s.contains("wavelet-compressed ARW") || s.contains("compression 32766")
+}
+
 /// Turn rawler's `get_decoder` refusal into a sentence that names WHICH of the
 /// three quite different failures happened (A7). They used to arrive as one
 /// opaque `no rawler decoder for {path}: {e}` line, and the three want three
@@ -4580,5 +4587,40 @@ mod tests {
             (0, 0),
             "a refused window develops from the un-aligned window before and after"
         );
+    }
+}
+
+#[cfg(test)]
+mod arw6_message_tests {
+    use super::*;
+
+    fn unsupported(mode: &str) -> rawler::RawlerError {
+        rawler::RawlerError::Unsupported {
+            what: "Unknown camera".to_string(),
+            make: "SONY".to_string(),
+            model: "ILCE-7M5".to_string(),
+            mode: mode.to_string(),
+        }
+    }
+
+    #[test]
+    fn arw6_is_named_as_the_missing_codec_not_as_a_camera_gap() {
+        let msg = format!(
+            "{:#}",
+            describe_decoder_failure(Path::new("DSC02258.ARW"), &unsupported("arw6"))
+        );
+        assert!(msg.contains("wavelet-compressed ARW"), "{msg}");
+        assert!(!msg.contains("no calibration"), "must not blame the camera table: {msg}");
+        assert!(arw6_error(&anyhow!(msg)));
+    }
+
+    #[test]
+    fn a_genuinely_unknown_model_keeps_the_calibration_wording() {
+        let msg = format!(
+            "{:#}",
+            describe_decoder_failure(Path::new("DSC00001.ARW"), &unsupported(""))
+        );
+        assert!(msg.contains("no calibration"), "{msg}");
+        assert!(!arw6_error(&anyhow!(msg)));
     }
 }

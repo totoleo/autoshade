@@ -31,6 +31,44 @@ impl Run {
     }
 }
 
+/// The critic verdict carried by a harness summary or a deferred result.
+/// Missing/unrecognised decisions fall back to Revise: the caller must never
+/// treat an unreadable verdict as an Accept.
+fn verdict_from(value: &serde_json::Value) -> Verdict {
+    let decision = match value
+        .get("verdict")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "accept" => Decision::Accept,
+        "reject" => Decision::Reject,
+        _ => Decision::Revise,
+    };
+    let score = value.get("score").and_then(serde_json::Value::as_i64);
+    Verdict {
+        decision,
+        reasons: score
+            .map(|s| vec![format!("critic score {s}/100")])
+            .unwrap_or_default(),
+        revised_hint: None,
+    }
+}
+
+/// The canonical recipe from a deferred harness result. The harness writes the
+/// output of `recipe.validate`, not the model's raw candidate (which carries
+/// nulls the `EditRecipe` parser rejects).
+fn recipe_from_deferred(result: &serde_json::Value) -> Result<EditRecipe> {
+    serde_json::from_value(
+        result
+            .get("recipe")
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("the deferred result carries no recipe"))?,
+    )
+    .context("parse deferred recipe")
+}
+
 /// Which analyze chain this process uses. Default is the harness; the legacy
 /// chain stays reachable through `AUTOSHADE_PIPELINE=legacy` (the rollback the
 /// plan's S3 requires), and that is the ONLY opt-out.
@@ -215,32 +253,8 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
         let _ = std::fs::remove_file(&result_path);
         let result: serde_json::Value =
             serde_json::from_str(&result_text).context("parse deferred result")?;
-        let recipe: EditRecipe = serde_json::from_value(
-            result
-                .get("recipe")
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("the deferred result carries no recipe"))?,
-        )
-        .context("parse deferred recipe")?;
-        let decision = match result
-            .get("verdict")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("")
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "accept" => Decision::Accept,
-            "reject" => Decision::Reject,
-            _ => Decision::Revise,
-        };
-        let score = result.get("score").and_then(serde_json::Value::as_i64);
-        let verdict = Verdict {
-            decision,
-            reasons: score
-                .map(|s| vec![format!("critic score {s}/100")])
-                .unwrap_or_default(),
-            revised_hint: None,
-        };
+        let recipe = recipe_from_deferred(&result)?;
+        let verdict = verdict_from(&result);
         let develop = crate::store::develop_dir(&photo);
         let image = summary
             .get("image")
@@ -271,25 +285,7 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
     let recipe_text = std::fs::read_to_string(&recipe_path)
         .with_context(|| format!("read committed recipe {}", recipe_path.display()))?;
     let recipe: EditRecipe = serde_json::from_str(&recipe_text).context("parse committed recipe")?;
-    let decision = match summary
-        .get("verdict")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("")
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "accept" => Decision::Accept,
-        "reject" => Decision::Reject,
-        _ => Decision::Revise,
-    };
-    let score = summary.get("score").and_then(serde_json::Value::as_i64);
-    let verdict = Verdict {
-        decision,
-        reasons: score
-            .map(|s| vec![format!("critic score {s}/100")])
-            .unwrap_or_default(),
-        revised_hint: None,
-    };
+    let verdict = verdict_from(&summary);
     let xmp = summary
         .get("xmp")
         .and_then(serde_json::Value::as_str)
@@ -366,4 +362,65 @@ pub fn cli_analyze(raw: &Path, out: Option<PathBuf>) -> Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verdict_maps_accept_revise_reject_and_unknown() {
+        let cases = [
+            ("accept", Decision::Accept),
+            ("ACCEPT", Decision::Accept),
+            ("revise", Decision::Revise),
+            ("reject", Decision::Reject),
+            ("", Decision::Revise),
+            ("garbage", Decision::Revise),
+        ];
+        for (raw, want) in cases {
+            let v = verdict_from(&serde_json::json!({ "verdict": raw }));
+            assert_eq!(v.decision, want, "verdict {raw:?}");
+        }
+        // A missing verdict is NOT an Accept: the caller must not save on it.
+        assert_eq!(
+            verdict_from(&serde_json::json!({})).decision,
+            Decision::Revise
+        );
+    }
+
+    #[test]
+    fn verdict_carries_the_critic_score_as_a_reason() {
+        let v = verdict_from(&serde_json::json!({ "verdict": "accept", "score": 87 }));
+        assert_eq!(v.decision, Decision::Accept);
+        assert_eq!(v.reasons, vec!["critic score 87/100".to_string()]);
+        // No score -> no fabricated reason.
+        assert!(verdict_from(&serde_json::json!({ "verdict": "accept" })).reasons.is_empty());
+    }
+
+    #[test]
+    fn deferred_recipe_round_trips_the_default_recipe() {
+        let recipe = EditRecipe::default();
+        let value = serde_json::json!({
+            "recipe": recipe,
+            "verdict": "accept",
+            "score": 90,
+            "session": "analyze-test",
+        });
+        let parsed = recipe_from_deferred(&value).expect("the canonical recipe must parse");
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            serde_json::to_value(&recipe).unwrap()
+        );
+    }
+
+    #[test]
+    fn deferred_recipe_refuses_missing_or_invalid_recipe() {
+        assert!(recipe_from_deferred(&serde_json::json!({})).is_err());
+        assert!(
+            recipe_from_deferred(&serde_json::json!({ "recipe": { "exposure_ev": "not-a-number" } }))
+                .is_err(),
+            "a malformed recipe must be refused, not defaulted"
+        );
+    }
 }
