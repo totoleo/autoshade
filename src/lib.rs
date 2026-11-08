@@ -42,6 +42,7 @@ pub mod recipe;
 pub mod render;
 pub mod retouch;
 pub mod segment;
+pub mod session;
 pub mod sha256;
 pub mod serve;
 pub mod stack;

@@ -136,6 +136,12 @@ enum Command {
         #[arg(long)]
         harness: Option<PathBuf>,
     },
+    /// Inspect or replay a harness session (the transcript behind every AI
+    /// result: verdicts, token cost, tool calls, committed develop).
+    Session {
+        #[command(subcommand)]
+        cmd: SessionCmd,
+    },
     /// Render an existing EditRecipe onto a RAW and save the developed image.
     /// The recipe may be the JSON `analyze` writes, or a Lightroom / Camera Raw
     /// `.xmp` sidecar — the same import the desktop app runs when it opens a
@@ -577,6 +583,33 @@ enum Command {
     RecipeSchema,
 }
 
+#[derive(Subcommand)]
+enum SessionCmd {
+    /// Print one session: verdicts, commit, tool calls, tokens and cost.
+    Show {
+        /// Session id (`analyze-…`) or path to a session JSON.
+        session: String,
+        /// Machine-readable output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Re-render the session's committed recipe — a deterministic replay of
+    /// the RESULT (the transcript itself is not re-run through a model).
+    Replay {
+        /// Session id (`analyze-…`) or path to a session JSON.
+        session: String,
+        /// Output image (default: ./out/<session>-replay.tif).
+        #[arg(long, short = 'o')]
+        out: Option<PathBuf>,
+        #[arg(long)]
+        long_edge: Option<u32>,
+        /// The photo to develop. Needed only for sessions written before
+        /// `photo_path` was recorded.
+        #[arg(long)]
+        photo: Option<PathBuf>,
+    },
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
@@ -586,6 +619,12 @@ fn main() -> Result<()> {
             analyze_cmd(&raw, out, guidance, guide, style, strength, adherence, deep, reference_image, embed_switch(embed, no_embed))
         }
         Command::PiAnalyze { photo, harness } => pi_analyze_cmd(&photo, harness),
+        Command::Session { cmd } => match cmd {
+            SessionCmd::Show { session, json } => session_show_cmd(&session, json),
+            SessionCmd::Replay { session, out, long_edge, photo } => {
+                session_replay_cmd(&session, out, long_edge, photo)
+            }
+        },
         Command::Apply { raw, recipe, out, long_edge } => {
             apply_cmd(&raw, &recipe, &out, long_edge)
         }
@@ -1055,6 +1094,143 @@ fn analyze_request(
 /// `pi-analyze`: the harness replaces the in-process pipeline. The photo is the
 /// only user input; the MCP server is this binary, and the develop goes to the
 /// normal store so the result is testable where the app reads it.
+/// Resolve a session id (`analyze-…`) or a session JSON path.
+fn session_path(arg: &str) -> Result<PathBuf> {
+    let dir = autoshade::store::store_root().join("harness").join("sessions");
+    autoshade::session::resolve_session(arg, &dir)
+}
+
+fn session_show_cmd(arg: &str, as_json: bool) -> Result<()> {
+    let path = session_path(arg)?;
+    let value = autoshade::session::load(&path)?;
+    let usage = autoshade::session::usage_of(&value);
+    let verdicts = autoshade::session::verdict_lines(&value);
+    let (develop, xmp, note) = autoshade::session::commit_paths(&value);
+    let photo = value
+        .get("photo_path")
+        .and_then(|v| v.as_str())
+        .or_else(|| value.get("photo").and_then(|v| v.as_str()))
+        .unwrap_or("");
+    let model = value.get("model").and_then(|v| v.as_str()).unwrap_or("");
+    let session_id = value
+        .get("session")
+        .and_then(|v| v.as_str())
+        .unwrap_or(arg);
+    let error = value.get("error").and_then(|v| v.as_str());
+    let assistant = autoshade::session::assistant_turns(&value);
+    let calls = autoshade::session::tool_calls(&value);
+    let results = autoshade::session::tool_results(&value);
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "session": session_id,
+                "photo": photo,
+                "model": model,
+                "verdicts": verdicts,
+                "develop": develop,
+                "xmp": xmp,
+                "note": note,
+                "image": value.get("image"),
+                "assistant_turns": assistant,
+                "tool_calls": calls,
+                "tool_results": results,
+                "tokens": { "input": usage.input, "output": usage.output, "cache_read": usage.cache_read, "total": usage.total_tokens },
+                "cost_usd": usage.cost_usd,
+                "error": error,
+                "path": path.display().to_string(),
+            }))?
+        );
+        return Ok(());
+    }
+    println!("session   {session_id}");
+    println!("photo     {photo}");
+    println!("model     {model}");
+    println!(
+        "verdicts  {}",
+        if verdicts.is_empty() {
+            "(none)".to_string()
+        } else {
+            verdicts.join(" -> ")
+        }
+    );
+    if develop.is_empty() {
+        println!("commit    (none)");
+    } else {
+        println!("develop   {develop}");
+        println!("xmp       {xmp}");
+    }
+    if let Some(img) = value.get("image").and_then(|v| v.as_str()) {
+        println!("image     {img}");
+    }
+    println!("turns     {assistant} assistant · {calls} tool calls · {results} results");
+    println!(
+        "tokens    in {} · out {} · cache {} · total {}",
+        usage.input, usage.output, usage.cache_read, usage.total_tokens
+    );
+    println!("cost      ${:.4}", usage.cost_usd);
+    if let Some(e) = error {
+        println!("error     {e}");
+    }
+    Ok(())
+}
+
+fn session_replay_cmd(
+    arg: &str,
+    out: Option<PathBuf>,
+    long_edge: Option<u32>,
+    photo: Option<PathBuf>,
+) -> Result<()> {
+    let path = session_path(arg)?;
+    let value = autoshade::session::load(&path)?;
+    let (develop, _xmp, _note) = autoshade::session::commit_paths(&value);
+    // The session records the model's RAW candidate (nulls included). Replay
+    // the COMMITTED, canonical recipe when the develop is on disk — that is
+    // the artifact the develop actually holds.
+    let committed = (!develop.is_empty()).then(|| PathBuf::from(&develop).join("recipe.json"));
+    let committed = committed.filter(|p| p.is_file());
+    let (recipe, recipe_from): (EditRecipe, PathBuf) = if let Some(p) = committed {
+        (
+            serde_json::from_str(&std::fs::read_to_string(&p)?)
+                .context("parse the committed recipe")?,
+            p,
+        )
+    } else {
+        (
+            serde_json::from_value(value.get("recipe").cloned().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "session {arg} has no recipe (it failed: {})",
+                    value
+                        .get("error")
+                        .and_then(|e| e.as_str())
+                        .unwrap_or("unknown")
+                )
+            })?)
+            .context("parse the session recipe")?,
+            path.clone(),
+        )
+    };
+    let photo = photo
+        .or_else(|| value.get("photo_path").and_then(|v| v.as_str()).map(PathBuf::from))
+        .ok_or_else(|| anyhow::anyhow!("this session predates photo_path; pass --photo <RAW>"))?;
+    if !photo.is_file() {
+        anyhow::bail!("photo not found: {}", photo.display());
+    }
+    let out = out.unwrap_or_else(|| default_out(&photo, "replay", "tif"));
+    pipeline::preflight_out(&out, &photo)?;
+    let export = export_opts(long_edge);
+    let (w, h) = autoshade::render::render_to_file(
+        &photo,
+        &recipe,
+        &out,
+        None,
+        export.as_ref(),
+        autoshade::diag::stderr(),
+    )?;
+    println!("replay -> {} ({} x {})", out.display(), w, h);
+    println!("recipe <- {}", recipe_from.display());
+    Ok(())
+}
 fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
     let cfg = Config::load();
     let photo = photo
