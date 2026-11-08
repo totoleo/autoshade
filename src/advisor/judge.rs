@@ -355,6 +355,17 @@ pub(super) fn task_instruction(task: JudgeTask, intent: Option<GradeIntent<'_>>)
     format!("{base}{}", intent_rubric(intent))
 }
 
+/// The critic's brief as DATA, for a harness that runs the critic itself.
+/// `intent` is the strength axis (plus direction/look) the rubric has to
+/// honour; the harness passes the same numbers the proposer was given.
+pub(crate) fn rubric_for(intent: Option<GradeIntent<'_>>) -> Value {
+    json!({
+        "task": "develop",
+        "rubric": task_instruction(JudgeTask::Develop, intent),
+        "output_schema": judgement_schema(),
+    })
+}
+
 #[cfg(test)]
 mod colour_rubric_tests {
     use super::*;

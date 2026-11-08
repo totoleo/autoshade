@@ -34,7 +34,7 @@ pub use openai_verify::OpenAiVerifier;
 pub(crate) use openai::output_text_or_refusal;
 // The MCP server (`src/mcp.rs`) validates a recipe through the same normalise
 // steps the text path uses; the critic's reply is parsed by the same parser.
-pub(crate) use judge::parse_judgement;
+pub(crate) use judge::{parse_judgement, rubric_for};
 pub(crate) use openai::{expand_ai_mask_intents, repair_hsl_axis_lengths, take_opinions};
 
 use crate::decode::{Histogram, Meta};

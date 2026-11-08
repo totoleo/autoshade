@@ -111,6 +111,8 @@ impl Server {
             "recipe.validate" => self.recipe_validate(&args),
             "recipe.render" => self.recipe_render(&args),
             "recipe.commit" => self.recipe_commit(&args),
+            "masks.cut" => self.masks_cut(&args),
+            "judge.rubric" => judge_rubric(&args),
             "judge.parse" => judge_parse(&args),
             other => tool_failure("unknown_tool", format!("no such tool: {other}")),
         })
@@ -297,8 +299,66 @@ impl Server {
         }
     }
 
-    fn resolve(&self, photo: &str) -> Result<PathBuf, String> {
-        let p = Path::new(photo);
+    /// Cut the model's `ai` mask intents locally. The intents arrive in the
+    /// schema's own spelling (`what` / `ref_x` / `ref_y`); the expander turns
+    /// them into the engine's `ai_mask` geometry, the segmenter fills the
+    /// rasters, and the tool returns where each one landed.
+    fn masks_cut(&self, args: &Value) -> Value {
+        let Some(photo) = args.get("photo").and_then(Value::as_str) else {
+            return tool_failure("invalid_args", "masks.cut needs `photo`");
+        };
+        let Some(masks) = args.get("masks").and_then(Value::as_array) else {
+            return tool_failure("invalid_args", "masks.cut needs `masks`");
+        };
+        if masks.is_empty() {
+            return tool_failure("invalid_args", "masks.cut needs at least one mask");
+        }
+        let path = match self.resolve(photo) {
+            Ok(p) => p,
+            Err(e) => return tool_failure("bad_path", e),
+        };
+        let entries: Vec<Value> = masks
+            .iter()
+            .map(|m| {
+                let what = m.get("what").and_then(Value::as_str).unwrap_or("");
+                let ref_x = m.get("ref_x").and_then(Value::as_f64).unwrap_or(0.5);
+                let ref_y = m.get("ref_y").and_then(Value::as_f64).unwrap_or(0.5);
+                json!({ "mask": { "kind": "ai", "what": what, "ref_x": ref_x, "ref_y": ref_y } })
+            })
+            .collect();
+        let mut value = json!({ "masks": entries });
+        expand_ai_mask_intents(&mut value);
+        let mut recipe: EditRecipe = match serde_json::from_value(value) {
+            Ok(r) => r,
+            Err(e) => return tool_failure("invalid_args", format!("mask intent: {e}")),
+        };
+        let cfg = crate::config::Config::load();
+        let resolution = crate::segment::resolve_ai_masks(&cfg, &path, &path, &mut recipe);
+        let value = serde_json::to_value(&recipe).unwrap_or(Value::Null);
+        let mut cuts = Vec::new();
+        for (index, mask) in value
+            .get("masks")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .enumerate()
+        {
+            cuts.push(json!({
+                "index": index,
+                "raster": mask.pointer("/mask/raster").and_then(Value::as_str),
+            }));
+        }
+        tool_ok(json!({
+            "masks": cuts,
+            "resolved": resolution.resolved,
+            "cached": resolution.cached,
+            "renewed": resolution.renewed,
+            "unresolved": resolution.unresolved,
+        }))
+    }
+
+    fn resolve(&self, photo: &str) -> Result<PathBuf, String> {        let p = Path::new(photo);
         let mut candidates = Vec::new();
         if p.is_absolute() {
             candidates.push(p.to_path_buf());
@@ -408,6 +468,43 @@ fn tool_definitions() -> Vec<Value> {
             }
         }),
         json!({
+            "name": "masks.cut",
+            "description": "Resolve the model's AI mask intents (sky/subject/object/face/eyes/background) to local rasters.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "photo": { "type": "string" },
+                    "masks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "what": { "enum": ["sky", "subject", "object", "face", "eyes", "background"] },
+                                "ref_x": { "type": "number" },
+                                "ref_y": { "type": "number" }
+                            },
+                            "required": ["what"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["photo", "masks"],
+                "additionalProperties": false
+            }
+        }),
+        json!({
+            "name": "judge.rubric",
+            "description": "The critic's brief (text) and reply schema. The harness runs the critic itself.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "direction": { "type": "string" }
+                },
+                "additionalProperties": false
+            }
+        }),
+        json!({
             "name": "judge.parse",
             "description": "Parse a critic's text reply into {decision, score, critique, hint}.",
             "inputSchema": {
@@ -426,6 +523,20 @@ fn recipe_schema() -> Value {
         "version": "1",
         "schema": catalogue::edit_recipe_schema(),
     }))
+}
+
+fn judge_rubric(args: &Value) -> Value {
+    let strength = args
+        .get("strength")
+        .and_then(Value::as_f64)
+        .map(|v| v.clamp(0.0, 1.0) as f32);
+    let direction = args.get("direction").and_then(Value::as_str);
+    let intent = crate::advisor::GradeIntent {
+        strength: crate::recipe::GradeStrength::from_optional(strength),
+        direction,
+        ..Default::default()
+    };
+    tool_ok(crate::advisor::rubric_for(Some(intent)))
 }
 
 fn judge_parse(args: &Value) -> Value {
