@@ -1179,6 +1179,18 @@ fn analyze_cmd(
     embed: autoshade::library::EmbeddingSwitch,
 ) -> Result<()> {
     let cfg = Config::load();
+    // S3: the pi harness is the default analyze chain. The old in-process
+    // proposer/verifier/judge loop stays reachable with
+    // AUTOSHADE_PIPELINE=legacy (the rollback the plan requires).
+    if autoshade::harness::enabled() {
+        if guidance.is_some() {
+            anyhow::bail!(
+                "--guidance is not carried by the pi pipeline yet; set \
+                 AUTOSHADE_PIPELINE=legacy to use the in-process chain"
+            );
+        }
+        return autoshade::harness::cli_analyze(raw, out);
+    }
     if let Some(o) = &out {
         // Full preflight BEFORE the paid propose+verify (L09#1) — an `-o`
         // pointing at a directory used to bill first and bail at
@@ -1521,6 +1533,53 @@ fn auto_cmd(
     // Resolved BEFORE the paid call so the banner below can say what is coming
     // (it also costs nothing and cannot fail).
     let export = export_opts(long_edge);
+    // S3: `auto` renders the recipe the harness committed. The harness owns
+    // the model loop and has already written the develop + XMP; this command
+    // only owes the deliverable render (and the same denoise/export flags).
+    if autoshade::harness::enabled() {
+        if guidance.is_some() {
+            anyhow::bail!(
+                "--guidance is not carried by the pi pipeline yet; set \
+                 AUTOSHADE_PIPELINE=legacy to use the in-process chain"
+            );
+        }
+        let run = autoshade::harness::run(raw)?;
+        let dn = denoise.then(|| {
+            denoise::DenoiseOpts::from_config(
+                &cfg,
+                denoise_model,
+                denoise_strength.unwrap_or(denoise::default_strength_for(raw)),
+            )
+        });
+        println!(
+            "verdict: {:?}; rendering {} ...",
+            run.verdict.decision,
+            match export.and_then(|o| o.long_edge) {
+                Some(le) => format!("to at most {le} px on the long edge"),
+                None => "full-resolution".to_string(),
+            }
+        );
+        let (w, h) = autoshade::render::render_to_file(
+            raw,
+            &run.recipe,
+            &out,
+            dn.as_ref(),
+            export.as_ref(),
+            autoshade::diag::stderr(),
+        )?;
+        println!("render -> {} ({} x {})", out.display(), w, h);
+        println!("recipe -> {}", run.develop.join("recipe.json").display());
+        if let Some(xmp) = &run.xmp {
+            println!("xmp    -> {}", xmp.display());
+        }
+        if run.verdict.decision != autoshade::advisor::Decision::Accept {
+            println!(
+                "develop committed anyway: the harness commits its best candidate \
+                 (set AUTOSHADE_PIPELINE=legacy for non-Accept-never-saves)"
+            );
+        }
+        return Ok(());
+    }
     let req = GradeRequest { guide, ..analyze_request(style, strength, adherence, deep, reference_image, embed, &cfg) };
     // judge = true: `auto` is the explicit one-shot develop of ONE photo —
     // same interactive class as analyze (batch passes false).
@@ -2318,6 +2377,85 @@ fn heal_cmd(
     Ok(())
 }
 
+/// S3: `batch` through the pi harness. Same pending/resume filter, same
+/// deliverable names and preflight as the legacy batch; the model loop and the
+/// commit belong to the harness, this loop only sequences photos and renders.
+fn batch_pi_cmd(
+    dir: &Path,
+    render: bool,
+    limit: usize,
+    include_baked: bool,
+    long_edge: Option<u32>,
+) -> Result<()> {
+    if include_baked {
+        anyhow::bail!(
+            "--include-baked is not carried by the pi pipeline yet; set \
+             AUTOSHADE_PIPELINE=legacy for it"
+        );
+    }
+    let export = export_opts(long_edge);
+    let raws = find_raws(dir)?;
+    println!("found {} RAW(s) under {} (pi harness)", raws.len(), dir.display());
+    let pending: Vec<&PathBuf> = raws
+        .iter()
+        .filter(|r| !autoshade::store::has_develop_or_sidecar(r))
+        .collect();
+    let todo = pending.len();
+    let n = todo.min(limit);
+    println!("{todo} pending; processing {n} this run (--limit {limit}).");
+    if todo > n {
+        println!("  {} more remain — raise --limit to process them.", todo - n);
+    }
+    let work: Vec<&Path> = pending.iter().take(n).map(|p| p.as_path()).collect();
+    let mut names = autoshade::pipeline::BatchNames::default();
+    let outs: Vec<Option<PathBuf>> = work
+        .iter()
+        .map(|r| if render { Some(names.claim(r, "developed", "tif")) } else { None })
+        .collect();
+    if let (Some(first_out), Some(first_raw)) = (outs.iter().flatten().next(), work.first()) {
+        pipeline::preflight_out(first_out, first_raw)?;
+    }
+    for line in &names.renamed {
+        println!("  same-name RAW keeps a separate deliverable: {line}");
+    }
+    let (mut saved, mut failed) = (0usize, 0usize);
+    for (i, (raw, out)) in work.iter().zip(outs.iter()).enumerate() {
+        println!("[{}/{}] {}", i + 1, work.len(), raw.display());
+        match autoshade::harness::run(raw) {
+            Ok(run) => {
+                if let Some(out) = out {
+                    match autoshade::render::render_to_file(
+                        raw,
+                        &run.recipe,
+                        out,
+                        None,
+                        export.as_ref(),
+                        autoshade::diag::stderr(),
+                    ) {
+                        Ok((w, h)) => println!("  render -> {} ({} x {})", out.display(), w, h),
+                        Err(e) => {
+                            eprintln!("  render failed: {e:#}");
+                            failed += 1;
+                            continue;
+                        }
+                    }
+                }
+                println!("  recipe -> {}", run.develop.join("recipe.json").display());
+                saved += 1;
+            }
+            Err(e) => {
+                eprintln!("  failed: {e:#}");
+                failed += 1;
+            }
+        }
+    }
+    println!(
+        "\n{saved} saved, {failed} failed, {} left pending",
+        todo.saturating_sub(n)
+    );
+    Ok(())
+}
+
 fn batch_cmd(
     dir: &Path,
     render: bool,
@@ -2327,6 +2465,9 @@ fn batch_cmd(
     long_edge: Option<u32>,
 ) -> Result<()> {
     let cfg = Config::load();
+    if autoshade::harness::enabled() {
+        return batch_pi_cmd(dir, render, limit, include_baked, long_edge);
+    }
     // PER PHOTO, and it has to be: one `ExportOpts` shared by every worker
     // still bounds each photo's own long edge, because the cap is applied to
     // the frame being rendered — a portrait and a landscape in the same folder

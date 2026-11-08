@@ -21,6 +21,7 @@ pub mod diag;
 pub mod embed;
 pub mod eval;
 pub mod face;
+pub mod harness;
 pub mod fit;
 pub(crate) mod fit_cells;
 pub(crate) mod fit_field;
