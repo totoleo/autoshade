@@ -1907,6 +1907,31 @@ fn api_analyze(request: &mut Request, state: &AppState) -> Result<ResponseBox> {
     // Text reference only: the opt-in reference PHOTO is a GUI switch (R23-2),
     // and a browser session must not start spending an extra image per call
     // through a field nothing in the page can see.
+    // S3: the web Analyze button runs the pi harness by default. The harness
+    // owns the model loop and commits the develop itself, so the handler
+    // returns the committed recipe/verdict instead of calling produce_recipe
+    // and committing a second time. Refine (base), guidance and --deep stay
+    // on the in-process chain until the harness carries them.
+    if crate::harness::enabled()
+        && refine_base.is_none()
+        && guidance.is_none()
+        && !req.deep.unwrap_or(false)
+    {
+        let run = crate::harness::run(&raw)?;
+        let mut body = json!({
+            "recipe": run.recipe,
+            "verdict": run.verdict,
+            "saved": true,
+            "revision": crate::store::develop_revision(&raw),
+        });
+        if run.verdict.decision != crate::advisor::Decision::Accept {
+            body["warning"] = json!(format!(
+                "critic verdict {:?} — the harness committed its best candidate",
+                run.verdict.decision
+            ));
+        }
+        return Ok(json_response(&body));
+    }
     let (recipe, verdict, _notes) = pipeline::produce_recipe(
         &raw,
         None,
