@@ -123,6 +123,15 @@ Type: dirifempty; Name: "{autoprograms}\Autoshop"
 Type: files; Name: "{autodesktop}\Autoshop.lnk"
 #endif
 
+; The bundled harness runtime is replaced wholesale on upgrade, so a stale
+; node.exe or node_modules cannot mix with the new bundle. Guarded on the
+; compile-time presence of the prepared dirs: an installer built WITHOUT the
+; bundle must not delete the one the previous install already ships.
+#if FileExists(AddBackslash(SourcePath) + "..\dist\harness\pi\analyze.mjs")
+Type: filesandordirs; Name: "{app}\node"
+Type: filesandordirs; Name: "{app}\harness"
+#endif
+
 [Files]
 Source: "..\dist\autoshade.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\autoshade-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -132,6 +141,14 @@ Source: "..\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubd
 ; Runtime sidecars are copied recursively for forward-compatible additions, while
 ; developer tests, Python bytecode, and multi-gigabyte downloaded weights stay out.
 Source: "..\python\*"; DestDir: "{app}\python"; Excludes: "weights\*,__pycache__\*,test_*.py,*.pyc"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The pi-harness bundle: a PINNED Node runtime plus harness/pi with production
+; node_modules, prepared by installer\prepare-harness.ps1 into dist\. The AI
+; chain looks for both BESIDE the exe (<app>\node\node.exe and
+; <app>\harness\pi\analyze.mjs, AUTOSHADE_NODE overrides the runtime). An
+; installer built without the bundle is still valid — the app then needs a
+; PATH node — which is why these entries skip when the prepared dirs are absent.
+Source: "..\dist\node\*"; DestDir: "{app}\node"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "..\dist\harness\*"; DestDir: "{app}\harness"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\autoshade-gui.exe"; WorkingDir: "{app}"; Comment: "AutoShade desktop application"

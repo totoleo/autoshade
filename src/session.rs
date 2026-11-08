@@ -125,6 +125,35 @@ pub fn commit_paths(value: &Value) -> (String, String, String) {
     }
 }
 
+/// The failure class of a transcript, when it failed. New transcripts carry
+/// `failure` (classified by the harness); older ones derive it from `error`.
+pub fn failure_kind(value: &Value) -> Option<String> {
+    if let Some(f) = value.get("failure").and_then(Value::as_str) {
+        return Some(f.to_string());
+    }
+    let error = value.get("error").and_then(Value::as_str)?;
+    Some(
+        if error.starts_with("budget_exhausted") {
+            "budget_exhausted"
+        } else if error.starts_with("model_error") {
+            "model_error"
+        } else {
+            "error"
+        }
+        .to_string(),
+    )
+}
+
+/// Did the run stop on the turn budget? A budget stop may still have a
+/// committed best candidate, so this is a failure CLASS, not "no output".
+pub fn budget_exhausted(value: &Value) -> bool {
+    value
+        .get("budget_exhausted")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || failure_kind(value).as_deref() == Some("budget_exhausted")
+}
+
 /// Resolve a session id (`analyze-…`), a bare filename, or a JSON path against
 /// the harness sessions directory. Ids win over files? No: an explicit existing
 /// path is used as-is, then `<dir>/<id>.json`, then `<dir>/<arg>`.
@@ -253,5 +282,31 @@ mod session_tests {
         );
         let err = resolve_session("analyze-missing", &dir).unwrap_err().to_string();
         assert!(err.contains("no harness session"), "{err}");
+    }
+
+    #[test]
+    fn failure_kind_reads_the_record_and_derives_from_legacy_errors() {
+        assert_eq!(
+            failure_kind(&json!({ "failure": "model_error", "error": "model_error: 401" })),
+            Some("model_error".to_string())
+        );
+        // Older transcripts have only the message: the prefix decides.
+        assert_eq!(
+            failure_kind(&json!({ "error": "budget_exhausted: 14 assistant turns" })),
+            Some("budget_exhausted".to_string())
+        );
+        assert_eq!(
+            failure_kind(&json!({ "error": "the critic never produced a JSON verdict" })),
+            Some("error".to_string())
+        );
+        assert_eq!(failure_kind(&json!({ "verdicts": [] })), None);
+    }
+
+    #[test]
+    fn budget_exhaustion_is_a_failure_class_not_an_empty_run() {
+        assert!(budget_exhausted(&json!({ "budget_exhausted": true })));
+        assert!(budget_exhausted(&json!({ "error": "budget_exhausted: 14 turns" })));
+        assert!(!budget_exhausted(&json!({ "budget_exhausted": false })));
+        assert!(!budget_exhausted(&json!({ "error": "model_error: 401" })));
     }
 }

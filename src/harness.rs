@@ -91,6 +91,31 @@ pub fn key_present(cfg: &crate::config::Config) -> bool {
             .is_some_and(|k| !k.is_empty())
 }
 
+/// The Node executable: `AUTOSHADE_NODE` wins; otherwise a runtime bundled
+/// beside the app (`<exe dir>\node\node.exe`, then `<exe dir>\node.exe`); then
+/// PATH. The bundle is what the installer ships, so an installed app does not
+/// depend on the user having Node.
+fn node_exe_from(start: Option<&Path>) -> String {
+    if let Some(dir) = start {
+        for candidate in [dir.join("node").join("node.exe"), dir.join("node.exe")] {
+            if candidate.is_file() {
+                return candidate.display().to_string();
+            }
+        }
+    }
+    "node".into()
+}
+
+fn node_exe() -> String {
+    if let Ok(node) = std::env::var("AUTOSHADE_NODE") {
+        return node;
+    }
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    node_exe_from(exe_dir.as_deref())
+}
+
 /// Which analyze chain this process uses. Default is the harness; the legacy
 /// chain stays reachable through `AUTOSHADE_PIPELINE=legacy` (the rollback the
 /// plan's S3 requires), and that is the ONLY opt-out.
@@ -204,7 +229,7 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
         .unwrap_or(0);
     let summary_path = sessions.join(format!(".summary-{}-{stamp}.json", std::process::id()));
     let result_path = sessions.join(format!(".result-{}-{stamp}.json", std::process::id()));
-    let node = std::env::var("AUTOSHADE_NODE").unwrap_or_else(|_| "node".into());
+    let node = node_exe();
     let mut cmd = ProcessCommand::new(&node);
     cmd.arg(&script);
     cmd.arg(photo.file_name().unwrap_or(photo.as_os_str()));
@@ -445,4 +470,26 @@ mod tests {
             "a malformed recipe must be refused, not defaulted"
         );
     }
-}
+
+    #[test]
+    fn a_bundled_node_beside_the_app_wins_over_path() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-scratch")
+            .join(format!("node-{}-{}", std::process::id(), line!()));
+        let nested = dir.join("node");
+        std::fs::create_dir_all(&nested).unwrap();
+        let exe = nested.join("node.exe");
+        std::fs::write(&exe, b"fake").unwrap();
+        assert_eq!(node_exe_from(Some(&dir)), exe.display().to_string());
+        // A flat node.exe beside the app also counts, and no bundle falls back
+        // to PATH ("node").
+        let flat = dir.join("flat");
+        std::fs::create_dir_all(&flat).unwrap();
+        let flat_exe = flat.join("node.exe");
+        std::fs::write(&flat_exe, b"fake").unwrap();
+        assert_eq!(node_exe_from(Some(&flat)), flat_exe.display().to_string());
+        assert_eq!(node_exe_from(Some(&dir.join("nothing"))), "node");
+        assert_eq!(node_exe_from(None), "node");
+        let _ = std::fs::remove_dir_all(&dir);
+    }}

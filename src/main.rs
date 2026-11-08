@@ -1117,6 +1117,8 @@ fn session_show_cmd(arg: &str, as_json: bool) -> Result<()> {
         .and_then(|v| v.as_str())
         .unwrap_or(arg);
     let error = value.get("error").and_then(|v| v.as_str());
+    let failure = autoshade::session::failure_kind(&value);
+    let budget = autoshade::session::budget_exhausted(&value);
     let assistant = autoshade::session::assistant_turns(&value);
     let calls = autoshade::session::tool_calls(&value);
     let results = autoshade::session::tool_results(&value);
@@ -1137,6 +1139,8 @@ fn session_show_cmd(arg: &str, as_json: bool) -> Result<()> {
                 "tool_results": results,
                 "tokens": { "input": usage.input, "output": usage.output, "cache_read": usage.cache_read, "total": usage.total_tokens },
                 "cost_usd": usage.cost_usd,
+                "failure": failure,
+                "budget_exhausted": budget,
                 "error": error,
                 "path": path.display().to_string(),
             }))?
@@ -1169,6 +1173,12 @@ fn session_show_cmd(arg: &str, as_json: bool) -> Result<()> {
         usage.input, usage.output, usage.cache_read, usage.total_tokens
     );
     println!("cost      ${:.4}", usage.cost_usd);
+    if let Some(f) = &failure {
+        println!("failure   {f}");
+    }
+    if budget {
+        println!("budget    exhausted — the committed candidate is the best it reached");
+    }
     if let Some(e) = error {
         println!("error     {e}");
     }
