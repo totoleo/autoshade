@@ -383,14 +383,13 @@ impl AutoShadeApp {
             };
             if why(primary_row(ui, ready, tr(lang, "AI Analyze"))
                 .on_hover_text(tr(lang,
-                    "AI proposes a recipe from scratch (GPT proposal + validation + a visual \
-                     review: the result is RENDERED and judged by the vision model, which may \
-                     buy one guided revision), written into the sliders — undoable. Uses the \
-                     reference library or the Direction above (the switch picks one); Strength \
-                     steers it. COST, worst case: 11 API \
-                     calls, 6 of them carrying images (8 high-detail frames). Ticking 「Deep \
-                     thinking」 below OR pushing Strength above 70% raises that ceiling — \
-                     either one alone does it; the Deep thinking tooltip has the numbers.",
+                    "AI proposes a recipe from scratch (the configured service proposes, the \
+                     recipe is validated, then a visual critic reviews: the result is RENDERED \
+                     and judged by the vision model, which may buy one guided revision), \
+                     written into the sliders — undoable. Uses the reference library or the \
+                     Direction above (the switch picks one); Strength steers it. Ticking \
+                     「Deep thinking」 below OR pushing Strength above 70% lets it take more \
+                     steps.",
                 )))
                 .clicked()
             {
