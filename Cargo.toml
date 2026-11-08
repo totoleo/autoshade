@@ -164,3 +164,9 @@ windows-sys = { version = "0.59", features = ["Win32_System_ProcessStatus"] }
 # ring ONLY; the rest of the workspace keeps full dev debug information.
 [profile.dev.package.ring]
 debug = false
+
+# Vendored rawler 0.8.0 + the ARW6 codec from dnglab main (LGPL-2.1):
+# the released 0.8.0 registers the mode but its decompressor is a stub.
+[patch.crates-io]
+rawler = { path = "vendor/rawler" }
+
