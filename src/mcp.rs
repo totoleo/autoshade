@@ -166,7 +166,13 @@ impl Server {
                 let hash = hash_recipe(&recipe);
                 self.validated.insert(hash.clone());
                 tool_ok(json!({
-                    "ok": true, "hash": hash, "errors": [], "warnings": warnings
+                    "ok": true, "hash": hash, "errors": [], "warnings": warnings,
+                    // The CANONICAL recipe (clamps, HSL repair, AI-mask
+                    // expansion already applied). A parent that owns
+                    // persistence (the GUI's deferred commit) needs this, not
+                    // the raw candidate: the raw shape carries nulls the
+                    // EditRecipe parser rejects.
+                    "recipe": recipe,
                 }))
             }
             Err(errors) => tool_ok(json!({

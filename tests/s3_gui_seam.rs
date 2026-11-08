@@ -41,4 +41,11 @@ fn gui_fresh_analyze_seam_returns_the_harness_recipe() {
         ),
         "a critic verdict must come back"
     );
+    // Deferred: the seam must NOT commit; the GUI's on_analyzed is the writer.
+    let develop = autoshade::store::develop_dir(&photo);
+    assert!(
+        !develop.join("recipe.json").exists(),
+        "the GUI seam must leave persistence to on_analyzed: {} exists",
+        develop.display()
+    );
 }

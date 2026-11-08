@@ -264,7 +264,9 @@ pub fn produce_recipe(
         && base.is_none()
         && !req.think
     {
-        let run = crate::harness::run(raw)?;
+        // Deferred: the caller owns persistence (the GUI's on_analyzed backup
+        // and undo contract), so the harness must not commit a second time.
+        let run = crate::harness::run_deferred(raw)?;
         return Ok((run.recipe, run.verdict, Vec::new()));
     }
     // The third element (L12#2B): every DETERMINISTIC rationale fragment this

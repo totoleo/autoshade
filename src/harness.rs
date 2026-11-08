@@ -102,6 +102,18 @@ fn cli_exe() -> Result<PathBuf> {
 
 /// Run the harness on `photo` and read its committed develop back.
 pub fn run(photo: &Path) -> Result<Run> {
+    run_inner(photo, false)
+}
+
+/// Like [`run`], but the harness does NOT commit. It hands the final recipe
+/// back through `AUTOSHADE_HARNESS_RESULT`; persistence belongs to the caller.
+/// The desktop GUI uses this so its `on_analyzed` backup/undo contract is the
+/// only writer (no duplicate `v<N>` snapshot from a second commit).
+pub fn run_deferred(photo: &Path) -> Result<Run> {
+    run_inner(photo, true)
+}
+
+fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
     let photo = photo
         .canonicalize()
         .with_context(|| format!("photo {}", photo.display()))?;
@@ -126,14 +138,12 @@ pub fn run(photo: &Path) -> Result<Run> {
     let sessions = data.join("sessions");
     std::fs::create_dir_all(&sessions)
         .with_context(|| format!("create {}", sessions.display()))?;
-    let summary_path = sessions.join(format!(
-        ".summary-{}-{}.json",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0)
-    ));
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let summary_path = sessions.join(format!(".summary-{}-{stamp}.json", std::process::id()));
+    let result_path = sessions.join(format!(".result-{}-{stamp}.json", std::process::id()));
     let node = std::env::var("AUTOSHADE_NODE").unwrap_or_else(|_| "node".into());
     let mut cmd = ProcessCommand::new(&node);
     cmd.arg(&script);
@@ -143,6 +153,10 @@ pub fn run(photo: &Path) -> Result<Run> {
     cmd.env("AUTOSHADE_MCP_DATA", &data);
     cmd.env("AUTOSHADE_DATA_DIR", &store);
     cmd.env("AUTOSHADE_SESSION_SUMMARY", &summary_path);
+    if defer {
+        cmd.env("AUTOSHADE_HARNESS_DEFER_COMMIT", "1");
+        cmd.env("AUTOSHADE_HARNESS_RESULT", &result_path);
+    }
     // The harness's Python default is the checkout's `.venv`; only override it
     // with the configured interpreter when that venv is absent (a configured
     // bare `python` on this machine can be Python 2, which cannot run the
@@ -185,6 +199,63 @@ pub fn run(photo: &Path) -> Result<Run> {
     })?;
     let summary: serde_json::Value = serde_json::from_str(&text).context("parse harness summary")?;
     let _ = std::fs::remove_file(&summary_path);
+    if defer {
+        let result_text = std::fs::read_to_string(&result_path).with_context(|| {
+            format!(
+                "the deferred harness wrote no result at {}",
+                result_path.display()
+            )
+        })?;
+        let _ = std::fs::remove_file(&result_path);
+        let result: serde_json::Value =
+            serde_json::from_str(&result_text).context("parse deferred result")?;
+        let recipe: EditRecipe = serde_json::from_value(
+            result
+                .get("recipe")
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("the deferred result carries no recipe"))?,
+        )
+        .context("parse deferred recipe")?;
+        let decision = match result
+            .get("verdict")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "accept" => Decision::Accept,
+            "reject" => Decision::Reject,
+            _ => Decision::Revise,
+        };
+        let score = result.get("score").and_then(serde_json::Value::as_i64);
+        let verdict = Verdict {
+            decision,
+            reasons: score
+                .map(|s| vec![format!("critic score {s}/100")])
+                .unwrap_or_default(),
+            revised_hint: None,
+        };
+        let develop = crate::store::develop_dir(&photo);
+        let image = summary
+            .get("image")
+            .and_then(serde_json::Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let session = result
+            .get("session")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        return Ok(Run {
+            summary,
+            recipe,
+            verdict,
+            develop,
+            xmp: None,
+            image,
+            session,
+        });
+    }
     let develop = summary
         .get("develop")
         .and_then(serde_json::Value::as_str)
