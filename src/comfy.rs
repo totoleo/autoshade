@@ -62,10 +62,18 @@ pub struct Settings {
     pub url: String,
     #[serde(default)]
     pub max_edge: Option<u32>,
-    /// `sdxl` (SDXL inpainting checkpoint, default), `sd15`, `qwen`, `zimage`,
-    /// `lama` (ComfyUI inpaint nodes).
+    /// Whole-frame model: `qwen`, `zimage` or `sd15`.
     #[serde(default)]
     pub model: String,
+    /// Masked-fill backend: `lama` (default), `sdxl`, `sd15`, `qwen`.
+    #[serde(default)]
+    pub inpaint_model: String,
+    /// LaMa weights under `models/inpaint` (default `big-lama.pt`).
+    #[serde(default)]
+    pub lama_model: String,
+/// SDXL inpainting checkpoint, relative to `models/checkpoints`.
+    #[serde(default)]
+    pub sdxl_inpaint_checkpoint: String,
     #[serde(default)]
     pub qwen_unet: String,
     #[serde(default)]
@@ -104,6 +112,9 @@ impl Settings {
             settings.max_edge = Some(v);
         }
         if let Some(v) = env("AUTOSHADE_COMFY_MODEL") { settings.model = v; }
+        if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") { settings.inpaint_model = v; }
+        if let Some(v) = env("AUTOSHADE_COMFY_LAMA_MODEL") { settings.lama_model = v; }
+        if let Some(v) = env("AUTOSHADE_COMFY_SDXL_INPAINT") { settings.sdxl_inpaint_checkpoint = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_QWEN_UNET") { settings.qwen_unet = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_QWEN_CLIP") { settings.qwen_clip = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_QWEN_VAE") { settings.qwen_vae = v; }
@@ -707,10 +718,11 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
         .with_context(|| format!("write {}", mask_path.display()))?;
     let image = upload_file(&cli, &url, &input_path)?;
     let mask = upload_file(&cli, &url, &mask_path)?;
-    let model = std::env::var("AUTOSHADE_COMFY_LAMA_MODEL")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "big-lama.pt".into());
+    let model = if settings.lama_model.trim().is_empty() {
+        "big-lama.pt".into()
+    } else {
+        settings.lama_model.clone()
+    };
     let wf = json!({
         "1": { "class_type": "LoadImage", "inputs": { "image": image } },
         "2": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
@@ -728,6 +740,14 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
     bytes
+}
+
+fn sdxl_inpaint_checkpoint(settings: &Settings) -> String {
+    if settings.sdxl_inpaint_checkpoint.trim().is_empty() {
+        "SDXL-INPAINT\\sd_xl_base_1.0_inpainting_0.1.safetensors".into()
+    } else {
+        settings.sdxl_inpaint_checkpoint.clone()
+    }
 }
 
 /// SDXL inpainting checkpoint via the proper `InpaintModelConditioning` graph.
@@ -771,7 +791,7 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
     };
     let wf = json!({
         "1": { "class_type": "CheckpointLoaderSimple",
-               "inputs": { "ckpt_name": "SDXL-INPAINT\\sd_xl_base_1.0_inpainting_0.1.safetensors" } },
+               "inputs": { "ckpt_name": sdxl_inpaint_checkpoint(settings) } },
         "2": { "class_type": "LoadImage", "inputs": { "image": image } },
         "3": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
         "4": { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": ["1", 1] } },
@@ -804,11 +824,15 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
 /// default), `sd15`, `qwen`/`qwen-crop` (reference-conditioned Qwen edit on a
 /// crop), or any other value for the Z-Image crop path.
 pub fn inpaint_model() -> String {
-    std::env::var("AUTOSHADE_COMFY_INPAINT_MODEL")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "lama".into())
-        .to_ascii_lowercase()
+    if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") {
+        return v.to_ascii_lowercase();
+    }
+    let saved = Settings::load().inpaint_model;
+    if saved.trim().is_empty() {
+        "lama".into()
+    } else {
+        saved.to_ascii_lowercase()
+    }
 }
 
 /// The checkpoint a masked fill uses: an explicit
