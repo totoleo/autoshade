@@ -426,7 +426,6 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
         .map(|d| d.as_millis())
         .unwrap_or(0);
     let input_path = dir.join(format!("input-{}-{stamp}.png", std::process::id()));
-    let workflow_path = dir.join(format!("workflow-{}-{stamp}.json", std::process::id()));
     std::fs::write(&input_path, input_png)
         .with_context(|| format!("write {}", input_path.display()))?;
 
@@ -442,21 +441,10 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
 
     let prefix = format!("autoshade_comfy_{}_{stamp}", std::process::id());
     let wf = workflow(&image, prompt, opts, &prefix);
-    std::fs::write(&workflow_path, serde_json::to_vec(&wf)?)
-        .with_context(|| format!("write {}", workflow_path.display()))?;
-    let run = cli
-        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
-        .context("comfy run --workflow --wait");
-    let _ = std::fs::remove_file(&workflow_path);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
-    let run = run?;
-
-    if run.get("status").and_then(Value::as_str) != Some("completed") {
-        bail!("ComfyUI workflow did not complete: {run}");
-    }
-    let bytes = download_result(&cli, &run)?;
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
-    Ok(bytes)
+    bytes
 }
 
 /// A masked fill (object removal / generative fill): the mask PNG's TRANSPARENT
@@ -476,7 +464,6 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     let pid = std::process::id();
     let input_path = dir.join(format!("fill-in-{pid}-{stamp}.png"));
     let mask_path = dir.join(format!("fill-mask-{pid}-{stamp}.png"));
-    let workflow_path = dir.join(format!("fill-wf-{pid}-{stamp}.json"));
     std::fs::write(&input_path, input_png)
         .with_context(|| format!("write {}", input_path.display()))?;
     // The app's mask convention is "transparent = regenerate"; ComfyUI's
@@ -542,22 +529,12 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
         "10": { "class_type": "SaveImage",
                 "inputs": { "filename_prefix": prefix, "images": ["9", 0] } }
     });
-    std::fs::write(&workflow_path, serde_json::to_vec(&wf)?)
-        .with_context(|| format!("write {}", workflow_path.display()))?;
-    let run = cli
-        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
-        .context("comfy run --workflow --wait");
-    let _ = std::fs::remove_file(&workflow_path);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(&mask_path);
-    let run = run?;
-    if run.get("status").and_then(Value::as_str) != Some("completed") {
-        bail!("ComfyUI inpaint did not complete: {run}");
-    }
-    let bytes = download_result(&cli, &run)?;
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
-    Ok(bytes)
+    bytes
 }
 
 /// LaMa object removal through the ComfyUI inpaint nodes. It is the backend
@@ -936,41 +913,6 @@ fn upload_file(cli: &Cli, path: &Path) -> Result<String> {
         .with_context(|| format!("comfy upload returned no file name: {data}"))
 }
 
-
-/// Ask comfy-cli to download the finished job's outputs; no `/view` URL is
-/// fetched by this process. Returns the first image file.
-fn download_result(cli: &Cli, run: &Value) -> Result<Vec<u8>> {
-    let prompt_id = run
-        .get("prompt_id")
-        .and_then(Value::as_str)
-        .with_context(|| format!("comfy run completed without a prompt_id: {run}"))?;
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let dir = crate::store::store_root()
-        .join("comfy-tmp")
-        .join(format!("download-{}-{stamp}", std::process::id()));
-    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
-    let dir_s = dir.display().to_string();
-    let result = cli.json(&["download", prompt_id, "--out-dir", &dir_s]);
-    let bytes = (|| -> Result<Vec<u8>> {
-        result.context("comfy download")?;
-        let image = std::fs::read_dir(&dir)
-            .with_context(|| format!("read {}", dir.display()))?
-            .filter_map(Result::ok)
-            .map(|e| e.path())
-            .find(|p| {
-                p.extension()
-                    .and_then(|e| e.to_str())
-                    .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp"))
-            })
-            .with_context(|| format!("comfy download wrote no image into {}", dir.display()))?;
-        std::fs::read(&image).with_context(|| format!("read {}", image.display()))
-    })();
-    let _ = std::fs::remove_dir_all(&dir);
-    bytes
-}
 
 fn run_workflow_json(cli: &Cli, settings: &Settings, wf: &Value) -> Result<Vec<u8>> {
     let dir = crate::store::store_root().join("comfy-tmp");
