@@ -52,14 +52,7 @@ impl AutoShadeApp {
             comfy_checkpoint: comfy.checkpoint,
             comfy_model: comfy.model,
             comfy_inpaint_model: comfy.inpaint_model,
-            comfy_lama_model: comfy.lama_model,
-            comfy_sdxl_inpaint_checkpoint: comfy.sdxl_inpaint_checkpoint,
-            comfy_qwen_unet: comfy.qwen_unet,
-            comfy_qwen_clip: comfy.qwen_clip,
-            comfy_qwen_vae: comfy.qwen_vae,
-            comfy_zimage_unet: comfy.zimage_unet,
-            comfy_zimage_clip: comfy.zimage_clip,
-            comfy_zimage_vae: comfy.zimage_vae,
+            comfy_models: serde_json::to_string_pretty(&comfy.models).unwrap_or_else(|_| "{}".into()),
             status: String::new(),
             image_models,
             analysis_models,
@@ -197,14 +190,9 @@ impl AutoShadeApp {
             comfy.checkpoint = self.settings.comfy_checkpoint.trim().to_string();
             comfy.model = self.settings.comfy_model.trim().to_string();
             comfy.inpaint_model = self.settings.comfy_inpaint_model.trim().to_string();
-            comfy.lama_model = self.settings.comfy_lama_model.trim().to_string();
-            comfy.sdxl_inpaint_checkpoint = self.settings.comfy_sdxl_inpaint_checkpoint.trim().to_string();
-            comfy.qwen_unet = self.settings.comfy_qwen_unet.trim().to_string();
-            comfy.qwen_clip = self.settings.comfy_qwen_clip.trim().to_string();
-            comfy.qwen_vae = self.settings.comfy_qwen_vae.trim().to_string();
-            comfy.zimage_unet = self.settings.comfy_zimage_unet.trim().to_string();
-            comfy.zimage_clip = self.settings.comfy_zimage_clip.trim().to_string();
-            comfy.zimage_vae = self.settings.comfy_zimage_vae.trim().to_string();
+            if let Ok(models) = serde_json::from_str(&self.settings.comfy_models) {
+                comfy.models = models;
+            }
             if let Err(e) = comfy.save() {
                 self.settings.status = trf(
                     self.lang,
@@ -563,15 +551,7 @@ impl AutoShadeApp {
                 ("Models folder", &mut f.comfy_base_dir),
                 ("Checkpoint", &mut f.comfy_checkpoint),
                 ("Model (sd15/qwen/zimage)", &mut f.comfy_model),
-                ("Fill backend (lama/sdxl/sd15/qwen)", &mut f.comfy_inpaint_model),
-                ("LaMa model", &mut f.comfy_lama_model),
-                ("SDXL inpaint checkpoint", &mut f.comfy_sdxl_inpaint_checkpoint),
-                ("Qwen UNET", &mut f.comfy_qwen_unet),
-                ("Qwen CLIP", &mut f.comfy_qwen_clip),
-                ("Qwen VAE", &mut f.comfy_qwen_vae),
-                ("Z-Image UNET", &mut f.comfy_zimage_unet),
-                ("Z-Image CLIP", &mut f.comfy_zimage_clip),
-                ("Z-Image VAE", &mut f.comfy_zimage_vae),
+                ("Models (JSON)", &mut f.comfy_models),
             ] {
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, label));

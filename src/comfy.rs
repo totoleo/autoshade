@@ -66,23 +66,26 @@ pub struct Settings {
     /// Masked-fill backend: `lama` (default), `sdxl`, `sd15`, `qwen`.
     #[serde(default)]
     pub inpaint_model: String,
-    /// LaMa weights under `models/inpaint`.
+    /// ONE model manifest. Shape:
+    /// `{"qwen":{"unet":..,"clip":..,"vae":..},"zimage":{..},"lama":..,"sdxl_inpaint":..}`
     #[serde(default)]
+    pub models: serde_json::Value,
+    // Resolved from `models`; not separate config slots.
+    #[serde(skip)]
     pub lama_model: String,
-/// SDXL inpainting checkpoint, relative to `models/checkpoints`.
-    #[serde(default)]
+    #[serde(skip)]
     pub sdxl_inpaint_checkpoint: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub qwen_unet: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub qwen_clip: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub qwen_vae: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub zimage_unet: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub zimage_clip: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub zimage_vae: String,
 }
 
@@ -104,23 +107,12 @@ impl Settings {
         if let Some(v) = env("AUTOSHADE_COMFY_CLI") { settings.cli = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_WORKSPACE") { settings.workspace = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_BASE_DIR") { settings.base_dir = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_INPUT_DIR") { settings.input_dir = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_OUTPUT_DIR") { settings.output_dir = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_TEMP_DIR") { settings.temp_dir = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_CHECKPOINT") { settings.checkpoint = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_MAX_EDGE").and_then(|v| v.parse().ok()) {
             settings.max_edge = Some(v);
         }
         if let Some(v) = env("AUTOSHADE_COMFY_MODEL") { settings.model = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") { settings.inpaint_model = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_LAMA_MODEL") { settings.lama_model = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_SDXL_INPAINT") { settings.sdxl_inpaint_checkpoint = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_QWEN_UNET") { settings.qwen_unet = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_QWEN_CLIP") { settings.qwen_clip = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_QWEN_VAE") { settings.qwen_vae = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_ZIMAGE_UNET") { settings.zimage_unet = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_ZIMAGE_CLIP") { settings.zimage_clip = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_ZIMAGE_VAE") { settings.zimage_vae = v; }
         settings.fill_defaults();
         settings
     }
@@ -140,6 +132,21 @@ impl Settings {
     }
 
     fn fill_defaults(&mut self) {
+        let get = |path: &str| {
+            self.models
+                .pointer(path)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        self.lama_model = get("/lama");
+        self.sdxl_inpaint_checkpoint = get("/sdxl_inpaint");
+        self.qwen_unet = get("/qwen/unet");
+        self.qwen_clip = get("/qwen/clip");
+        self.qwen_vae = get("/qwen/vae");
+        self.zimage_unet = get("/zimage/unet");
+        self.zimage_clip = get("/zimage/clip");
+        self.zimage_vae = get("/zimage/vae");
         // ComfyUI's own base-directory convention: models/, input/, output/
         // and temp/ live under the base directory. Do not invent a parallel
         // app-owned tree; only base_dir is configured.

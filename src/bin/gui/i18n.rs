@@ -1204,7 +1204,7 @@ static ZH_ENTRIES: &[(&str, &str)] = &[
     ("Output folder", "输出文件夹"),
     ("Checkpoint", "检查点"),
     ("Model (sd15/qwen/zimage)", "模型（sd15/qwen/zimage）"),
-    ("Fill backend (lama/sdxl/sd15/qwen)", "填充后端（lama/sdxl/sd15/qwen）"),
+    ("Models (JSON)", "模型（JSON）"),
     ("LaMa model", "LaMa 模型"),
     ("SDXL inpaint checkpoint", "SDXL 修复检查点"),
     ("Qwen UNET", "Qwen UNET"),
