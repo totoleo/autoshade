@@ -870,6 +870,10 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
 /// Some image, whole-frame: the model setting decides which graph (SD1.5
 /// img2img / Qwen edit / Z-Image img2img).
 pub fn whole_frame(input_png: &[u8], prompt: &str, opts: &Img2Img, quality: &str) -> Result<Vec<u8>> {
+    let settings = Settings::load();
+    if !settings.reimagine_workflow.trim().is_empty() {
+        return custom_workflow(input_png, None, prompt, settings.reimagine_workflow.trim());
+    }
     match model().as_str() {
         "" => bail!("model is not configured — set Settings → ComfyUI → Model (sd15/qwen/zimage)"),
         "qwen" => qwen_edit(input_png, prompt, quality),
@@ -883,6 +887,12 @@ pub fn whole_frame(input_png: &[u8], prompt: &str, opts: &Img2Img, quality: &str
 /// `qwen` runs the Qwen-Image 2.1 turbo edit template on the whole frame (the
 /// caller composites the masked region), `zimage` runs Z-Image img2img.
 pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality: &str) -> Result<Vec<u8>> {
+    let settings = Settings::load();
+    if let Some(mask) = mask_png
+        && !settings.fill_workflow.trim().is_empty()
+    {
+        return custom_workflow(input_png, Some(mask), prompt, settings.fill_workflow.trim());
+    }
     // A masked fill uses the inpaint backend; the whole-frame model setting is
     // for reimagine/adjust (no mask) and for the fill's fallback.
     if let Some(mask) = mask_png {
