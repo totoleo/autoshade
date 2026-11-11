@@ -25,6 +25,12 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+/// Workflows shipped inside the binary; materialised into the per-user store
+/// on first load so the config file has real paths.
+const DEFAULT_REIMAGINE_WORKFLOW: &str =
+    include_str!("../assets/comfy/qwen-reimagine.json");
+const DEFAULT_FILL_WORKFLOW: &str = include_str!("../assets/comfy/sdxl-fill.json");
+
 /// Whether the generative path runs through ComfyUI. Now the DEFAULT: the paid
 /// image API was deleted (S5.11). `AUTOSHADE_GENERATIVE=legacy` only keeps the
 /// old in-process *analysis* oracle selectable; generative pixels always use
@@ -130,6 +136,15 @@ impl Settings {
     }
 
     fn fill_defaults(&mut self) {
+        if self.reimagine_workflow.trim().is_empty() {
+            self.reimagine_workflow = materialize_workflow(
+                "qwen-reimagine.json",
+                DEFAULT_REIMAGINE_WORKFLOW,
+            );
+        }
+        if self.fill_workflow.trim().is_empty() {
+            self.fill_workflow = materialize_workflow("sdxl-fill.json", DEFAULT_FILL_WORKFLOW);
+        }
         let get = |path: &str| {
             self.models
                 .pointer(path)
@@ -174,6 +189,16 @@ impl Settings {
     pub fn max_edge_value(&self) -> u32 {
         self.max_edge.unwrap_or(1024)
     }
+}
+
+fn materialize_workflow(name: &str, contents: &str) -> String {
+    let dir = crate::store::store_root().join("workflows");
+    let path = dir.join(name);
+    if !path.is_file() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(&path, contents);
+    }
+    path.display().to_string()
 }
 
 fn env(name: &str) -> Option<String> {
