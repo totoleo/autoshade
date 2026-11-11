@@ -3,7 +3,7 @@
 //! This is the S5.11 replacement for the OpenAI Images/Edits calls of the
 //! generative path. autoshade owns the workflow JSON (the CLI's `run
 //! --workflow` does not accept `--set`), stages the input image, runs the
-//! workflow on the local server and fetches the output URL the run returns.
+//! workflow on the local server and asks comfy-cli to download its outputs.
 //!
 //! Path management is ours, not ComfyUI's defaults: the server this module
 //! launches gets `--base-directory` (models), and `--input-directory /
@@ -14,7 +14,7 @@
 //! Settings live in the per-user `autoshade.local.json` under the `comfy` key
 //! (they used to live in a sibling `comfy.local.json`) and can be overridden by
 //! env vars; the GUI's Settings panel is the surface for them. Fields: cli, workspace (dir containing main.py), base_dir (models),
-//! input_dir, output_dir, temp_dir, checkpoint, url, max_edge.
+//! input_dir, output_dir, temp_dir, checkpoint, max_edge.
 //!
 //! Gate: `AUTOSHADE_GENERATIVE=comfy` until the real-photo acceptance run is
 //! green; the default stays on the old path until S5.11 closes out.
@@ -58,8 +58,6 @@ pub struct Settings {
     pub temp_dir: String,
     #[serde(default)]
     pub checkpoint: String,
-    #[serde(default)]
-    pub url: String,
     #[serde(default)]
     pub max_edge: Option<u32>,
     /// Whole-frame model: `qwen`, `zimage` or `sd15`.
@@ -110,9 +108,6 @@ impl Settings {
         if let Some(v) = env("AUTOSHADE_COMFY_OUTPUT_DIR") { settings.output_dir = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_TEMP_DIR") { settings.temp_dir = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_CHECKPOINT") { settings.checkpoint = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_URL").or_else(|| env("COMFY_LOCAL_URL")) {
-            settings.url = v;
-        }
         if let Some(v) = env("AUTOSHADE_COMFY_MAX_EDGE").and_then(|v| v.parse().ok()) {
             settings.max_edge = Some(v);
         }
@@ -260,7 +255,6 @@ pub fn plan_size_for_model(frame: (u32, u32), max_edge: u32) -> (u32, u32) {
 struct Cli {
     exe: String,
     workspace: Option<PathBuf>,
-    url: Option<String>,
     settings: Settings,
 }
 
@@ -269,34 +263,24 @@ impl Cli {
         let settings = Settings::load();
         let exe = if settings.cli.is_empty() { "comfy".into() } else { settings.cli.clone() };
         let mut workspace = (!settings.workspace.is_empty()).then(|| PathBuf::from(&settings.workspace));
-        let mut url = (!settings.url.is_empty()).then(|| settings.url.clone());
-        // comfy-cli already knows the workspace and the running server. Ask it
-        // instead of reading Comfy Desktop's private registry, guessing a port,
-        // or duplicating the CLI's discovery.
-        if workspace.is_none() || url.is_none() {
-            let probe = Self { exe: exe.clone(), workspace: workspace.clone(), url: url.clone(), settings: settings.clone() };
-            if let Ok(data) = probe.json_owned(None, &["env".into()]) {
-                if workspace.is_none() {
-                    workspace = data.pointer("/workspace/path")
-                        .and_then(Value::as_str)
-                        .or_else(|| data.pointer("/config/recent_workspace").and_then(Value::as_str))
-                        .map(PathBuf::from);
-                }
-                if url.is_none() {
-                    url = data.pointer("/server/url").and_then(Value::as_str).map(str::to_owned);
-                }
+        // comfy-cli knows the workspace and the running server; ask it instead
+        // of reading Comfy Desktop's private registry or guessing a port.
+        if workspace.is_none() {
+            let probe = Self { exe: exe.clone(), workspace: None, settings: settings.clone() };
+            if let Ok(data) = probe.json_owned(&["env".into()]) {
+                workspace = data.pointer("/workspace/path")
+                    .and_then(Value::as_str)
+                    .or_else(|| data.pointer("/config/recent_workspace").and_then(Value::as_str))
+                    .map(PathBuf::from);
             }
         }
-        Self { exe, workspace, url, settings }
+        Self { exe, workspace, settings }
     }
 
     fn command(&self) -> Command {
         let mut cmd = Command::new(&self.exe);
         if let Some(workspace) = &self.workspace {
             cmd.arg(format!("--workspace={}", workspace.display()));
-        }
-        if let Some(url) = &self.url {
-            cmd.env("COMFY_LOCAL_URL", url);
         }
         // The CLI can otherwise emit analytics from a product path.
         cmd.env("COMFY_NO_TELEMETRY", "1").env("DO_NOT_TRACK", "1");
@@ -318,13 +302,10 @@ impl Cli {
 
     /// One `comfy --json <args>` call: parse the envelope/1 document printed on
     /// stdout (warnings may precede it) and return `data`, refusing `ok:false`.
-    fn json_owned(&self, url: Option<&str>, args: &[String]) -> Result<Value> {
+    fn json_owned(&self, args: &[String]) -> Result<Value> {
         let mut all: Vec<String> = vec!["--json".into()];
         all.extend(args.iter().cloned());
         let mut command = self.command();
-        if let Some(url) = url {
-            command.env("COMFY_LOCAL_URL", url);
-        }
         let output = command
             .args(&all)
             .output()
@@ -354,35 +335,31 @@ impl Cli {
         Ok(envelope.get("data").cloned().unwrap_or(Value::Null))
     }
 
-    fn json(&self, url: Option<&str>, args: &[&str]) -> Result<Value> {
+    fn json(&self, args: &[&str]) -> Result<Value> {
         let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
-        self.json_owned(url, &owned)
+        self.json_owned(&owned)
     }
 
-    /// The URL of a running server, if comfy-cli sees one.
-    fn running_url(&self) -> Option<String> {
-        let data = self.json(self.url.as_deref(), &["env"]).ok()?;
-        if data.pointer("/server/running").and_then(Value::as_bool) != Some(true) {
-            return None;
-        }
-        data.pointer("/server/url")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .or_else(|| self.url.clone())
+    /// Whether comfy-cli sees a running server.
+    fn server_running(&self) -> bool {
+        self.json(&["env"])
+            .ok()
+            .and_then(|data| data.pointer("/server/running").and_then(Value::as_bool))
+            == Some(true)
     }
 
     /// A running server is reused; otherwise one is launched through comfy-cli
     /// (the management half of the CLI) with OUR directories, so models come
     /// from the configured base and generated pixels never land in ComfyUI's
-    /// own output folder. Returns the URL subsequent calls target.
-    fn ensure_server(&self) -> Result<String> {
-        if let Some(url) = self.running_url() {
-            return Ok(url);
+    /// own output folder; subsequent calls go through comfy-cli's configured target.
+    fn ensure_server(&self) -> Result<()> {
+        if self.server_running() {
+            return Ok(());
         }
         if self.workspace.is_none() {
             bail!(
                 "no ComfyUI server and no workspace to launch one — set AUTOSHADE_COMFY_WORKSPACE \
-                 (dir containing main.py) or start ComfyUI and set COMFY_LOCAL_URL"
+                 (dir containing main.py) or start ComfyUI yourself"
             );
         }
         let settings = &self.settings;
@@ -397,25 +374,12 @@ impl Cli {
             args.push("--base-directory".into());
             args.push(settings.base_dir.clone());
         }
-        let launched = self
-            .json_owned(self.url.as_deref(), &args)
+        self.json_owned(&args)
             .context("comfy launch --background")?;
-        let url = launched
-            .pointer("/url")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .or_else(|| self.url.clone())
-            .or_else(|| self.json(None, &["env"]).ok()
-                .and_then(|data| data.pointer("/server/url").and_then(Value::as_str).map(str::to_owned)))
-            .context("comfy launch --background returned no server URL")?;
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
         while std::time::Instant::now() < deadline {
-            if self
-                .json(Some(&url), &["env"])
-                .map(|data| data.pointer("/server/running").and_then(Value::as_bool) == Some(true))
-                .unwrap_or(false)
-            {
-                return Ok(url);
+            if self.server_running() {
+                return Ok(());
             }
             std::thread::sleep(std::time::Duration::from_secs(2));
         }
@@ -453,7 +417,7 @@ fn workflow(img: &str, prompt: &str, opts: &Img2Img, prefix: &str) -> Value {
 pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
 
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
@@ -467,7 +431,7 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
         .with_context(|| format!("write {}", input_path.display()))?;
 
     let uploaded = cli
-        .json(Some(&url), &["upload", &input_path.to_string_lossy()])
+        .json(&["upload", &input_path.to_string_lossy()])
         .context("comfy upload")?;
     let image = uploaded
         .pointer("/uploads/0/cloud_name")
@@ -481,7 +445,7 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
     std::fs::write(&workflow_path, serde_json::to_vec(&wf)?)
         .with_context(|| format!("write {}", workflow_path.display()))?;
     let run = cli
-        .json(Some(&url), &["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
+        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
         .context("comfy run --workflow --wait");
     let _ = std::fs::remove_file(&workflow_path);
     let _ = std::fs::remove_file(&input_path);
@@ -490,7 +454,7 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI workflow did not complete: {run}");
     }
-    let bytes = download_result(&cli, &url, &run)?;
+    let bytes = download_result(&cli, &run)?;
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     Ok(bytes)
 }
@@ -502,7 +466,7 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
 pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -540,7 +504,7 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
 
     let upload = |path: &Path| -> Result<String> {
         let data = cli
-            .json(Some(&url), &["upload", &path.to_string_lossy()])
+            .json(&["upload", &path.to_string_lossy()])
             .context("comfy upload")?;
         data.pointer("/uploads/0/cloud_name")
             .and_then(Value::as_str)
@@ -581,7 +545,7 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     std::fs::write(&workflow_path, serde_json::to_vec(&wf)?)
         .with_context(|| format!("write {}", workflow_path.display()))?;
     let run = cli
-        .json(Some(&url), &["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
+        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
         .context("comfy run --workflow --wait");
     let _ = std::fs::remove_file(&workflow_path);
     let _ = std::fs::remove_file(&input_path);
@@ -590,7 +554,7 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI inpaint did not complete: {run}");
     }
-    let bytes = download_result(&cli, &url, &run)?;
+    let bytes = download_result(&cli, &run)?;
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
     Ok(bytes)
@@ -603,7 +567,7 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
 pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -629,8 +593,8 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
         .context("encode the LaMa binary mask")?;
     std::fs::write(&mask_path, &mask_png)
         .with_context(|| format!("write {}", mask_path.display()))?;
-    let image = upload_file(&cli, &url, &input_path)?;
-    let mask = upload_file(&cli, &url, &mask_path)?;
+    let image = upload_file(&cli, &input_path)?;
+    let mask = upload_file(&cli, &mask_path)?;
     if settings.lama_model.trim().is_empty() {
         bail!("LaMa model is not configured — set Settings → ComfyUI → LaMa model");
     }
@@ -646,7 +610,7 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
                "inputs": { "filename_prefix": format!("autoshade_lama_{pid}_{stamp}"),
                            "images": ["4", 0] } }
     });
-    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(&mask_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
@@ -667,7 +631,7 @@ fn sdxl_inpaint_checkpoint(settings: &Settings) -> Result<String> {
 pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -693,8 +657,8 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
         .context("encode the SDXL binary fill mask")?;
     std::fs::write(&mask_path, &mask_png)
         .with_context(|| format!("write {}", mask_path.display()))?;
-    let image = upload_file(&cli, &url, &input_path)?;
-    let mask = upload_file(&cli, &url, &mask_path)?;
+    let image = upload_file(&cli, &input_path)?;
+    let mask = upload_file(&cli, &mask_path)?;
     let steps = match quality {
         "high" => 32,
         "medium" => 28,
@@ -724,7 +688,7 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
                "inputs": { "filename_prefix": format!("autoshade_sdxl_fill_{pid}_{stamp}"),
                            "images": ["8", 0] } }
     });
-    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(&mask_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
@@ -834,7 +798,7 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
 
     let cli = Cli::resolve();
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -851,7 +815,7 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
     };
     std::fs::write(&input_path, &crop_png)
         .with_context(|| format!("write {}", input_path.display()))?;
-    let image_name = upload_file(&cli, &url, &input_path)?;
+    let image_name = upload_file(&cli, &input_path)?;
     // A removal prompt (blank user text) is an instruction, but Z-Image img2img
     // wants a description of the wanted content.
     let lower = prompt.to_ascii_lowercase();
@@ -887,7 +851,7 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
         "11": { "class_type": "SaveImage",
                 "inputs": { "images": ["10", 0], "filename_prefix": prefix } }
     });
-    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image_name));
     let generated = image::load_from_memory(&bytes?)
@@ -961,9 +925,9 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
 const QWEN_SIGMAS: &str =
     "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0";
 
-fn upload_file(cli: &Cli, url: &str, path: &Path) -> Result<String> {
+fn upload_file(cli: &Cli, path: &Path) -> Result<String> {
     let data = cli
-        .json(Some(url), &["upload", &path.to_string_lossy()])
+        .json(&["upload", &path.to_string_lossy()])
         .context("comfy upload")?;
     data.pointer("/uploads/0/cloud_name")
         .and_then(Value::as_str)
@@ -975,7 +939,7 @@ fn upload_file(cli: &Cli, url: &str, path: &Path) -> Result<String> {
 
 /// Ask comfy-cli to download the finished job's outputs; no `/view` URL is
 /// fetched by this process. Returns the first image file.
-fn download_result(cli: &Cli, url: &str, run: &Value) -> Result<Vec<u8>> {
+fn download_result(cli: &Cli, run: &Value) -> Result<Vec<u8>> {
     let prompt_id = run
         .get("prompt_id")
         .and_then(Value::as_str)
@@ -989,7 +953,7 @@ fn download_result(cli: &Cli, url: &str, run: &Value) -> Result<Vec<u8>> {
         .join(format!("download-{}-{stamp}", std::process::id()));
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let dir_s = dir.display().to_string();
-    let result = cli.json(Some(url), &["download", prompt_id, "--out-dir", &dir_s]);
+    let result = cli.json(&["download", prompt_id, "--out-dir", &dir_s]);
     let bytes = (|| -> Result<Vec<u8>> {
         result.context("comfy download")?;
         let image = std::fs::read_dir(&dir)
@@ -1008,7 +972,7 @@ fn download_result(cli: &Cli, url: &str, run: &Value) -> Result<Vec<u8>> {
     bytes
 }
 
-fn run_workflow_json(cli: &Cli, url: &str, settings: &Settings, wf: &Value) -> Result<Vec<u8>> {
+fn run_workflow_json(cli: &Cli, settings: &Settings, wf: &Value) -> Result<Vec<u8>> {
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -1019,14 +983,14 @@ fn run_workflow_json(cli: &Cli, url: &str, settings: &Settings, wf: &Value) -> R
     std::fs::write(&workflow_path, serde_json::to_vec(wf)?)
         .with_context(|| format!("write {}", workflow_path.display()))?;
     let run = cli
-        .json(Some(url), &["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
+        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
         .context("comfy run --workflow --wait");
     let _ = std::fs::remove_file(&workflow_path);
     let run = run?;
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI workflow did not complete: {run}");
     }
-    let bytes = download_result(cli, url, &run)?;
+    let bytes = download_result(cli, &run)?;
     remove_compare_temp(Path::new(&settings.temp_dir));
     Ok(bytes)
 }
@@ -1063,7 +1027,7 @@ pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u
         bail!("Qwen model files are not configured — set Settings → ComfyUI → Qwen UNET/CLIP/VAE");
     }
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -1073,7 +1037,7 @@ pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u
     let input_path = dir.join(format!("qwen-in-{}-{stamp}.png", std::process::id()));
     std::fs::write(&input_path, input_png)
         .with_context(|| format!("write {}", input_path.display()))?;
-    let image = upload_file(&cli, &url, &input_path)?;
+    let image = upload_file(&cli, &input_path)?;
     let decoded = image::load_from_memory(input_png).context("decode the Qwen edit input")?;
     let (iw, ih) = decoded.dimensions();
     let prefix = format!("autoshade_qwen_{}_{stamp}", std::process::id());
@@ -1102,7 +1066,7 @@ pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u
         "12": { "class_type": "SaveImage",
                 "inputs": { "images": ["11", 0], "filename_prefix": prefix } }
     });
-    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let bytes = bytes?;
@@ -1190,7 +1154,7 @@ pub fn zimage_img2img(input_png: &[u8], prompt: &str, _quality: &str) -> Result<
         bail!("Z-Image model files are not configured — set Settings → ComfyUI → Z-Image UNET/CLIP/VAE");
     }
     let settings = &cli.settings;
-    let url = cli.ensure_server()?;
+    cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let stamp = std::time::SystemTime::now()
@@ -1200,7 +1164,7 @@ pub fn zimage_img2img(input_png: &[u8], prompt: &str, _quality: &str) -> Result<
     let input_path = dir.join(format!("zimage-in-{}-{stamp}.png", std::process::id()));
     std::fs::write(&input_path, input_png)
         .with_context(|| format!("write {}", input_path.display()))?;
-    let image = upload_file(&cli, &url, &input_path)?;
+    let image = upload_file(&cli, &input_path)?;
     let prefix = format!("autoshade_zimage_{}_{stamp}", std::process::id());
     let wf = json!({
         "1": { "class_type": "UNETLoader",
@@ -1229,7 +1193,7 @@ pub fn zimage_img2img(input_png: &[u8], prompt: &str, _quality: &str) -> Result<
         "11": { "class_type": "SaveImage",
                 "inputs": { "images": ["10", 0], "filename_prefix": prefix } }
     });
-    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let bytes = run_workflow_json(&cli, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     bytes
@@ -1240,24 +1204,12 @@ pub fn cli_path() -> String {
     Cli::resolve().exe
 }
 
-/// True when a ComfyUI server is reachable through the configured CLI.
-pub fn server_available() -> bool {
-    Cli::resolve().running_url().is_some()
-}
 
 /// The workspace root this module would launch, for diagnostics.
 pub fn workspace() -> Option<PathBuf> {
     Cli::resolve().workspace
 }
 
-/// Read-only diagnostics for the UI/logs: `(cli, workspace, url, running)`.
-pub fn diagnostics() -> (String, Option<PathBuf>, Option<String>, bool) {
-    let cli = Cli::resolve();
-    let running = cli.running_url();
-    let is_running = running.is_some();
-    let url = running.or(cli.url);
-    (cli.exe, cli.workspace, url, is_running)
-}
 
 /// Blend a generated CROP back into the base through the painted mask,
 /// feathering the boundary. The mask is the app's RGBA convention: alpha 0 =
