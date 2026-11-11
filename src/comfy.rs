@@ -960,7 +960,17 @@ pub fn custom_workflow(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, 
     let mask = match mask_png {
         Some(bytes) => {
             let mp = dir.join(format!("custom-mask-{}-{stamp}.png", std::process::id()));
-            std::fs::write(&mp, bytes).context("write custom mask")?;
+            let rgba = image::load_from_memory(bytes).context("decode custom mask")?.to_rgba8();
+            let (mw, mh) = rgba.dimensions();
+            let mut binary = image::GrayImage::new(mw, mh);
+            for (x, y, px) in rgba.enumerate_pixels() {
+                binary.put_pixel(x, y, image::Luma([if px[3] == 0 { 255 } else { 0 }]));
+            }
+            let mut png = Vec::new();
+            image::DynamicImage::ImageLuma8(binary)
+                .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+                .context("encode custom mask")?;
+            std::fs::write(&mp, &png).context("write custom mask")?;
             let name = upload_file(&cli, &mp)?;
             let _ = std::fs::remove_file(&mp);
             Some(name)
