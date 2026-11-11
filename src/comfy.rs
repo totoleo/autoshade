@@ -24,7 +24,7 @@ use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// Whether the generative path runs through ComfyUI. Now the DEFAULT: the paid
 /// image API was deleted (S5.11). `AUTOSHADE_GENERATIVE=legacy` only keeps the
@@ -982,17 +982,48 @@ fn run_workflow_json(cli: &Cli, settings: &Settings, wf: &Value) -> Result<Vec<u
     let workflow_path = dir.join(format!("wf-{}-{stamp}.json", std::process::id()));
     std::fs::write(&workflow_path, serde_json::to_vec(wf)?)
         .with_context(|| format!("write {}", workflow_path.display()))?;
-    let run = cli
-        .json(&["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
-        .context("comfy run --workflow --wait");
+    let download_dir = dir.join(format!("download-{}-{stamp}", std::process::id()));
+    std::fs::create_dir_all(&download_dir)
+        .with_context(|| format!("create {}", download_dir.display()))?;
+
+    // The documented pipeline: `comfy run --wait | comfy download`.
+    let mut run = cli.command();
+    run.args(["run", "--workflow", &workflow_path.to_string_lossy(), "--wait"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = run.spawn().context("spawn comfy run")?;
+    let stdout = child.stdout.take().context("comfy run stdout")?;
+    let mut download = cli.command();
+    download
+        .args(["download", "--out-dir", &download_dir.to_string_lossy()])
+        .stdin(Stdio::from(stdout))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let downloaded = download.output().context("comfy download")?;
+    let run_out = child.wait_with_output().context("wait for comfy run")?;
     let _ = std::fs::remove_file(&workflow_path);
-    let run = run?;
-    if run.get("status").and_then(Value::as_str) != Some("completed") {
-        bail!("ComfyUI workflow did not complete: {run}");
+    if !run_out.status.success() {
+        let _ = std::fs::remove_dir_all(&download_dir);
+        bail!("comfy run failed: {}", String::from_utf8_lossy(&run_out.stderr).trim());
     }
-    let bytes = download_result(cli, &run)?;
+    if !downloaded.status.success() {
+        let _ = std::fs::remove_dir_all(&download_dir);
+        bail!("comfy download failed: {}", String::from_utf8_lossy(&downloaded.stderr).trim());
+    }
+    let image = std::fs::read_dir(&download_dir)
+        .with_context(|| format!("read {}", download_dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .find(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp"))
+        })
+        .with_context(|| format!("comfy download wrote no image into {}", download_dir.display()))?;
+    let bytes = std::fs::read(&image).with_context(|| format!("read {}", image.display()));
+    let _ = std::fs::remove_dir_all(&download_dir);
     remove_compare_temp(Path::new(&settings.temp_dir));
-    Ok(bytes)
+    bytes
 }
 
 fn remove_compare_temp(dir: &Path) {
