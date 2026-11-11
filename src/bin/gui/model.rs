@@ -1151,9 +1151,8 @@ pub(crate) struct SettingsForm {
     pub(crate) comfy_cli: String,
     pub(crate) comfy_workspace: String,
     pub(crate) comfy_base_dir: String,
-    pub(crate) comfy_model: String,
-    pub(crate) comfy_inpaint_model: String,
-    pub(crate) comfy_models: String,
+    pub(crate) comfy_reimagine_workflow: String,
+    pub(crate) comfy_fill_workflow: String,
     pub(crate) status: String,
     /// Live pick-lists, one per endpoint (see [`ModelCatalogue`]). Each
     /// carries its own once-per-session auto-fetch guard: one global boolean

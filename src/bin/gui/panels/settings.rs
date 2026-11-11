@@ -49,9 +49,8 @@ impl AutoShadeApp {
             comfy_cli: comfy.cli,
             comfy_workspace: comfy.workspace,
             comfy_base_dir: comfy.base_dir,
-            comfy_model: comfy.model,
-            comfy_inpaint_model: comfy.inpaint_model,
-            comfy_models: serde_json::to_string_pretty(&comfy.models).unwrap_or_else(|_| "{}".into()),
+            comfy_reimagine_workflow: comfy.reimagine_workflow,
+            comfy_fill_workflow: comfy.fill_workflow,
             status: String::new(),
             image_models,
             analysis_models,
@@ -186,11 +185,8 @@ impl AutoShadeApp {
             comfy.cli = self.settings.comfy_cli.trim().to_string();
             comfy.workspace = self.settings.comfy_workspace.trim().to_string();
             comfy.base_dir = self.settings.comfy_base_dir.trim().to_string();
-            comfy.model = self.settings.comfy_model.trim().to_string();
-            comfy.inpaint_model = self.settings.comfy_inpaint_model.trim().to_string();
-            if let Ok(models) = serde_json::from_str(&self.settings.comfy_models) {
-                comfy.models = models;
-            }
+            comfy.reimagine_workflow = self.settings.comfy_reimagine_workflow.trim().to_string();
+            comfy.fill_workflow = self.settings.comfy_fill_workflow.trim().to_string();
             if let Err(e) = comfy.save() {
                 self.settings.status = trf(
                     self.lang,
@@ -547,8 +543,8 @@ impl AutoShadeApp {
                 ("ComfyUI CLI", &mut f.comfy_cli),
                 ("ComfyUI folder", &mut f.comfy_workspace),
                 ("Models folder", &mut f.comfy_base_dir),
-                ("Model (sd15/qwen/zimage)", &mut f.comfy_model),
-                ("Models (JSON)", &mut f.comfy_models),
+                ("Reimagine workflow", &mut f.comfy_reimagine_workflow),
+                ("Fill workflow", &mut f.comfy_fill_workflow),
             ] {
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, label));

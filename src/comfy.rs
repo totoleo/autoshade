@@ -70,6 +70,12 @@ pub struct Settings {
     /// `{"qwen":{"unet":..,"clip":..,"vae":..},"zimage":{..},"lama":..,"sdxl_inpaint":..}`
     #[serde(default)]
     pub models: serde_json::Value,
+    /// Per-task configuration: ONE workflow each. Placeholders:
+    /// {{IMAGE}}, {{MASK}}, {{PROMPT}}, {{NEGATIVE}}, {{SEED}}.
+    #[serde(default)]
+    pub reimagine_workflow: String,
+    #[serde(default)]
+    pub fill_workflow: String,
     // Resolved from `models`; not separate config slots.
     #[serde(skip)]
     pub lama_model: String,
@@ -111,6 +117,8 @@ impl Settings {
             settings.max_edge = Some(v);
         }
         if let Some(v) = env("AUTOSHADE_COMFY_MODEL") { settings.model = v; }
+        if let Some(v) = env("AUTOSHADE_COMFY_REIMAGINE_WORKFLOW") { settings.reimagine_workflow = v; }
+        if let Some(v) = env("AUTOSHADE_COMFY_FILL_WORKFLOW") { settings.fill_workflow = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") { settings.inpaint_model = v; }
         settings.fill_defaults();
         settings
@@ -922,6 +930,59 @@ fn upload_file(cli: &Cli, path: &Path) -> Result<String> {
         .with_context(|| format!("comfy upload returned no file name: {data}"))
 }
 
+
+
+/// Task-specific, model-agnostic workflow runner. Each task configures ONE
+/// workflow; no model names are known here.
+pub fn custom_workflow(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, path: &str) -> Result<Vec<u8>> {
+    let cli = Cli::resolve();
+    let settings = &cli.settings;
+    cli.ensure_server()?;
+    let dir = crate::store::store_root().join("comfy-tmp");
+    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let input_path = dir.join(format!("custom-in-{}-{stamp}.png", std::process::id()));
+    std::fs::write(&input_path, input_png).context("write custom input")?;
+    let image = upload_file(&cli, &input_path)?;
+    let mask = match mask_png {
+        Some(bytes) => {
+            let mp = dir.join(format!("custom-mask-{}-{stamp}.png", std::process::id()));
+            std::fs::write(&mp, bytes).context("write custom mask")?;
+            let name = upload_file(&cli, &mp)?;
+            let _ = std::fs::remove_file(&mp);
+            Some(name)
+        }
+        None => None,
+    };
+    let text = std::fs::read_to_string(path).with_context(|| format!("read workflow {path}"))?;
+    let mut wf: Value = serde_json::from_str(&text).with_context(|| format!("parse workflow {path}"))?;
+    replace_placeholders(&mut wf, &[
+        ("{{IMAGE}}", image.clone()),
+        ("{{MASK}}", mask.clone().unwrap_or_default()),
+        ("{{PROMPT}}", prompt.to_string()),
+        ("{{NEGATIVE}}", String::new()),
+        ("{{SEED}}", stamp.to_string()),
+    ]);
+    let bytes = run_workflow_json(&cli, settings, &wf);
+    let _ = std::fs::remove_file(&input_path);
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
+    if let Some(mask) = mask {
+        let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(mask));
+    }
+    bytes
+}
+
+fn replace_placeholders(value: &mut Value, vars: &[(&str, String)]) {
+    match value {
+        Value::String(s) => { for (k, v) in vars { *s = s.replace(k, v); } }
+        Value::Array(items) => items.iter_mut().for_each(|v| replace_placeholders(v, vars)),
+        Value::Object(map) => map.values_mut().for_each(|v| replace_placeholders(v, vars)),
+        _ => {}
+    }
+}
 
 fn run_workflow_json(cli: &Cli, settings: &Settings, wf: &Value) -> Result<Vec<u8>> {
     let dir = crate::store::store_root().join("comfy-tmp");
