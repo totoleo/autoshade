@@ -56,7 +56,7 @@ pub struct Settings {
     pub output_dir: String,
     #[serde(default)]
     pub temp_dir: String,
-    #[serde(default)]
+    #[serde(skip)]
     pub checkpoint: String,
     #[serde(default)]
     pub max_edge: Option<u32>,
@@ -107,7 +107,6 @@ impl Settings {
         if let Some(v) = env("AUTOSHADE_COMFY_CLI") { settings.cli = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_WORKSPACE") { settings.workspace = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_BASE_DIR") { settings.base_dir = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_CHECKPOINT") { settings.checkpoint = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_MAX_EDGE").and_then(|v| v.parse().ok()) {
             settings.max_edge = Some(v);
         }
@@ -139,6 +138,9 @@ impl Settings {
                 .unwrap_or_default()
                 .to_string()
         };
+        if self.checkpoint.trim().is_empty() {
+            self.checkpoint = get("/sd15");
+        }
         self.lama_model = get("/lama");
         self.sdxl_inpaint_checkpoint = get("/sdxl_inpaint");
         self.qwen_unet = get("/qwen/unet");

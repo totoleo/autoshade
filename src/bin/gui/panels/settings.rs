@@ -49,7 +49,6 @@ impl AutoShadeApp {
             comfy_cli: comfy.cli,
             comfy_workspace: comfy.workspace,
             comfy_base_dir: comfy.base_dir,
-            comfy_checkpoint: comfy.checkpoint,
             comfy_model: comfy.model,
             comfy_inpaint_model: comfy.inpaint_model,
             comfy_models: serde_json::to_string_pretty(&comfy.models).unwrap_or_else(|_| "{}".into()),
@@ -187,7 +186,6 @@ impl AutoShadeApp {
             comfy.cli = self.settings.comfy_cli.trim().to_string();
             comfy.workspace = self.settings.comfy_workspace.trim().to_string();
             comfy.base_dir = self.settings.comfy_base_dir.trim().to_string();
-            comfy.checkpoint = self.settings.comfy_checkpoint.trim().to_string();
             comfy.model = self.settings.comfy_model.trim().to_string();
             comfy.inpaint_model = self.settings.comfy_inpaint_model.trim().to_string();
             if let Ok(models) = serde_json::from_str(&self.settings.comfy_models) {
@@ -549,7 +547,6 @@ impl AutoShadeApp {
                 ("ComfyUI CLI", &mut f.comfy_cli),
                 ("ComfyUI folder", &mut f.comfy_workspace),
                 ("Models folder", &mut f.comfy_base_dir),
-                ("Checkpoint", &mut f.comfy_checkpoint),
                 ("Model (sd15/qwen/zimage)", &mut f.comfy_model),
                 ("Models (JSON)", &mut f.comfy_models),
             ] {

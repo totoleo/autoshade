@@ -1151,7 +1151,6 @@ pub(crate) struct SettingsForm {
     pub(crate) comfy_cli: String,
     pub(crate) comfy_workspace: String,
     pub(crate) comfy_base_dir: String,
-    pub(crate) comfy_checkpoint: String,
     pub(crate) comfy_model: String,
     pub(crate) comfy_inpaint_model: String,
     pub(crate) comfy_models: String,
