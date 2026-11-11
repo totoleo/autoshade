@@ -3785,7 +3785,6 @@ impl AutoShadeApp {
                     const JUDGE_EDGE: u32 = 1024; // detail:high tiles at 512 px — 4 tiles read a grade
                     let judge_of = |recipe: &autoshade::recipe::EditRecipe|
                      -> anyhow::Result<autoshade::advisor::Judgement> {
-                        let cfg = autoshade::config::Config::load();
                         let enc = |img: &image::DynamicImage| -> anyhow::Result<Vec<u8>> {
                             let mut j = Vec::new();
                             img.write_to(
@@ -3801,7 +3800,6 @@ impl AutoShadeApp {
                         let t_jpeg = enc(&autoshade::render::thumbnail(&target, JUDGE_EDGE, JUDGE_EDGE))?;
                         let f_jpeg = enc(&fitted)?;
                         Ok(autoshade::advisor::judge_pair(
-                            &cfg,
                             autoshade::advisor::JudgeImages {
                                 reference: &t_jpeg,
                                 candidate: &f_jpeg,

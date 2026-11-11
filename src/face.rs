@@ -440,7 +440,7 @@ pub fn keep_skin_natural_in(recipe: &mut crate::recipe::EditRecipe) -> bool {
 //
 // A proposal may name a part of the picture by what it is (`kind=ai`); its
 // `face` and `eyes` targets arrive here as a FACE or EYES mask that names no
-// raster yet (`advisor::openai::expand_ai_mask_intents`) and are outlined on
+// raster yet (`advisor::proposer::expand_ai_mask_intents`) and are outlined on
 // this computer — the model's coordinates are never read. `background` needs
 // no help from here: it is the subject matte, inverted, which the segmenter
 // already cuts (`segment::resolve_ai_masks`).

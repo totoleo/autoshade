@@ -3125,7 +3125,6 @@ fn api_heal(request: &mut Request, state: &AppState) -> Result<ResponseBox> {
         }
         return Ok(status_response(500, "no free heal output name (999 in the masters folder)"));
     };
-    let cfg = state.config().clone();
     // The canvas's own base (v1.17.0) — api_retouch's rule.
     let part = req
         .view
@@ -3133,7 +3132,7 @@ fn api_heal(request: &mut Request, state: &AppState) -> Result<ResponseBox> {
         .map(render::BasePart::of)
         .unwrap_or_else(|| pipeline::photo_base_part(&raw));
     let result =
-        crate::retouch::heal(&cfg, &src, &part, mask_tmp.as_deref(), req.auto, req.full_res, None, &out);
+        crate::retouch::heal(&src, &part, mask_tmp.as_deref(), req.auto, req.full_res, None, &out);
     if let Some(t) = &mask_tmp {
         let _ = std::fs::remove_file(t);
     }

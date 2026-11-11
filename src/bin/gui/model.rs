@@ -1089,7 +1089,7 @@ impl ModelCatalogue {
 /// Reasoning-effort tiers offered by the pickers. Suggestions, not a closed
 /// set: both pickers sit beside a free-text field, `config::effort` only
 /// BOUNDS the value, and an endpoint that rejects a tier is negotiated down
-/// (`advisor::post_ai_json`, `claude::cli_rejected_effort`).
+/// (`the removed paid transport`, `claude::cli_rejected_effort`).
 ///
 /// The Claude CLI's list is quoted from `claude --help` on this machine
 /// (`--effort <level>  Effort level for the current session (low, medium,
@@ -1127,12 +1127,6 @@ pub(crate) struct SettingsForm {
     /// (`config::Config::image_api_family`); the picker writes the spelling
     /// the settings file stores.
     pub(crate) image_api_family: String,
-    /// Image-gen API: `false` = OpenAI's `/images/edits`, `true` = the
-    /// template below (`config::Config::image_gen_endpoint`).
-    pub(crate) image_gen_custom: bool,
-    /// The custom template's text, kept while the radio is on OpenAI so a
-    /// flip back does not lose it; saved only when `image_gen_custom`.
-    pub(crate) image_gen_endpoint: String,
     /// The DELIVERY ROOT as the settings FILE spells it (R24-5 M8) — blank
     /// means "the default `./out`", which is also how a blank SAVES (an
     /// explicitly emptied field silences an `AUTOSHADE_OUT_DIR` in the
@@ -1149,6 +1143,17 @@ pub(crate) struct SettingsForm {
     /// `AUTOSHADE_PYTHON` in the environment outranks this file and a user
     /// whose environment already answers would otherwise see an empty box.
     pub(crate) python_bin: String,
+    /// ComfyUI (local generative backend) paths, as the settings FILE spells
+    /// them. Blank = derive the default: the CLI from PATH, the workspace and
+    /// models folder from the Comfy Desktop registry, and the managed input/
+    /// output/temp folders under the app store (so generated pixels never land
+    /// in ComfyUI's own output folder).
+    pub(crate) comfy_cli: String,
+    pub(crate) comfy_workspace: String,
+    pub(crate) comfy_base_dir: String,
+    pub(crate) comfy_output_dir: String,
+    pub(crate) comfy_checkpoint: String,
+    pub(crate) comfy_model: String,
     pub(crate) status: String,
     /// Live pick-lists, one per endpoint (see [`ModelCatalogue`]). Each
     /// carries its own once-per-session auto-fetch guard: one global boolean

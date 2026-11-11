@@ -399,8 +399,9 @@ enum Command {
         #[arg(long, value_parser = unit_interval)]
         style: Option<f32>,
     },
-    /// EXPERIMENTAL: full-frame generative restyle via OpenAI Images (low-res,
-    /// lossy re-render — NOT a master; the XMP/render path is the real workflow).
+    /// EXPERIMENTAL: full-frame generative restyle via the local ComfyUI
+    /// server — low-res, lossy re-render, NOT a master; the XMP/render path is
+    /// the real workflow).
     Reimagine {
         /// Path to the RAW file.
         raw: PathBuf,
@@ -455,21 +456,21 @@ enum Command {
         /// default is the historical two-region path; four is opt-in).
         #[arg(long, default_value_t = autoshade::fit_zoned::semantic::DEFAULT_SEMANTIC_REGIONS)]
         regions: usize,
-        /// Also extract a reusable style PROMPT from the pair via the vision
-        /// model (./out/<stem>.style.txt; needs OPENAI_API_KEY).
+        /// Also extract a reusable style PROMPT from the pair via the pi
+        /// harness (./out/<stem>.style.txt; no OpenAI key needed).
         #[arg(long)]
         style_prompt: bool,
         /// R20: after the fit, have the vision model SCORE how faithfully the
         /// fitted render matches the target look (0-100 + critique — LLM as a
-        /// judge). One paid vision call; needs OPENAI_API_KEY. Informational:
-        /// a review failure never fails the fit.
+        /// judge). One vision call via the pi harness (no OpenAI key needed).
+        /// Informational: a review failure never fails the fit.
         #[arg(long)]
         ai_judge: bool,
         /// R23-6: let that review ACT — one bounded guided retry, kept only if
         /// it re-scores at least as high (the reviewer picks WHICH of this
         /// app's moves to try, never the values). Implies --ai-judge; up to
-        /// two paid vision calls. Ordering is already correct here: the CLI
-        /// has always evaluated before it writes.
+        /// two vision calls via the pi harness. Ordering is already correct
+        /// here: the CLI has always evaluated before it writes.
         #[arg(long)]
         deep: bool,
         /// The reverse-fit HONESTY BUDGET, 0..1 — the desktop app's own Reverse-fit strength dial.
@@ -511,7 +512,7 @@ enum Command {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
-    /// EXPERIMENTAL: generative object removal via OpenAI Images. The mask is an
+    /// EXPERIMENTAL: generative object removal via the local ComfyUI server. The mask is an
     /// RGBA PNG; transparent pixels mark the region to regenerate. Without
     /// `--prompt` the masked content is REMOVED (continued from its surroundings).
     Retouch {
@@ -540,7 +541,7 @@ enum Command {
     },
     /// OPTIONAL pixel-retouch mode — AI-driven HEAL (spot / blemish / dust
     /// removal) that edits pixels directly by sampling SURROUNDING REAL pixels.
-    /// Retouching, NOT generation: no gpt-image, no invented content. Non-XMP;
+    /// Retouching, NOT generation: no generative model, no invented content. Non-XMP;
     /// writes a pixel master to ./out. Targeting is hybrid (AI auto-detect and/or
     /// a painted mask).
     Heal {
@@ -1029,13 +1030,9 @@ fn lightroom_import_note(raw: &Path) -> Option<String> {
 /// The non-output half of the pre-pay preflight (the L09#1 rule made whole
 /// — 16-lane scan, L10 family): a requirement the command is CERTAIN to hit
 /// is checked before the first paid call or heavyweight decode.
-fn require_image_key(cfg: &Config, what: &str) -> Result<()> {
-    if cfg.openai_api_key.is_none() {
-        anyhow::bail!(
-            "{what} needs the image API and no OPENAI_API_KEY (or stored image key) is \
-             configured — checked before any decode or paid call"
-        );
-    }
+/// Generative commands now talk to the local ComfyUI server, which needs no
+/// OpenAI/Claude key; backend availability errors surface at the call itself.
+fn require_image_key(_cfg: &Config, _what: &str) -> Result<()> {
     Ok(())
 }
 
@@ -1293,12 +1290,11 @@ fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
             _ => {}
         }
     }
-    if std::env::var_os("DEEPSEEK_API_KEY").is_none() {
-        if let Some(key) = cfg.openai_api_key.as_deref().or(cfg.analysis_api_key.as_deref()) {
-            if !key.is_empty() {
-                cmd.env("DEEPSEEK_API_KEY", key);
-            }
-        }
+    if std::env::var_os("DEEPSEEK_API_KEY").is_none()
+        && let Some(key) = cfg.analysis_api_key.as_deref()
+        && !key.is_empty()
+    {
+        cmd.env("DEEPSEEK_API_KEY", key);
     }
     println!(
         "pi-analyze: {} via {} (sessions {})",
@@ -1352,6 +1348,7 @@ fn find_pi_harness() -> Option<PathBuf> {
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn analyze_cmd(
     raw: &Path,
     out: Option<PathBuf>,
@@ -2243,7 +2240,6 @@ fn match_cmd(
     // delivers. Informational: a failure warns, never errs.
     const JUDGE_EDGE: u32 = 1024; // detail:high tiles at 512 px — 4 tiles read a grade
     let judge_of = |recipe: &EditRecipe| -> Result<autoshade::advisor::Judgement> {
-        let cfg = Config::load();
         let enc = |img: &image::DynamicImage| -> Result<Vec<u8>> {
             let mut j = Vec::new();
             img.write_to(&mut std::io::Cursor::new(&mut j), image::ImageFormat::Jpeg)?;
@@ -2254,7 +2250,6 @@ fn match_cmd(
         let t = enc(&autoshade::render::thumbnail(&tgt, JUDGE_EDGE, JUDGE_EDGE))?;
         let f = enc(&fitted)?;
         Ok(autoshade::advisor::judge_pair(
-            &cfg,
             autoshade::advisor::JudgeImages { reference: &t, candidate: &f },
             autoshade::advisor::JudgeTask::FitMatch,
             None,
@@ -2486,7 +2481,6 @@ fn match_cmd(
         println!("render -> {} ({w} x {h})", img_out.display());
     }
     if style_prompt {
-        let cfg = Config::load();
         let p_out = default_out(raw, "style", "txt");
         pipeline::guard_readonly(&p_out, raw)?;
         ensure_parent(&p_out)?;
@@ -2498,8 +2492,8 @@ fn match_cmd(
                 .context("encode style-prompt jpeg")?;
             Ok(buf)
         };
-        println!("extracting a reusable style prompt ({}) …", cfg.openai_model);
-        let prompt = autoshade::advisor::describe_style(&cfg, &jpg(&src)?, &jpg(&tgt)?)?;
+        println!("extracting a reusable style prompt (pi harness) …");
+        let prompt = autoshade::advisor::describe_style(&jpg(&src)?, &jpg(&tgt)?)?;
         render::stage_and_publish(&p_out, |staged| {
             std::fs::write(staged, &prompt)
                 .with_context(|| format!("write {}", p_out.display()))
@@ -2521,7 +2515,6 @@ fn heal_cmd(
     full_res: bool,
     out: Option<PathBuf>,
 ) -> Result<()> {
-    let cfg = Config::load();
     let out = out.unwrap_or_else(|| default_out(src, "heal", "png"));
     // Full pre-pay preflight (L10 family): `heal --mask missing.png` used to
     // run the PAID auto-detect first and die at the mask read; `--no-auto`
@@ -2541,9 +2534,6 @@ fn heal_cmd(
     if no_auto && mask.is_none() {
         anyhow::bail!("--no-auto heals only a painted mask, and no --mask was given — nothing to do");
     }
-    if !no_auto {
-        require_image_key(&cfg, "heal's AI auto-detect (use --no-auto with --mask to heal without it)")?;
-    }
     println!(
         "pixel retouch (heal) — {}{} ...",
         if no_auto { "painted mask only" } else { "AI auto-detect" },
@@ -2552,7 +2542,7 @@ fn heal_cmd(
     // Healed on the photo's own base (v1.17.0): the profile its saved or
     // fresh develop starts from.
     let part = pipeline::photo_base_part(src);
-    let report = retouch::heal(&cfg, src, &part, mask.as_deref(), !no_auto, full_res, None, &out)?;
+    let report = retouch::heal(src, &part, mask.as_deref(), !no_auto, full_res, None, &out)?;
     if !report.rationale.is_empty() {
         println!("  {}", report.rationale);
     }
@@ -3076,11 +3066,13 @@ mod tests {
             .to_string();
         assert!(e.contains("high|low") && e.contains("medium"), "{e}");
 
-        // Missing image key (L10-13) — a config with no key refuses with the
-        // reason, not a late server error.
+        // Generative commands no longer need an image API key: they use the
+        // local ComfyUI server.
         let cfg = cfg_fixture();
-        let e = require_image_key(&cfg, "reimagine").unwrap_err().to_string();
-        assert!(e.contains("OPENAI_API_KEY"), "{e}");
+        assert!(
+            require_image_key(&cfg, "reimagine").is_ok(),
+            "the local ComfyUI backend must not require an OpenAI key"
+        );
     }
 
     /// L10-9 + L10-12: heal refuses a missing mask and a maskless --no-auto

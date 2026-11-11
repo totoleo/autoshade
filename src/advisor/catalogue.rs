@@ -401,7 +401,7 @@ pub const RECIPE_CONTROLS: [Control; 116] = [
         // geometries are drawn in, and the model only ever sees the display
         // frame — asking it would invite a wrong answer about a fact it
         // cannot observe. Stamped where the model's JSON becomes a recipe
-        // (`advisor::openai`), exactly like the other measured stamps.
+        // (`advisor::proposer`), exactly like the other measured stamps.
         engine_only: true,
         crs: CrsKey::None,
         tier: None,
@@ -418,7 +418,7 @@ pub const RECIPE_CONTROLS: [Control; 116] = [
         // about the file it came from. A model asked for it could only guess,
         // and a wrong guess makes the XMP merge either strip a key it should
         // have left alone or leave one it should have replaced. Stamped where
-        // model JSON becomes a recipe (`advisor::openai`) and where a request
+        // model JSON becomes a recipe (`advisor::proposer`) and where a request
         // body does (`serve::live_frame_recipe`) — neither is a FILE, so
         // neither predates anything.
         engine_only: true,

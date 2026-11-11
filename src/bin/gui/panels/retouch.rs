@@ -507,7 +507,6 @@ impl AutoShadeApp {
             move || {
                 let _mem = crate::budget::heavy_permit(crate::budget::estimate_mb(Some(&path))); // full-frame commit budget (budget.rs)
                 let res = (|| -> RetouchDone {
-                    let cfg = autoshade::config::Config::load();
                     let mask_tmp = match mask_png {
                         Some(bytes) => {
                             let t = gui_tmp_png("heal");
@@ -520,7 +519,7 @@ impl AutoShadeApp {
                     // test stands in for the billed detect + heal.
                     let rep = match runner {
                         Some(run) => run(&path, limit.as_deref(), &out),
-                        None => autoshade::retouch::heal(&cfg, &path, &part, mask_tmp.as_deref(), !use_mask, full_res, limit.as_deref(), &out),
+                        None => autoshade::retouch::heal(&path, &part, mask_tmp.as_deref(), !use_mask, full_res, limit.as_deref(), &out),
                     };
                     if let Some(t) = &mask_tmp {
                         let _ = std::fs::remove_file(t);
@@ -914,7 +913,6 @@ impl AutoShadeApp {
         self.spawn_worker(
             move || {
                 let res = (|| -> anyhow::Result<(String, StyleNote)> {
-                    let cfg = autoshade::config::Config::load();
                     let jpg = |img: &image::DynamicImage| -> anyhow::Result<Vec<u8>> {
                         let mut buf = Vec::new();
                         image::DynamicImage::ImageRgb8(autoshade::render::thumbnail(img, 768, 768).to_rgb8())
@@ -923,7 +921,7 @@ impl AutoShadeApp {
                     };
                     // baked-by-construction: fit_target is a Generated variant's ./out raster.
                     let target = autoshade::decode::load_image(&tgt)?;
-                    let prompt = autoshade::advisor::describe_style(&cfg, &jpg(&base)?, &jpg(&target)?)?;
+                    let prompt = autoshade::advisor::describe_style(&jpg(&base)?, &jpg(&target)?)?;
                     // The side-file is a convenience copy — its write failing
                     // must not discard the vision result the user paid for.
                     // The note tells the truth either way (the old fixed

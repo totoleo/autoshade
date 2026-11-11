@@ -8,8 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::advisor::{
-    Advisor, ClaudeProvider, Decision, HeuristicProposer, Opinions, OpenAiProvider,
-    OpenAiVerifier, Preview, Verdict,
+    Advisor, Decision, HeuristicProposer, Opinions, PiProposer, Preview, Verdict,
 };
 use crate::config::Config;
 use crate::decode;
@@ -272,15 +271,14 @@ pub fn produce_recipe(
     // (the prefix is the model's own prose). In-process only — the GUI
     // renders them localized; CLI/web/persistence keep the English string.
     //
-    // The verifier's key is a requirement this flow is CERTAIN to hit, and
-    // the old order discovered it only after the proposal had been billed —
-    // a missing analysis key threw the paid proposal away (L10-8). Checked
-    // before even the decode; the OAuth provider needs no key.
-    if cfg.analysis_is_api() && cfg.analysis_api_key.is_none() {
+    // The verifier is the pi harness now (S5.10): its key is the requirement
+    // this flow is CERTAIN to hit, and checking it here keeps the paid proposer
+    // from being billed before a certain verify failure. Checked before even
+    // the decode.
+    if !crate::harness::key_present(cfg) {
         anyhow::bail!(
-            "the analysis provider is 'api' but no analysis API key is configured — the \
-             verify step would fail AFTER the paid proposal; set the key in Settings (or \
-             AUTOSHADE_ANALYSIS_API_KEY), or switch the analysis provider to oauth"
+            "no key for the pi harness — the data-level verifier runs on pi; set the \
+             analysis key in Settings (or DEEPSEEK_API_KEY)"
         );
     }
     // This call's diagnostics channel, bound to the photograph it is about.
@@ -538,7 +536,7 @@ pub fn produce_recipe(
 
     // GPT vision when a key is set; on failure (quota/network) warn and fall back
     // to the heuristic so we still produce a recipe (disclosure, not masking).
-    let openai = OpenAiProvider::new(cfg);
+    let openai = PiProposer::new(cfg);
     // The per-call inputs every propose in this function shares (the revision
     // rounds differ only in `hint`).
     let propose_ctx = crate::advisor::ProposeContext {
@@ -679,16 +677,12 @@ pub fn produce_recipe(
         (r, false)
     };
 
-    // Verifier (analysis role): OAuth `claude` CLI by default, or an
-    // OpenAI-compatible API when the analysis provider is set to `api`.
-    let verifier: Box<dyn Advisor> = if cfg.analysis_is_api() {
-        Box::new(OpenAiVerifier::new(cfg))
-    } else {
-        Box::new(ClaudeProvider::new(cfg))
-    };
+    // Verifier (analyst role): a data-only acceptance check executed by the
+    // pi harness (S5.10). The paid Claude-CLI / OpenAI-chat verifier providers
+    // no longer exist.
+    let verifier: Box<dyn Advisor> = Box::new(crate::advisor::PiVerifier::new());
     if verbose {
-        let who = if cfg.analysis_is_api() { "OpenAI-API" } else { "Claude (OAuth)" };
-        println!("verifier : {who} ({})", cfg.analysis_model);
+        println!("verifier : pi harness");
     }
     let mut verdict = verifier.verify(&recipe, meta, hist, &intent)?;
 
@@ -834,7 +828,6 @@ pub fn produce_recipe(
                     )))
                 })?;
             crate::advisor::judge_pair(
-                cfg,
                 crate::advisor::JudgeImages { reference: &preview.jpeg, candidate: &jpeg },
                 crate::advisor::JudgeTask::Develop,
                 // Oversize context is OMITTED, not truncated: a cut JSON is
@@ -9102,10 +9095,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// L10-8: a missing analysis key refuses BEFORE the paid proposal (and
-    /// before the decode — the fixture path does not even exist).
+    /// L10-8 / S5.10: a missing pi key refuses BEFORE the paid proposal (and
+    /// before the decode — the fixture path does not even exist). The verifier
+    /// runs on pi now, so its key is the one this flow is certain to hit.
     #[test]
-    fn a_missing_analysis_key_refuses_before_the_paid_proposal() {
+    fn a_missing_harness_key_refuses_before_the_paid_proposal() {
         let cfg = crate::config::Config {
             openai_api_key: Some("test-key".into()),
             openai_model: "test-chat".into(),
@@ -9148,10 +9142,10 @@ mod tests {
             false,
             crate::diag::stderr(),
         )
-        .expect_err("no analysis key + api provider must refuse up front")
+        .expect_err("no pi key + api provider must refuse up front")
         .to_string();
         assert!(
-            e.contains("analysis") && e.contains("AFTER the paid proposal"),
+            e.contains("pi harness") && e.contains("verifier"),
             "the refusal names the reason, not a decode error: {e}"
         );
     }

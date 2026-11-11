@@ -116,6 +116,25 @@ fn node_exe() -> String {
     node_exe_from(exe_dir.as_deref())
 }
 
+/// The analysis-role key the harness process must see. The harness IS the
+/// analysis role: a DeepSeek key saved there is the one to send; the image
+/// role's OpenAI key is only a fallback. An ambient env key wins (the wrapper
+/// scripts set it), so nothing is overwritten.
+fn apply_analysis_key(cmd: &mut ProcessCommand) {
+    if std::env::var_os("DEEPSEEK_API_KEY").is_some() {
+        return;
+    }
+    let cfg = crate::config::Config::load();
+    if let Some(key) = cfg
+        .analysis_api_key
+        .as_deref()
+        .or(cfg.openai_api_key.as_deref())
+        && !key.is_empty()
+    {
+        cmd.env("DEEPSEEK_API_KEY", key);
+    }
+}
+
 /// Which analyze chain this process uses. Default is the harness; the legacy
 /// chain stays reachable through `AUTOSHADE_PIPELINE=legacy` (the rollback the
 /// plan's S3 requires), and that is the ONLY opt-out.
@@ -128,10 +147,17 @@ pub fn enabled() -> bool {
 /// `$AUTOSHADE_PI_HARNESS`, else `harness/pi/analyze.mjs` above this binary or
 /// the cwd (the dev checkout's layout).
 pub fn find_script() -> Option<PathBuf> {
+    find_named_script("analyze.mjs")
+}
+
+/// `$AUTOSHADE_PI_HARNESS` names the analyze script; a sibling with this file
+/// name is the override for any other harness entry (currently `complete.mjs`).
+fn find_named_script(name: &str) -> Option<PathBuf> {
     if let Ok(p) = std::env::var("AUTOSHADE_PI_HARNESS") {
         let p = PathBuf::from(p);
-        if p.is_file() {
-            return Some(p);
+        let candidate = if name == "analyze.mjs" { p } else { p.with_file_name(name) };
+        if candidate.is_file() {
+            return Some(candidate);
         }
     }
     let mut starts: Vec<PathBuf> = Vec::new();
@@ -146,7 +172,7 @@ pub fn find_script() -> Option<PathBuf> {
     for start in starts {
         let mut cur = start.as_path();
         for _ in 0..8 {
-            let candidate = cur.join("harness").join("pi").join("analyze.mjs");
+            let candidate = cur.join("harness").join("pi").join(name);
             if candidate.is_file() {
                 return Some(candidate);
             }
@@ -264,20 +290,7 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
             }
         }
     }
-    if std::env::var_os("DEEPSEEK_API_KEY").is_none() {
-        let cfg = crate::config::Config::load();
-        // The harness IS the analysis role: a DeepSeek key saved there is the
-        // one to send. The image role's OpenAI key is only a fallback (the
-        // Settings panel's DeepSeek preset writes the analysis fields).
-        if let Some(key) = cfg
-            .analysis_api_key
-            .as_deref()
-            .or(cfg.openai_api_key.as_deref())
-            && !key.is_empty()
-        {
-            cmd.env("DEEPSEEK_API_KEY", key);
-        }
-    }
+    apply_analysis_key(&mut cmd);
     let status = cmd.status().with_context(|| format!("spawn {node}"))?;
     if !status.success() {
         anyhow::bail!("the pi harness failed ({status})");
@@ -411,9 +424,147 @@ pub fn cli_analyze(raw: &Path, out: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
+/// One one-shot model call served by pi instead of the in-process paid API.
+/// `frames` are JPEGs already base64-encoded, in prompt order.
+pub(crate) struct ModelCall {
+    pub instruction: String,
+    pub frames: Vec<crate::advisor::VisionFrame>,
+    pub system: Option<String>,
+    /// Optional JSON Schema the reply must take; `complete.mjs` appends it to the
+    /// instruction and the caller keeps its own parser (single source).
+    pub schema: Option<serde_json::Value>,
+}
+
+/// The request JSON `harness/pi/complete.mjs` consumes. A pure function so the
+/// wire shape is unit-tested without spawning Node.
+fn model_request_json(call: &ModelCall) -> serde_json::Value {
+    serde_json::json!({
+        "instruction": call.instruction,
+        "system": call.system,
+        "schema": call.schema,
+        "frames": call.frames.iter().map(|f| serde_json::json!({
+            "b64": f.b64,
+            "mimeType": "image/jpeg",
+            "detail": f.detail,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// Run one model call through pi and return the model's text. `timeout_secs`
+/// bounds the whole child process: the paid HTTP call had a per-call budget,
+/// and the replacement must not park a worker thread forever either.
+pub(crate) fn complete(call: &ModelCall, timeout_secs: u64) -> Result<String> {
+    let script = find_named_script("complete.mjs").ok_or_else(|| {
+        anyhow::anyhow!(
+            "cannot find harness/pi/complete.mjs — pass AUTOSHADE_PI_HARNESS, or set \
+             AUTOSHADE_PIPELINE=legacy to use the in-process chain"
+        )
+    })?;
+    let store = crate::store::store_root();
+    let sessions = store.join("harness").join("sessions");
+    std::fs::create_dir_all(&sessions)
+        .with_context(|| format!("create {}", sessions.display()))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let request_path = sessions.join(format!(".model-req-{pid}-{stamp}.json"));
+    let result_path = sessions.join(format!(".model-res-{pid}-{stamp}.json"));
+    std::fs::write(
+        &request_path,
+        serde_json::to_vec(&model_request_json(call))?,
+    )
+    .with_context(|| format!("write {}", request_path.display()))?;
+
+    let node = node_exe();
+    let mut cmd = ProcessCommand::new(&node);
+    cmd.arg(&script)
+        .env("AUTOSHADE_MODEL_REQUEST", &request_path)
+        .env("AUTOSHADE_MODEL_RESULT", &result_path)
+        .env("AUTOSHADE_DATA_DIR", &store);
+    apply_analysis_key(&mut cmd);
+    let mut child = cmd.spawn().with_context(|| format!("spawn {node}"))?;
+    let status = wait_with_timeout(&mut child, timeout_secs);
+    let text = std::fs::read_to_string(&result_path).ok();
+    let _ = std::fs::remove_file(&request_path);
+    let _ = std::fs::remove_file(&result_path);
+    let status = status?;
+    let Some(text) = text else {
+        anyhow::bail!("the pi model call wrote no result ({status})");
+    };
+    let value: serde_json::Value = serde_json::from_str(&text).context("parse model result")?;
+    if value.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
+        return Ok(value
+            .get("text")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string());
+    }
+    anyhow::bail!(
+        "the pi model call failed: {}",
+        value
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown error")
+    )
+}
+
+/// Wait for `child`, killing it once `timeout_secs` elapse. `std::process` has
+/// no wait-with-timeout, and the paid API's per-call budget must not become an
+/// unbounded hang now that the call is a child process.
+fn wait_with_timeout(
+    child: &mut std::process::Child,
+    timeout_secs: u64,
+) -> Result<std::process::ExitStatus> {
+    let started = std::time::Instant::now();
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        if started.elapsed() > std::time::Duration::from_secs(timeout_secs) {
+            let _ = child.kill();
+            let _ = child.wait();
+            anyhow::bail!("the pi model call timed out after {timeout_secs}s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_request_carries_the_instruction_frames_and_system() {
+        let call = ModelCall {
+            instruction: "describe the grade".into(),
+            frames: vec![crate::advisor::VisionFrame { b64: "AAAA".into(), detail: "low" }],
+            system: Some("be terse".into()),
+            schema: Some(serde_json::json!({ "type": "object" })),
+        };
+        let value = model_request_json(&call);
+        assert_eq!(value["instruction"], "describe the grade");
+        assert_eq!(value["system"], "be terse");
+        assert_eq!(value["frames"][0]["b64"], "AAAA");
+        assert_eq!(value["frames"][0]["mimeType"], "image/jpeg");
+        assert_eq!(value["schema"]["type"], "object");
+    }
+
+    #[test]
+    fn a_model_call_without_system_or_frames_is_still_well_formed() {
+        let call = ModelCall {
+            instruction: "hi".into(),
+            frames: Vec::new(),
+            system: None,
+            schema: None,
+        };
+        let value = model_request_json(&call);
+        assert_eq!(value["instruction"], "hi");
+        assert_eq!(value["frames"].as_array().map(Vec::len), Some(0));
+        assert!(value["system"].is_null());
+        assert!(value["schema"].is_null());
+    }
 
     #[test]
     fn verdict_maps_accept_revise_reject_and_unknown() {

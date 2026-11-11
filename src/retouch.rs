@@ -24,7 +24,6 @@ use image::{DynamicImage, ImageBuffer, Rgb, RgbaImage};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::config::Config;
 
 /// Runtime-only shape of one painted component. The pixels are bit-packed
 /// relative to the component's own bounding box, while the mask dimensions
@@ -859,10 +858,10 @@ fn plan_from_painted(
 /// and returns them as heal spots. Constrained by the prompt + JSON schema to
 /// SMALL spot-removals against fairly uniform surroundings — never large-area or
 /// content-inventing edits, so the result stays "retouch, not generation".
-pub fn detect_spots(cfg: &Config, jpeg: &[u8]) -> Result<RetouchPlan> {
-    let key = cfg.openai_api_key.as_ref().ok_or_else(|| {
-        anyhow!("OPENAI_API_KEY not set — AI spot-detection needs the image (vision) API; paint a mask instead")
-    })?;
+///
+/// Since S5 the model call runs through the pi harness (one-shot vision call),
+/// not the in-process paid image API; the prompt and parser are unchanged.
+pub fn detect_spots(jpeg: &[u8]) -> Result<RetouchPlan> {
     let b64 = base64::engine::general_purpose::STANDARD.encode(jpeg);
     let instruction = "You are a photo RETOUCHER doing blemish / dust removal. Look at the image and \
 list SMALL defects that should be REMOVED by healing from surrounding pixels: sensor dust spots, \
@@ -873,36 +872,14 @@ inventing new content (no large areas, no removing big / foreground subjects, no
 only small spot fixes a retoucher could heal from neighbours. Return up to 30 spots; fewer is fine. \
 If the photo is clean, return an empty list.";
 
-    // The stored-response rule and the family (`/responses`, or
-    // `/chat/completions` where the endpoint has no such route) are
-    // `advisor::vision_body`'s and `post_vision`'s — the same request every
-    // vision call of the image role sends.
-    let req = crate::advisor::VisionRequest {
-        model: &cfg.openai_model,
+    let call = crate::harness::ModelCall {
         instruction: instruction.to_string(),
         frames: vec![crate::advisor::VisionFrame { b64, detail: "high" }],
-        schema: Some(("retouch_plan", plan_schema())),
+        system: None,
+        schema: Some(plan_schema()),
     };
-
-    // Same latency class as the analyze proposer (high-detail image + strict
-    // schema) — and previously a BARE `ureq::post` with no deadline at all: a
-    // stalled endpoint parked the retouch worker forever, and `busy` gates
-    // every GUI action. Streaming-first via the shared helper: the propose
-    // budget bounds SILENCE, not healthy generation time, and
-    // AUTOSHADE_HTTP_TIMEOUT_SECS still overrides.
-    //
-    // This is the IMAGE role (a vision call on the image key and base URL), so
-    // it takes the image role's reasoning-effort tier — not the analysis one.
-    let text = crate::advisor::post_vision(
-        &cfg.openai_base_url,
-        key,
-        &req,
-        crate::advisor::PROPOSE_TIMEOUT_SECS,
-        cfg.image_effort.as_deref(),
-        crate::advisor::ApiFamily::parse(&cfg.image_api_family),
-        "no structured output in vision response (shape mismatch)",
-    )
-    .map_err(|e| anyhow!("vision API: {e}"))?;
+    let text = crate::harness::complete(&call, crate::advisor::PROPOSE_TIMEOUT_SECS)
+        .map_err(|e| anyhow!("pi model: {e}"))?;
     let mut plan: RetouchPlan =
         serde_json::from_str(strip_fence(&text)).context("parse retouch plan JSON")?;
     // Defend the engine + keep it "retouch not generation": clamp to small spots.
@@ -997,7 +974,6 @@ pub struct NoSpotInsideLimit {
 /// limit existed.
 #[allow(clippy::too_many_arguments)] // the heal's own inputs: config, source, its base part, two spot sources, resolution, limit, output
 pub fn heal(
-    cfg: &Config,
     src_path: &Path,
     part: &crate::render::BasePart,
     manual_mask: Option<&Path>,
@@ -1050,7 +1026,7 @@ pub fn heal(
         DynamicImage::ImageRgb8(small.into_rgb8())
             .write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
             .context("encode jpeg for detection")?;
-        match detect_spots(cfg, &jpeg) {
+        match detect_spots(&jpeg) {
             Ok(p) => {
                 rationale = p.rationale.clone();
                 spots.extend(p.spots);
@@ -1430,7 +1406,7 @@ mod tests {
         mask.save(&maskp).unwrap();
         let outp = out_dir.join("healed.png");
         let rep =
-            heal(&Config::load(), &srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &outp).unwrap();
+            heal(&srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &outp).unwrap();
         assert!(rep.spots >= 1);
         let healed = image::open(&outp).unwrap();
         assert!(
@@ -1648,13 +1624,12 @@ mod tests {
         }
         let maskp = dir.join("mask.png");
         mask.save(&maskp).unwrap();
-        let cfg = crate::config::Config::load();
         let out_small = out_dir.join("small-out.png");
-        heal(&cfg, &src, &crate::render::BasePart::default(), Some(&maskp), false, false, None, &out_small).unwrap();
+        heal(&src, &crate::render::BasePart::default(), Some(&maskp), false, false, None, &out_small).unwrap();
         let d = image::image_dimensions(&out_small).unwrap();
         assert_eq!(d.0.max(d.1), 2048, "without --full-res the saved master IS the 2048px thumbnail");
         let out_full = out_dir.join("full-out.png");
-        heal(&cfg, &src, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &out_full).unwrap();
+        heal(&src, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &out_full).unwrap();
         let d = image::image_dimensions(&out_full).unwrap();
         assert_eq!((d.0, d.1), (3000, 2000), "with --full-res the source resolution survives");
         let _ = std::fs::remove_dir_all(&root);
@@ -1708,7 +1683,7 @@ mod tests {
     fn a_limit_mask_heals_the_spot_inside_it_and_leaves_the_one_outside() {
         let (root, srcp, maskp, limitp, src) = two_defect_fixture("inside");
         let outp = root.join("exports").join("limited.png");
-        let rep = heal(&Config::load(), &srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&limitp), &outp).unwrap();
+        let rep = heal(&srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&limitp), &outp).unwrap();
         assert_eq!(rep.spots, 1, "one spot inside the limit, one healed");
         let out = image::open(&outp).unwrap().to_rgb8();
         assert!(out.get_pixel(16, 32).0[0] > 150, "the left defect is healed, got {:?}", out.get_pixel(16, 32));
@@ -1720,7 +1695,7 @@ mod tests {
         // A limit that holds none of the spots refuses, typed, and writes nothing.
         let none = root.join("library").join("none.png");
         image::GrayImage::new(8, 8).save(&none).unwrap();
-        let err = heal(&Config::load(), &srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&none), &root.join("exports").join("none-out.png"))
+        let err = heal(&srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&none), &root.join("exports").join("none-out.png"))
             .err()
             .expect("nothing inside the limit");
         assert_eq!(err.downcast_ref::<NoSpotInsideLimit>().map(|e| e.found), Some(2), "{err:#}");
@@ -1735,7 +1710,7 @@ mod tests {
     fn without_a_limit_the_heal_is_byte_identical_to_the_engine_on_every_planned_spot() {
         let (root, srcp, maskp, _limitp, src) = two_defect_fixture("none");
         let outp = root.join("exports").join("unlimited.png");
-        let rep = heal(&Config::load(), &srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &outp).unwrap();
+        let rep = heal(&srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, None, &outp).unwrap();
         let (planned, _) = plan_from_mask(&image::open(&maskp).unwrap().to_rgba8());
         assert_eq!(planned.len(), 2);
         let mut expect = src.clone();
@@ -1746,7 +1721,7 @@ mod tests {
         let whole = root.join("library").join("whole.png");
         image::GrayImage::from_pixel(8, 8, image::Luma([255])).save(&whole).unwrap();
         let outw = root.join("exports").join("whole-out.png");
-        heal(&Config::load(), &srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&whole), &outw).unwrap();
+        heal(&srcp, &crate::render::BasePart::default(), Some(&maskp), false, true, Some(&whole), &outw).unwrap();
         assert_eq!(image::open(&outw).unwrap().to_rgb8(), expect, "a limit over the whole frame is no limit");
         let _ = std::fs::remove_dir_all(&root);
     }

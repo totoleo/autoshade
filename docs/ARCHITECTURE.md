@@ -1646,9 +1646,9 @@ this trait.)
 
 | Role | Provider options | Sees pixels? | Job |
 |------|------------------|--------------|-----|
-| **Image advisor** (图像) | OpenAI-compatible vision over HTTP — the Responses API, or Chat Completions when the endpoint has no `/responses` (**API style** in Settings, `advisor::post_vision`; default `gpt-5.5`); Settings offers **API** (a real key) or **OAuth** (a local Codex bridge fronting a ChatGPT subscription) | **yes** (preview) | Look at the photo → emit an `EditRecipe`. The `claude` CLI has no image input in print mode, so this role never uses the claude OAuth path. |
-| **Analyst / verifier** (分析) | **OAuth** (`claude` CLI, default model `opus`) **or** API (OpenAI-compatible chat) | **no** (data only) | Reason over EXIF/histogram; **acceptance-verify** the recipe (ranges sane? consistent with metadata & intent? confidence adequate?) and flag/veto bad recipes. |
-| **Visual judge** (R20, `advisor::judge` — reuses the image role's endpoint/key, not a third credential) | same OpenAI-compatible vision endpoint as the image role | **yes** (reference + candidate renders) | Score a RESULT against a reference (strict-schema `{score, decision, critique, hint}`). Two consumers: the analyze closed loop (proposal rendered → judged → one guided revision, adopted only on a ≥ re-score) and the reverse-fit's opt-in AI review (target vs fitted render). Since R23-6 the fit review's `hint` is SHOWN (R20 dropped it silently) and, with the opt-in `deep` switch, is read by `advisor::hint_action` as a CHOICE among the app's own bounded moves (`FitAction`) — never as a parameter value, which is why the closed list lives beside the reply it reads. |
+| **Image advisor** (图像) | the pi harness vision call (`harness/pi/analyze.mjs`; local model key) | **yes** (preview) | Look at the photo → emit an `EditRecipe`; the prompt/parse half stays in `advisor::proposer`. |
+| **Analyst / verifier** (分析) | the pi harness, text-only (`advisor::pi_verify`; no Claude/OpenAI key) | **no** (data only) | Reason over EXIF/histogram; **acceptance-verify** the recipe and flag/veto bad ones. |
+| **Visual judge** (R20, `advisor::judge`) | the pi harness vision call (same local model key as the advisor) | **yes** (reference + candidate renders) | Score a RESULT against a reference (strict-schema `{score, decision, critique, hint}`); consumers: the analyze closed loop and the reverse-fit AI review. |
 
 > The verifier judges at the **data level** — recipe + histogram/clipping stats +
 > the advisor's rationale — *without* re-doing vision. The R20 judge is the
@@ -2108,28 +2108,22 @@ accept a RAW reference through `source_pixels` rather than refusing it by name �
 the CLI prints the one thing that makes it honest, that a RAW reference is
 developed NEUTRALLY and its own develop settings are not read.
 
-### 4.2 Vision advisor — image processing (M1)
+### 4.2 Analysis proposer (pi harness)
 
-A vision-capable OpenAI model receives the preview + metadata and returns an
-`EditRecipe`. What M1 left as **[verify]** is settled by the shipped code
-([`src/advisor/openai.rs`](../src/advisor/openai.rs)): the Responses API with a
-strict `json_schema` for structured output, the preview sent as a base64
-`input_image` data URL, and the model id read from config (default `gpt-5.5`) —
-never hardcoded from memory.
+The proposer role lives in [`src/advisor/proposer.rs`](../src/advisor/proposer.rs):
+it assembles the instruction, the preview/reference frames and the edit-recipe
+JSON schema, then hands them to the pi harness (`harness/pi/analyze.mjs`, one
+`harness::complete` call). Recipe parsing and normalisation (HSL repair,
+AI-mask intents, opinions, thinking envelope) stay in Rust. The harness is the
+only process holding a model key, so no OpenAI API key is involved.
 
-### 4.3 Claude analyst / verifier (M1)
+### 4.3 Data-level verifier (pi harness)
 
-The verifier (analysis role) runs one of two providers (set in Settings):
-**OAuth** — the `claude` CLI for non-image reasoning + acceptance verification via
-`claude -p --setting-sources "" --strict-mcp-config --disable-slash-commands
---output-format json --model <opus>` (default `opus`), reusing Claude Code
-OAuth — no API key. `--bare` is deliberately NOT used: since CLI ≥ 2.1.210 it
-never reads the stored OAuth login ("OAuth and keychain are never read"), which
-is exactly the v0.11.2 auth failure — see `src/advisor/claude.rs`; or
-**API** — an OpenAI-compatible chat endpoint (`OpenAiVerifier`, `/chat/completions`)
-sharing the same data-only prompt. Either returns a `Verdict` (accept / revise /
-reject + reasons). A rejected recipe can trigger one revision round with the
-vision advisor.
+The verifier ([`src/advisor/pi_verify.rs`](../src/advisor/pi_verify.rs)) receives
+the recipe, EXIF/histogram/clipping stats and the rationale — never pixels — and
+runs one text-only call through the pi harness, returning a `Verdict`
+(accept / revise / reject + reasons). The Claude CLI/OAuth verifier and the OpenAI-compatible HTTP verifier
+were removed in S5.10; no Claude or OpenAI key is needed on this path.
 
 ### 4.4 Render engine (M2)
 
@@ -7176,30 +7170,11 @@ the user's own browser*, and the guarantees are:
   metadata the user *receives* — at 16 MiB through one reader
   ([`store::read_sidecar_checked`](../src/store/sidecar.rs), which reads BYTES and
   checks the size before validating UTF-8, so an over-cap sidecar is never
-  reported as "not readable text"). Responses we *read back* from the AI
-  endpoint are capped too ([`advisor::into_json_capped_at`](../src/advisor/mod.rs)):
-  the blocking JSON arms used `into_json`, which reads until the server stops,
-  and an allocation failure aborts the process rather than raising an error.
-  The cap is the **caller's** — an images/edits response carries a base64 frame
-  roughly the size of the whole text budget — and the reader preserves ureq's
-  `TimedOut` kind, because the caller branches on it to decide whether to warn
-  that an accepted (2xx) request may already have been billed.
-- **Bounded time, measured in CONTENT.** A streaming call runs under an
-  inactivity deadline rather than a total one, because a healthy long
-  generation proves liveness through events. But the socket's stall timer
-  re-arms on *bytes*, and the SSE keep-alive idiom is a comment line — so a
-  server or proxy sending only `: keep-alive` held a worker forever, and the
-  per-event cancel check never ran because no event ever arrived.
-  `for_each_sse_json`'s progress gate therefore re-arms on stream **content**
-  only: comment and blank lines do not count, while `event:` / `id:` lines and
-  every byte of a multi-megabyte `data:` line do.
-- **Work the caller controls is scanned once.** The multipart boundary must not
-  occur in any part (RFC 2046 §5.1.1), and the first version of that guard
-  extended the candidate one character at a time, rescanning every part — a
-  quadratic in a value the caller supplies, reachable through an uncapped
-  `prompt`. `generative::choose_boundary` makes one pass, jumps straight past
-  the longest run, and refuses past the 70-character ceiling rather than
-  sending a body whose delimiter the content could forge.
+  reported as "not readable text"). Responses read back from the models-list probe are capped
+  ([`advisor::into_json_capped_at`](../src/advisor/mod.rs)). The edited-image
+  transport (multipart, streaming, SSE framing) was deleted together with the
+  paid image API; generative pixels now go through the local ComfyUI server.
+
 - **Bounded work.** `EditRecipe::clamp` caps masks/curves/knots **and strings**
   (`rationale`, mask names, bitmap-mask paths), and the cap is enforced at
   **both** persistence boundaries — `pipeline::write_recipe` and
@@ -7473,7 +7448,7 @@ comments are the source of these one-liners.
 | crate | why |
 |---|---|
 | `anyhow` 1.0.103 | the application error type everything fallible returns |
-| `base64` 0.22 | the preview image goes to the vision API as a base64 `input_image` data URL, and images come back the same way |
+| `base64` 0.22 | image frames go to the pi harness as base64 payloads |
 | `brotli-decompressor` 5.0.3 | bounded decompression of modern Lightroom `MaskBrushTable` objects from the sibling ACR store; pinned to the version already present through jxl-oxide |
 | `bytemuck` 1 | zero-copy `Vec<[f32;3]>` ↔ `Vec<f32>` casts in the orientation stage — a 61 MP portrait RAW otherwise pays three ~732 MB full-frame copies (`render::orient_f32`) |
 | `clap` 4.6.1 (`derive`) | the CLI surface: subcommands, `--jobs`, `--strength`, the rest |
@@ -7734,5 +7709,5 @@ every test keeps its name and its path.
 | 2 | Camera / RAW format | ~~resolved: Sony `.ARW`~~ **← R27 (2026-08-19) widened**: 24 RAW extensions (`decode::RAW_EXTS`) + 8 baked (`pipeline::BAKED_EXTS`), one predicate app-wide; 9 cameras (one per format) verified end to end on CC0 samples, and the zoo is a release gate (`AUTOSHADE_RAW_ZOO`, 9/9 at v0.33.0); Adobe DNG Converter is the documented on-ramp for the rest. Refusals are named per cause (unknown make / unknown model / no decoder); monochrome and 4-colour sensors are refused before the develop; X-Trans develops approximately and says so |
 | 3 | Output target | resolved: XMP sidecar **+** rendered, XMP-first |
 | 4 | AI roles | resolved: GPT=image, Claude=non-image+verify, unified framework |
-| 5 | Exact meaning of Claude's "收货验证" (data-level vs pixel-level) | resolved: **data-level**. The verifier is never sent pixels — it judges the recipe against EXIF/histogram/clipping stats and the advisor's rationale (§3, §4.3, [`src/advisor/claude.rs`](../src/advisor/claude.rs)) |
-| 6 | How to feed the preview to the GPT vision API; `crs:` key set for ARW | resolved in shipped code: the preview goes as a base64 `input_image` data URL on the Responses API with a strict `json_schema` ([`src/advisor/openai.rs`](../src/advisor/openai.rs)); the ARW `crs:` key set is the one the writer emits and round-trips ([`src/xmp.rs`](../src/xmp.rs)) |
+| 5 | Exact meaning of the verifier's "收货验证" (data-level vs pixel-level) | resolved: **data-level**. The verifier is never sent pixels — it judges the recipe against EXIF/histogram/clipping stats and the advisor's rationale (§3, §4.3, [`src/advisor/pi_verify.rs`](../src/advisor/pi_verify.rs)); model call on the pi harness since S5.10 |
+| 6 | How to feed the preview to the model; `crs:` key set for ARW | resolved in shipped code: the preview goes to the pi harness as a base64 frame, with the strict `json_schema` riding the instruction ([`src/advisor/proposer.rs`](../src/advisor/proposer.rs)); the ARW `crs:` key set is the one the writer emits and round-trips ([`src/xmp.rs`](../src/xmp.rs)) |

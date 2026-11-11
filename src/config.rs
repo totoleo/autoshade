@@ -59,7 +59,7 @@ pub struct LocalSettings {
     /// then Chat Completions when the endpoint has no `/responses`),
     /// `"responses"` or `"chat"`. Absent ⇒ `"auto"`.
     pub image_api_family: Option<String>,
-    /// The image-EDIT call as a JSON template (`image_endpoint`), for a
+    /// The image-EDIT call as a JSON template (`the removed custom endpoint`), for a
     /// provider whose edit endpoint is not OpenAI's `/images/edits` — Venice's
     /// `/image/multi-edit`. Absent ⇒ the environment may supply one; an
     /// explicit `""` ⇒ OpenAI's call, silencing the environment too.
@@ -729,16 +729,16 @@ pub struct Config {
     /// parameter and let the provider pick (the pre-v0.23.2 behaviour, and
     /// the only correct request for a model that does not reason at all).
     /// Validated by [`effort`]; the wire spelling differs per endpoint family
-    /// and is applied in `advisor::post_ai_json`.
+    /// and is applied in `the removed paid transport`.
     pub image_effort: Option<String>,
     /// Which request shape the image role sends — `"auto"`, `"responses"` or
     /// `"chat"`, validated by [`api_family`] and read by
-    /// `advisor::ApiFamily::parse`. `auto` tries the Responses API and falls
+    /// `the removed endpoint-family selection`. `auto` tries the Responses API and falls
     /// back to Chat Completions when the endpoint answers 404 or 405 there,
     /// so a base URL and a key of ANY OpenAI-compatible server work for the
     /// image role without the user knowing which of the two it serves.
     pub image_api_family: String,
-    /// The custom image-edit template as the user wrote it (`image_endpoint`),
+    /// The custom image-edit template as the user wrote it (`the removed custom endpoint`),
     /// or `None` for OpenAI's `/images/edits`. Kept as text and parsed at the
     /// call, so a broken template fails the edit with its own message instead
     /// of quietly falling back to an endpoint the provider does not serve.
@@ -871,7 +871,7 @@ impl Source {
             // that turns a planted file into exfiltration or process
             // execution. A planted key bills the planter, and every Responses
             // call sends `store: false`, so the user's photos do not persist
-            // in that account (advisor/openai.rs).
+            // in that account (advisor/proposer.rs).
             //
             // Model and provider names are Preference and therefore ALLOWED
             // (user decision, 2026-08-11), which restores what README and
@@ -1265,7 +1265,7 @@ fn file_key_for(
 /// a list here would make this app the bottleneck on someone else's roadmap.
 /// The value is BOUNDED instead: lowercase ASCII, digits, `-`/`_`, at most 32
 /// bytes, never leading `-`. An endpoint that does not know the tier answers
-/// 400 and the caller negotiates it away (`advisor::post_ai_json`). The bound
+/// 400 and the caller negotiates it away (`the removed paid transport`). The bound
 /// is the part that matters — this string reaches `Command::args`, where an
 /// unbounded `.env`-supplied value would be argv injection.
 pub(crate) fn effort(v: Option<String>) -> Option<String> {
@@ -2548,9 +2548,7 @@ mod tests {
         // The store is a module of files since the split; its consumer is read
         // through the module's own source text (the files and the root as one).
         let store = crate::store::source_text();
-        let consumers: [(&str, &str, &str); 4] = [
-            ("advisor/mod.rs", include_str!("advisor/mod.rs"), "AUTOSHADE_HTTP_TIMEOUT_SECS"),
-            ("advisor/claude.rs", include_str!("advisor/claude.rs"), "AUTOSHADE_HTTP_TIMEOUT_SECS"),
+        let consumers: [(&str, &str, &str); 2] = [
             ("denoise.rs", include_str!("denoise.rs"), "AUTOSHADE_SIDECAR_TIMEOUT_SECS"),
             ("store/*.rs", store.as_str(), "AUTOSHADE_LEGACY_OUT"),
         ];
@@ -2566,14 +2564,8 @@ mod tests {
             );
         }
         // The python bridges reach this through ONE constructor now
-        // (`crate::sidecar_command`), so the check follows it there. The
-        // `claude` child keeps its own preamble — a different program, a
-        // different budget variable, and a prompt on stdin — and is checked
-        // where it stands.
-        assert!(
-            include_str!("advisor/claude.rs").contains("dotenv_child_env()"),
-            "advisor/claude.rs: the child lost the .env's unprotected names"
-        );
+        // (`crate::sidecar_command`); the `claude` child (and its own preamble)
+        // left with the S5.10 verifier migration.
         assert!(
             crate::source_before_tests(include_str!("lib.rs")).contains("dotenv_child_env()"),
             "sidecar_command lost the .env's unprotected names"

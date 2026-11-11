@@ -1197,6 +1197,14 @@ static ZH_ENTRIES: &[(&str, &str)] = &[
     // the thing the field actually holds — a path — and the button says what
     // it does rather than 「探测」. Every glyph checked against the subset the
     // font gate enforces before these lines were written.
+    ("ComfyUI (local generation)", "ComfyUI（本地生成）"),
+    ("ComfyUI CLI", "ComfyUI CLI"),
+    ("ComfyUI folder", "ComfyUI 文件夹"),
+    ("Models folder", "模型文件夹"),
+    ("Output folder", "输出文件夹"),
+    ("Checkpoint", "检查点"),
+    ("Model (sd15/qwen/zimage)", "模型（sd15/qwen/zimage）"),
+    ("Blank = default", "留空 = 默认"),
     ("Python interpreter", "Python 路径"),
     ("Which Python runs the AI sidecars (segmentation, denoise, style). Blank = the platform default. It can only be set here or by the AUTOSHADE_PYTHON environment variable — never by a file that arrives beside your photos.",
         "运行 AI 侧车（分割、降噪、风格）的 Python。留空表示用平台默认值。只能在这里设置，或用 AUTOSHADE_PYTHON 环境变量；随照片一起到来的文件永远不能指定它。"),

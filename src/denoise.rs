@@ -1836,7 +1836,6 @@ mod tests {
         for (name, src) in [
             ("denoise.rs", include_str!("denoise.rs")),
             ("segment.rs", include_str!("segment.rs")),
-            ("advisor/claude.rs", include_str!("advisor/claude.rs")),
         ] {
             let src = crate::source_before_tests(src);
             let through_the_door = src.contains(&door) && src.contains(&run);

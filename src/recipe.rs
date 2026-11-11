@@ -4321,7 +4321,7 @@ impl EditRecipe {
         // is exactly `TEMPER_POINT_KNEE` at f = 1, and `soft_cap` is the
         // identity below its knee — so max(cap(w), g) == cap(max(w, g)) for
         // every f ≥ 1. `clamp` runs before `temper` at both production call
-        // sites (advisor::openai, advisor::heuristic), which is what keeps
+        // sites (advisor::proposer, advisor::heuristic), which is what keeps
         // −h·0.3 inside that 30.
         fn white_point_floor(highlights: f32) -> Option<f32> {
             (highlights < 0.0).then(|| (-highlights * 0.3).min(50.0))
@@ -4705,7 +4705,7 @@ impl Default for DirectionAdherence {
 ///
 /// SIX gates in this app decide "how hard to push", and every one of them was a
 /// hard-coded constant. This value drives all six — the proposer prompt
-/// (`advisor::openai`), [`EditRecipe::temper`], the verifier's two-sided band
+/// (`advisor::proposer`), [`EditRecipe::temper`], the verifier's two-sided band
 /// (`advisor::build_verify_prompt`), the visual judge's rubric
 /// (`advisor::judge`), the style-reference wording (`style::render_reference`)
 /// and the no-AI fallback (`advisor::heuristic`). Missing ONE gate cancels the

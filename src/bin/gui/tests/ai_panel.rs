@@ -272,7 +272,7 @@
     /// (the app's and the prefs'), so neither a fresh install nor an upgraded
     /// prefs file silently starts putting a second image on every paid call.
     /// The wire-level proof that the switch is what adds the image lives in
-    /// `advisor::openai`'s stub-endpoint test.
+    /// `advisor::proposer`'s stub-endpoint test.
     #[test]
     fn the_style_reference_photo_switch_is_off_in_both_defaults() {
         assert!(

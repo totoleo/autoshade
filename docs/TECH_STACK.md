@@ -2071,9 +2071,9 @@ and zero-confidence fields are conservation-tested to change nothing.
 
 ### Source
 
-- `src/advisor/mod.rs`, `src/advisor/openai.rs`, `src/advisor/claude.rs`, and
-  `src/advisor/judge.rs` — proposal, negotiation, data-only verification, and
-  revision gate.
+- `src/advisor/mod.rs`, `src/advisor/proposer.rs`, `src/advisor/pi_verify.rs`, and
+  `src/advisor/judge.rs` — proposal prompt/parse, data-only verification and the
+  revision gate; model calls run on the pi harness.
 - `src/library/` (`build.rs`, `search.rs`, `settings.rs`, `voice.rs`) and
   `src/embed.rs` — the reference library: build, search, RAW settings, the
   prompt block, and SigLIP vectors.

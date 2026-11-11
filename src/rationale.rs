@@ -1192,7 +1192,7 @@ pub mod keys {
          duplicated) — your masks were kept unchanged and the model's mask edits were \
          discarded";
 
-    // --- the vision proposer's own repairs (advisor/openai.rs) -----------
+    // --- the vision proposer's own repairs (advisor/proposer.rs) -----------
     /// The FIRST clamp of a model proposal, disclosed. Typed since v1.2.4 for
     /// the same reason the axis-length repair below is: the provider used to
     /// push both as English prose into `recipe.rationale`, where the
