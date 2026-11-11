@@ -147,41 +147,22 @@ impl Settings {
         if self.base_dir.is_empty() {
             self.base_dir = desktop_base_dir().unwrap_or_default();
         }
+        // ComfyUI's own base-directory convention: models/, input/, output/
+        // and temp/ live under the base directory. Do not invent a parallel
+        // app-owned tree; only base_dir is configured.
+        let base_path = Path::new(&self.base_dir);
         if self.input_dir.is_empty() {
-            self.input_dir = store.join("input").display().to_string();
+            self.input_dir = base_path.join("input").display().to_string();
         }
         if self.output_dir.is_empty() {
-            self.output_dir = store.join("output").display().to_string();
+            self.output_dir = base_path.join("output").display().to_string();
         }
         if self.temp_dir.is_empty() {
-            self.temp_dir = store.join("temp").display().to_string();
+            self.temp_dir = base_path.join("temp").display().to_string();
         }
-        if self.checkpoint.is_empty() {
-            self.checkpoint = "v1-5-pruned-emaonly.safetensors".into();
-        }
+        let _ = store;
         if self.max_edge.is_none() {
             self.max_edge = Some(1024);
-        }
-        if self.model.is_empty() {
-            self.model = "sd15".into();
-        }
-        if self.qwen_unet.is_empty() {
-            self.qwen_unet = "qwen_image_2.1_turbo_int8_convrot.safetensors".into();
-        }
-        if self.qwen_clip.is_empty() {
-            self.qwen_clip = "qwen3vl_8b_int8_convrot.safetensors".into();
-        }
-        if self.qwen_vae.is_empty() {
-            self.qwen_vae = "qwen_image_2.1_vae_bf16.safetensors".into();
-        }
-        if self.zimage_unet.is_empty() {
-            self.zimage_unet = "z_image_turbo_bf16.safetensors".into();
-        }
-        if self.zimage_clip.is_empty() {
-            self.zimage_clip = "qwen_3_4b.safetensors".into();
-        }
-        if self.zimage_vae.is_empty() {
-            self.zimage_vae = "ae.safetensors".into();
         }
     }
 
@@ -405,16 +386,6 @@ impl Cli {
         if !settings.base_dir.is_empty() {
             args.push("--base-directory".into());
             args.push(settings.base_dir.clone());
-        }
-        for (flag, value) in [
-            ("--input-directory", &settings.input_dir),
-            ("--output-directory", &settings.output_dir),
-            ("--temp-directory", &settings.temp_dir),
-        ] {
-            if !value.is_empty() {
-                args.push(flag.into());
-                args.push(value.clone());
-            }
         }
         let launched = self
             .json_owned(self.url.as_deref(), &args)
@@ -718,11 +689,10 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
         .with_context(|| format!("write {}", mask_path.display()))?;
     let image = upload_file(&cli, &url, &input_path)?;
     let mask = upload_file(&cli, &url, &mask_path)?;
-    let model = if settings.lama_model.trim().is_empty() {
-        "big-lama.pt".into()
-    } else {
-        settings.lama_model.clone()
-    };
+    if settings.lama_model.trim().is_empty() {
+        bail!("LaMa model is not configured — set Settings → ComfyUI → LaMa model (e.g. big-lama.pt)");
+    }
+    let model = settings.lama_model.clone();
     let wf = json!({
         "1": { "class_type": "LoadImage", "inputs": { "image": image } },
         "2": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
@@ -742,12 +712,11 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
     bytes
 }
 
-fn sdxl_inpaint_checkpoint(settings: &Settings) -> String {
+fn sdxl_inpaint_checkpoint(settings: &Settings) -> Result<String> {
     if settings.sdxl_inpaint_checkpoint.trim().is_empty() {
-        "SDXL-INPAINT\\sd_xl_base_1.0_inpainting_0.1.safetensors".into()
-    } else {
-        settings.sdxl_inpaint_checkpoint.clone()
+        bail!("SDXL inpaint checkpoint is not configured — set Settings → ComfyUI → SDXL inpaint checkpoint");
     }
+    Ok(settings.sdxl_inpaint_checkpoint.clone())
 }
 
 /// SDXL inpainting checkpoint via the proper `InpaintModelConditioning` graph.
@@ -789,9 +758,10 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
         "medium" => 28,
         _ => 24,
     };
+    let ckpt = sdxl_inpaint_checkpoint(settings)?;
     let wf = json!({
         "1": { "class_type": "CheckpointLoaderSimple",
-               "inputs": { "ckpt_name": sdxl_inpaint_checkpoint(settings) } },
+               "inputs": { "ckpt_name": ckpt } },
         "2": { "class_type": "LoadImage", "inputs": { "image": image } },
         "3": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
         "4": { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": ["1", 1] } },
@@ -829,9 +799,24 @@ pub fn inpaint_model() -> String {
     }
     let saved = Settings::load().inpaint_model;
     if saved.trim().is_empty() {
-        "lama".into()
+        "auto".into()
     } else {
         saved.to_ascii_lowercase()
+    }
+}
+
+fn resolved_inpaint_model() -> String {
+    let selected = inpaint_model();
+    if selected != "auto" {
+        return selected;
+    }
+    let settings = Settings::load();
+    if !settings.lama_model.trim().is_empty() {
+        "lama".into()
+    } else if !settings.sdxl_inpaint_checkpoint.trim().is_empty() {
+        "sdxl".into()
+    } else {
+        "sd15".into()
     }
 }
 
@@ -986,6 +971,7 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
 /// img2img / Qwen edit / Z-Image img2img).
 pub fn whole_frame(input_png: &[u8], prompt: &str, opts: &Img2Img, quality: &str) -> Result<Vec<u8>> {
     match model().as_str() {
+        "" => bail!("model is not configured — set Settings → ComfyUI → Model (sd15/qwen/zimage)"),
         "qwen" => qwen_edit(input_png, prompt, quality),
         "zimage" => zimage_img2img(input_png, prompt, quality),
         _ => img2img(input_png, prompt, opts),
@@ -1000,7 +986,7 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
     // A masked fill uses the inpaint backend; the whole-frame model setting is
     // for reimagine/adjust (no mask) and for the fill's fallback.
     if let Some(mask) = mask_png {
-        return match inpaint_model().as_str() {
+        return match resolved_inpaint_model().as_str() {
             "sd15" => inpaint(input_png, mask, prompt, quality),
             "qwen" | "qwen-crop" => qwen_crop_inpaint(input_png, mask, prompt, quality),
             "lama" => lama_inpaint(input_png, mask, prompt, quality),
@@ -1009,6 +995,7 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
         };
     }
     match model().as_str() {
+        "" => bail!("model is not configured — set Settings → ComfyUI → Model (sd15/qwen/zimage)"),
         "qwen" => qwen_edit(input_png, prompt, quality),
         "zimage" => zimage_img2img(input_png, prompt, quality),
         _ => {
@@ -1101,6 +1088,12 @@ fn remove_compare_temp(dir: &Path) {
 /// start: the prompt runs, but the source composition is not preserved.
 pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
+    if cli.settings.qwen_unet.trim().is_empty()
+        || cli.settings.qwen_clip.trim().is_empty()
+        || cli.settings.qwen_vae.trim().is_empty()
+    {
+        bail!("Qwen model files are not configured — set Settings → ComfyUI → Qwen UNET/CLIP/VAE");
+    }
     let settings = &cli.settings;
     let url = cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");
@@ -1222,6 +1215,12 @@ pub fn qwen_crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, qualit
 /// Whole-frame Z-Image turbo img2img (8-step, cfg 1, res_multistep/simple).
 pub fn zimage_img2img(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
+    if cli.settings.zimage_unet.trim().is_empty()
+        || cli.settings.zimage_clip.trim().is_empty()
+        || cli.settings.zimage_vae.trim().is_empty()
+    {
+        bail!("Z-Image model files are not configured — set Settings → ComfyUI → Z-Image UNET/CLIP/VAE");
+    }
     let settings = &cli.settings;
     let url = cli.ensure_server()?;
     let dir = crate::store::store_root().join("comfy-tmp");

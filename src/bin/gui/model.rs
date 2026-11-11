@@ -1151,9 +1151,17 @@ pub(crate) struct SettingsForm {
     pub(crate) comfy_cli: String,
     pub(crate) comfy_workspace: String,
     pub(crate) comfy_base_dir: String,
-    pub(crate) comfy_output_dir: String,
     pub(crate) comfy_checkpoint: String,
     pub(crate) comfy_model: String,
+    pub(crate) comfy_inpaint_model: String,
+    pub(crate) comfy_lama_model: String,
+    pub(crate) comfy_sdxl_inpaint_checkpoint: String,
+    pub(crate) comfy_qwen_unet: String,
+    pub(crate) comfy_qwen_clip: String,
+    pub(crate) comfy_qwen_vae: String,
+    pub(crate) comfy_zimage_unet: String,
+    pub(crate) comfy_zimage_clip: String,
+    pub(crate) comfy_zimage_vae: String,
     pub(crate) status: String,
     /// Live pick-lists, one per endpoint (see [`ModelCatalogue`]). Each
     /// carries its own once-per-session auto-fetch guard: one global boolean
