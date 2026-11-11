@@ -672,9 +672,9 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     Ok(bytes)
 }
 
-/// The inpaint backend for masked fills. Crop-based Z-Image img2img is the
-/// default because the available SD1.5/inpaint checkpoints hallucinate and the
-/// Qwen edit template preserves the reference object instead of removing it.
+/// The inpaint backend for masked fills: `sd15` (InpaintModelConditioning via
+/// `inpaint`), `qwen`/`qwen-crop` (reference-conditioned Qwen edit on a crop),
+/// or any other value for the Z-Image crop path.
 pub fn inpaint_model() -> String {
     std::env::var("AUTOSHADE_COMFY_INPAINT_MODEL")
         .ok()
@@ -821,11 +821,8 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
         image::imageops::FilterType::Lanczos3,
     );
     let mut out = base;
-    for (x, y, px) in generated.enumerate_pixels() {
-        if mask.get_pixel(x0 + x, y0 + y)[3] < 128 {
-            out.put_pixel(x0 + x, y0 + y, *px);
-        }
-    }
+    let feather = (cw.min(ch) / 20).clamp(8, 32);
+    blend_crop(&mut out, &generated, &mask, (x0, y0), feather);
     let mut png = Vec::new();
     image::DynamicImage::ImageRgb8(out)
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
@@ -853,6 +850,7 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
     if let Some(mask) = mask_png {
         return match inpaint_model().as_str() {
             "sd15" => inpaint(input_png, mask, prompt, quality),
+            "qwen" | "qwen-crop" => qwen_crop_inpaint(input_png, mask, prompt, quality),
             _ => crop_inpaint(input_png, mask, prompt, quality),
         };
     }
@@ -876,12 +874,9 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
     }
 }
 
-/// The official Qwen-Image 2.1 turbo edit graph, shipped as a UI-format
-/// template because its subgraph handles the Qwen-specific sampler/guider
-/// wiring; comfy-cli converts it client-side. Only the input image, prompt,
-/// output size and model names are patched.
-const QWEN_EDIT_TEMPLATE: &str =
-    include_str!("../assets/comfy/qwen_image_2_1_turbo_image_edit.json");
+/// The 8-step Qwen-Image 2.1 turbo sigma schedule (official template).
+const QWEN_SIGMAS: &str =
+    "1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0";
 
 fn upload_file(cli: &Cli, url: &str, path: &Path) -> Result<String> {
     let data = cli
@@ -923,8 +918,6 @@ fn run_workflow_json(cli: &Cli, url: &str, settings: &Settings, wf: &Value) -> R
     if let Some(path) = local_output_path(&output_url, &settings.output_dir) {
         let _ = std::fs::remove_file(path);
     }
-    // Nodes such as ImageCompare write their scratch previews under our temp
-    // dir; they are ours, so take them with us.
     remove_compare_temp(Path::new(&settings.temp_dir));
     Ok(bytes)
 }
@@ -945,9 +938,13 @@ fn remove_compare_temp(dir: &Path) {
     }
 }
 
-/// Whole-frame Qwen-Image 2.1 turbo edit (reference-guided). The caller decides
-/// which pixels of the answer to keep (a painted mask composites only that
-/// region; no mask keeps the whole frame).
+/// Whole-frame Qwen-Image 2.1 turbo edit, built as an API graph.
+///
+/// The reference image MUST ride the flat dotted input name
+/// `images.image_1` (the nested `images: {image_1: ...}` shape validates but is
+/// ignored), and the reference LATENT (`TextEncodeQwenImage21` output 2) starts
+/// the sampler. Using `EmptyLatentImage` instead makes this a text-to-image
+/// start: the prompt runs, but the source composition is not preserved.
 pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
@@ -962,70 +959,106 @@ pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u
     std::fs::write(&input_path, input_png)
         .with_context(|| format!("write {}", input_path.display()))?;
     let image = upload_file(&cli, &url, &input_path)?;
-    let (iw, ih) = image::load_from_memory(input_png)
-        .context("decode the Qwen edit input")?
-        .dimensions();
-    let (w, h) = plan_size_aligned((iw, ih), settings.max_edge_value(), 32);
-    let mut wf: Value = serde_json::from_str(QWEN_EDIT_TEMPLATE)
-        .context("parse the Qwen edit template")?;
+    let decoded = image::load_from_memory(input_png).context("decode the Qwen edit input")?;
+    let (iw, ih) = decoded.dimensions();
     let prefix = format!("autoshade_qwen_{}_{stamp}", std::process::id());
-    let nodes = wf
-        .get_mut("nodes")
-        .and_then(Value::as_array_mut)
-        .context("the Qwen edit template carries no nodes")?;
-    for node in nodes {
-        let Some(kind) = node.get("type").and_then(Value::as_str) else {
-            continue;
-        };
-        match kind {
-            "LoadImage" => {
-                if let Some(widgets) = node.get_mut("widgets_values").and_then(Value::as_array_mut)
-                    && !widgets.is_empty()
-                {
-                    widgets[0] = json!(image);
-                }
-            }
-            "SaveImageAdvanced" => {
-                if let Some(widgets) = node.get_mut("widgets_values").and_then(Value::as_array_mut)
-                    && !widgets.is_empty()
-                {
-                    widgets[0] = json!(prefix);
-                }
-            }
-            // A subgraph instance's id is a UUID; its promoted widgets are the
-            // fixed order the template ships (prompt, size, three model names,
-            // the prompt-enhancer clip last).
-            kind if kind.contains('-') => {
-                if let Some(widgets) = node.get_mut("widgets_values").and_then(Value::as_array_mut)
-                    && widgets.len() > 17
-                {
-                        widgets[1] = json!(prompt);
-                        widgets[8] = json!(w);
-                        widgets[9] = json!(h);
-                        widgets[12] = json!(settings.qwen_unet);
-                        widgets[13] = json!(settings.qwen_clip);
-                        widgets[14] = json!(settings.qwen_vae);
-                        // The template's i2i enhancer clip is not installed on
-                        // this machine; the enhancer is off by default, but the
-                        // graph still has to validate. The t2i enhancer is the
-                        // installed stand-in.
-                        if widgets[17]
-                            .as_str()
-                            .is_some_and(|s| s.contains("_pe_i2i"))
-                        {
-                            widgets[17] = json!(
-                                "qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors"
-                            );
-                        }
-                    }
-                }
-            _ => {}
-        }
-    }
+    let wf = json!({
+        "1": { "class_type": "UNETLoader",
+               "inputs": { "unet_name": settings.qwen_unet, "weight_dtype": "default" } },
+        "2": { "class_type": "CLIPLoader",
+               "inputs": { "clip_name": settings.qwen_clip, "type": "qwen_image",
+                           "device": "default" } },
+        "3": { "class_type": "VAELoader", "inputs": { "vae_name": settings.qwen_vae } },
+        "13": { "class_type": "LoadImage", "inputs": { "image": image } },
+        "4": { "class_type": "TextEncodeQwenImage21", "inputs": {
+            "clip": ["2", 0], "prompt": prompt, "negative_prompt": "",
+            "resolution": settings.max_edge_value(), "vae": ["3", 0],
+            "images.image_1": ["13", 0] } },
+        "6": { "class_type": "CFGGuider", "inputs": {
+            "model": ["1", 0], "positive": ["4", 0], "negative": ["4", 1],
+            "cfg": 1.0 } },
+        "7": { "class_type": "RandomNoise", "inputs": { "noise_seed": (stamp as u64) } },
+        "8": { "class_type": "KSamplerSelect", "inputs": { "sampler_name": "euler" } },
+        "9": { "class_type": "ManualSigmas", "inputs": { "sigmas": QWEN_SIGMAS } },
+        "10": { "class_type": "SamplerCustomAdvanced", "inputs": {
+            "noise": ["7", 0], "guider": ["6", 0], "sampler": ["8", 0],
+            "sigmas": ["9", 0], "latent_image": ["4", 2] } },
+        "11": { "class_type": "VAEDecode", "inputs": { "samples": ["10", 0], "vae": ["3", 0] } },
+        "12": { "class_type": "SaveImage",
+                "inputs": { "images": ["11", 0], "filename_prefix": prefix } }
+    });
     let bytes = run_workflow_json(&cli, &url, settings, &wf);
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
-    bytes
+    let bytes = bytes?;
+    let generated = image::load_from_memory(&bytes).context("decode the Qwen edit result")?;
+    if generated.dimensions() == (iw, ih) {
+        return Ok(bytes);
+    }
+    let resized = image::imageops::resize(
+        &generated.to_rgb8(),
+        iw,
+        ih,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgb8(resized)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .context("encode the resized Qwen edit result")?;
+    Ok(out)
+}
+
+/// Crop-based Qwen fill: crop the mask + context, run the reference-conditioned
+/// Qwen edit on the crop, paste back through the mask. Qwen's whole-frame edit
+/// is not an inpaint model, so locality is what makes a small area tractable.
+pub fn qwen_crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -> Result<Vec<u8>> {
+    let base = image::load_from_memory(input_png)
+        .context("decode the Qwen fill base")?
+        .to_rgb8();
+    let mask = image::load_from_memory(mask_png)
+        .context("decode the Qwen fill mask")?
+        .to_rgba8();
+    let (bw, bh) = base.dimensions();
+    let mut min_x = bw;
+    let mut min_y = bh;
+    let mut max_x = 0;
+    let mut max_y = 0;
+    for (x, y, px) in mask.enumerate_pixels() {
+        if px[3] < 128 {
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+    if min_x > max_x || min_y > max_y {
+        bail!("the fill mask has no transparent (to-regenerate) pixels");
+    }
+    let pad = ((max_x - min_x).max(max_y - min_y) as f32 * 0.25).max(64.0) as u32;
+    let x0 = min_x.saturating_sub(pad);
+    let y0 = min_y.saturating_sub(pad);
+    let x1 = (max_x + pad + 1).min(bw);
+    let y1 = (max_y + pad + 1).min(bh);
+    let cw = x1 - x0;
+    let ch = y1 - y0;
+    let crop = image::imageops::crop_imm(&base, x0, y0, cw, ch).to_image();
+    let mut crop_png = Vec::new();
+    image::DynamicImage::ImageRgb8(crop.clone())
+        .write_to(&mut std::io::Cursor::new(&mut crop_png), image::ImageFormat::Png)
+        .context("encode the Qwen fill crop")?;
+    let generated = qwen_edit(&crop_png, prompt, quality)?;
+    let generated = image::load_from_memory(&generated)
+        .context("decode the Qwen fill crop result")?
+        .to_rgb8();
+    let generated = image::imageops::resize(&generated, cw, ch, image::imageops::FilterType::Lanczos3);
+    let mut out = base;
+    let feather = (cw.min(ch) / 20).clamp(8, 32);
+    blend_crop(&mut out, &generated, &mask, (x0, y0), feather);
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgb8(out)
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .context("encode the Qwen fill result")?;
+    Ok(png)
 }
 
 /// Whole-frame Z-Image turbo img2img (8-step, cfg 1, res_multistep/simple).
@@ -1155,6 +1188,70 @@ pub fn diagnostics() -> (String, Option<PathBuf>, Option<String>, bool) {
     (cli.exe, cli.workspace, url, is_running)
 }
 
+/// Blend a generated CROP back into the base through the painted mask,
+/// feathering the boundary. The mask is the app's RGBA convention: alpha 0 =
+/// regenerate. A hard paste is what made the first crop fills show a rectangle.
+fn blend_crop(
+    base: &mut image::RgbImage,
+    generated: &image::RgbImage,
+    mask: &image::RgbaImage,
+    origin: (u32, u32),
+    feather: u32,
+) {
+    let (cw, ch) = generated.dimensions();
+    let mut weights = Vec::with_capacity((cw * ch) as usize);
+    for y in 0..ch {
+        for x in 0..cw {
+            let alpha = mask.get_pixel(origin.0 + x, origin.1 + y)[3];
+            weights.push(1.0 - alpha as f32 / 255.0);
+        }
+    }
+    let weights = blur_weights(weights, cw, ch, feather);
+    for y in 0..ch {
+        for x in 0..cw {
+            let w = weights[(y * cw + x) as usize];
+            let b = base.get_pixel(origin.0 + x, origin.1 + y);
+            let g = generated.get_pixel(x, y);
+            let mix = |i: usize| {
+                (b[i] as f32 * (1.0 - w) + g[i] as f32 * w).round().clamp(0.0, 255.0) as u8
+            };
+            base.put_pixel(origin.0 + x, origin.1 + y, image::Rgb([mix(0), mix(1), mix(2)]));
+        }
+    }
+}
+
+fn blur_weights(mut w: Vec<f32>, width: u32, height: u32, radius: u32) -> Vec<f32> {
+    if radius == 0 {
+        return w;
+    }
+    let r = radius as i32;
+    let mut tmp = vec![0.0f32; w.len()];
+    for y in 0..height {
+        for x in 0..width {
+            let x0 = (x as i32 - r).max(0);
+            let x1 = (x as i32 + r).min(width as i32 - 1);
+            let mut sum = 0.0;
+            for xx in x0..=x1 {
+                sum += w[(y * width + xx as u32) as usize];
+            }
+            tmp[(y * width + x) as usize] = sum / (x1 - x0 + 1) as f32;
+        }
+    }
+    w = vec![0.0f32; tmp.len()];
+    for y in 0..height {
+        for x in 0..width {
+            let y0 = (y as i32 - r).max(0);
+            let y1 = (y as i32 + r).min(height as i32 - 1);
+            let mut sum = 0.0;
+            for yy in y0..=y1 {
+                sum += tmp[(yy as u32 * width + x) as usize];
+            }
+            w[(y * width + x) as usize] = sum / (y1 - y0 + 1) as f32;
+        }
+    }
+    w
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1214,5 +1311,25 @@ mod tests {
         let path = local_output_path(url, r"D:\store\comfy\output").unwrap();
         assert_eq!(path, Path::new(r"D:\store\comfy\output\autoshade_comfy_1_2_00001_.png"));
         assert_eq!(percent_decode("a%20b%2Fc"), "a b/c");
+    }
+
+    #[test]
+    fn crop_blend_keeps_the_base_outside_the_mask_and_uses_the_generated_pixels_inside() {
+        let mut base = image::RgbImage::from_pixel(16, 16, image::Rgb([0, 0, 0]));
+        let generated = image::RgbImage::from_pixel(16, 16, image::Rgb([255, 255, 255]));
+        let mut mask = image::RgbaImage::from_pixel(16, 16, image::Rgba([0, 0, 0, 255]));
+        for y in 4..12 {
+            for x in 4..12 {
+                mask.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+            }
+        }
+        blend_crop(&mut base, &generated, &mask, (0, 0), 0);
+        assert_eq!(base.get_pixel(8, 8), &image::Rgb([255, 255, 255]));
+        assert_eq!(base.get_pixel(0, 0), &image::Rgb([0, 0, 0]));
+        // A feathered blend leaves a grey ramp at the boundary, never a hard step.
+        let mut soft = image::RgbImage::from_pixel(16, 16, image::Rgb([0, 0, 0]));
+        blend_crop(&mut soft, &generated, &mask, (0, 0), 3);
+        let edge = soft.get_pixel(4, 8)[0];
+        assert!(edge > 0 && edge < 255, "feather must blend the edge, got {edge}");
     }
 }
