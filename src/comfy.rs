@@ -11,9 +11,9 @@
 //! pixels never land in ComfyUI's own folders. The uploaded input and the
 //! fetched output file are removed after each run.
 //!
-//! Settings live in `<store>/comfy.local.json` (created on first save) and can
-//! be overridden by env vars; the GUI's Settings panel is the next surface for
-//! them. Fields: cli, workspace (dir containing main.py), base_dir (models),
+//! Settings live in the per-user `autoshade.local.json` under the `comfy` key
+//! (they used to live in a sibling `comfy.local.json`) and can be overridden by
+//! env vars; the GUI's Settings panel is the surface for them. Fields: cli, workspace (dir containing main.py), base_dir (models),
 //! input_dir, output_dir, temp_dir, checkpoint, url, max_edge.
 //!
 //! Gate: `AUTOSHADE_GENERATIVE=comfy` until the real-photo acceptance run is
@@ -68,7 +68,7 @@ pub struct Settings {
     /// Masked-fill backend: `lama` (default), `sdxl`, `sd15`, `qwen`.
     #[serde(default)]
     pub inpaint_model: String,
-    /// LaMa weights under `models/inpaint` (default `big-lama.pt`).
+    /// LaMa weights under `models/inpaint`.
     #[serde(default)]
     pub lama_model: String,
 /// SDXL inpainting checkpoint, relative to `models/checkpoints`.
@@ -90,14 +90,19 @@ pub struct Settings {
 
 impl Settings {
     pub fn path() -> PathBuf {
-        crate::store::store_root().join("comfy.local.json")
+        crate::config::local_settings_path()
     }
 
     pub fn load() -> Self {
-        let mut settings: Settings = std::fs::read_to_string(Self::path())
+        let bundled = std::fs::read_to_string(Self::path())
             .ok()
-            .and_then(|text| serde_json::from_str(&text).ok())
-            .unwrap_or_default();
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .and_then(|root| root.get("comfy").cloned())
+            .and_then(|value| serde_json::from_value::<Settings>(value).ok());
+        let legacy = std::fs::read_to_string(crate::store::store_root().join("comfy.local.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Settings>(&text).ok());
+        let mut settings = bundled.or(legacy).unwrap_or_default();
         if let Some(v) = env("AUTOSHADE_COMFY_CLI") { settings.cli = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_WORKSPACE") { settings.workspace = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_BASE_DIR") { settings.base_dir = v; }
@@ -128,25 +133,18 @@ impl Settings {
     /// Persist exactly the values the caller wants (no default filling): the
     /// settings surface owns the file, `load` derives the rest at every use.
     pub fn save(&self) -> Result<()> {
-        let path = Self::path();
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("create {}", parent.display()))?;
+        let value = serde_json::to_value(self)?;
+        crate::config::update_local_settings(|cur| cur.comfy = Some(value))
+            .context("save ComfyUI settings into autoshade.local.json")?;
+        let legacy = crate::store::store_root().join("comfy.local.json");
+        if legacy.exists() {
+            let backup = legacy.with_extension("local.json.migrated");
+            let _ = std::fs::rename(&legacy, backup);
         }
-        std::fs::write(&path, serde_json::to_vec_pretty(self)?)
-            .with_context(|| format!("write {}", path.display()))
+        Ok(())
     }
 
     fn fill_defaults(&mut self) {
-        let store = crate::store::store_root().join("comfy");
-        if self.workspace.is_empty() {
-            self.workspace = desktop_workspace()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default();
-        }
-        if self.base_dir.is_empty() {
-            self.base_dir = desktop_base_dir().unwrap_or_default();
-        }
         // ComfyUI's own base-directory convention: models/, input/, output/
         // and temp/ live under the base directory. Do not invent a parallel
         // app-owned tree; only base_dir is configured.
@@ -160,7 +158,6 @@ impl Settings {
         if self.temp_dir.is_empty() {
             self.temp_dir = base_path.join("temp").display().to_string();
         }
-        let _ = store;
         if self.max_edge.is_none() {
             self.max_edge = Some(1024);
         }
@@ -270,13 +267,27 @@ struct Cli {
 impl Cli {
     fn resolve() -> Self {
         let settings = Settings::load();
-        Self {
-            exe: if settings.cli.is_empty() { "comfy".into() } else { settings.cli.clone() },
-            workspace: (!settings.workspace.is_empty())
-                .then(|| PathBuf::from(&settings.workspace)),
-            url: (!settings.url.is_empty()).then(|| settings.url.clone()),
-            settings,
+        let exe = if settings.cli.is_empty() { "comfy".into() } else { settings.cli.clone() };
+        let mut workspace = (!settings.workspace.is_empty()).then(|| PathBuf::from(&settings.workspace));
+        let mut url = (!settings.url.is_empty()).then(|| settings.url.clone());
+        // comfy-cli already knows the workspace and the running server. Ask it
+        // instead of reading Comfy Desktop's private registry, guessing a port,
+        // or duplicating the CLI's discovery.
+        if workspace.is_none() || url.is_none() {
+            let probe = Self { exe: exe.clone(), workspace: workspace.clone(), url: url.clone(), settings: settings.clone() };
+            if let Ok(data) = probe.json_owned(None, &["env".into()]) {
+                if workspace.is_none() {
+                    workspace = data.pointer("/workspace/path")
+                        .and_then(Value::as_str)
+                        .or_else(|| data.pointer("/config/recent_workspace").and_then(Value::as_str))
+                        .map(PathBuf::from);
+                }
+                if url.is_none() {
+                    url = data.pointer("/server/url").and_then(Value::as_str).map(str::to_owned);
+                }
+            }
         }
+        Self { exe, workspace, url, settings }
     }
 
     fn command(&self) -> Command {
@@ -358,7 +369,6 @@ impl Cli {
             .and_then(Value::as_str)
             .map(str::to_owned)
             .or_else(|| self.url.clone())
-            .or_else(|| Some("http://127.0.0.1:8188".into()))
     }
 
     /// A running server is reused; otherwise one is launched through comfy-cli
@@ -395,7 +405,9 @@ impl Cli {
             .and_then(Value::as_str)
             .map(str::to_owned)
             .or_else(|| self.url.clone())
-            .unwrap_or_else(|| "http://127.0.0.1:8188".into());
+            .or_else(|| self.json(None, &["env"]).ok()
+                .and_then(|data| data.pointer("/server/url").and_then(Value::as_str).map(str::to_owned)))
+            .context("comfy launch --background returned no server URL")?;
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
         while std::time::Instant::now() < deadline {
             if self
@@ -409,51 +421,6 @@ impl Cli {
         }
         bail!("ComfyUI did not become ready within 180 s after comfy launch --background")
     }
-}
-
-/// The install the Comfy Desktop manages, read from its own registry:
-/// `installPath` is the root containing `ComfyUI/`; `comfy launch` wants the
-/// directory that holds `main.py` (the inner `ComfyUI/`).
-fn desktop_workspace() -> Option<PathBuf> {
-    let root = desktop_install_root()?;
-    let inner = root.join("ComfyUI");
-    if inner.join("main.py").is_file() {
-        Some(inner)
-    } else if root.join("main.py").is_file() {
-        Some(root)
-    } else {
-        None
-    }
-}
-
-/// The desktop's base directory (where models live), read from ComfyUI's own
-/// per-user config rather than hard-coded.
-fn desktop_base_dir() -> Option<String> {
-    let appdata = std::env::var_os("APPDATA")?;
-    let path = PathBuf::from(appdata).join("ComfyUI").join("config.json");
-    let text = std::fs::read_to_string(path).ok()?;
-    let value: Value = serde_json::from_str(&text).ok()?;
-    value
-        .get("basePath")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-}
-
-fn desktop_install_root() -> Option<PathBuf> {
-    let appdata = std::env::var_os("APPDATA")?;
-    let path = PathBuf::from(appdata)
-        .join("Comfy Desktop")
-        .join("installations.json");
-    let text = std::fs::read_to_string(path).ok()?;
-    let installs: Value = serde_json::from_str(&text).ok()?;
-    installs.as_array()?.iter().find_map(|install| {
-        let installed = install.get("status").and_then(Value::as_str) == Some("installed");
-        let local = install.get("sourceId").and_then(Value::as_str) == Some("standalone");
-        if !(installed && local) {
-            return None;
-        }
-        install.get("installPath").and_then(Value::as_str).map(PathBuf::from)
-    })
 }
 
 fn workflow(img: &str, prompt: &str, opts: &Img2Img, prefix: &str) -> Value {
@@ -657,7 +624,7 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
 /// LaMa object removal through the ComfyUI inpaint nodes. It is the backend
 /// that actually removes large scene objects without inventing a new building:
 /// a tight object mask (e.g. OpenCV GrabCut) and a local model fill the hole
-/// from the surrounding pixels. Model: `models/inpaint/big-lama.pt`.
+/// from the surrounding pixels; the weights path comes from settings.
 pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let cli = Cli::resolve();
     let settings = &cli.settings;
@@ -690,7 +657,7 @@ pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: 
     let image = upload_file(&cli, &url, &input_path)?;
     let mask = upload_file(&cli, &url, &mask_path)?;
     if settings.lama_model.trim().is_empty() {
-        bail!("LaMa model is not configured — set Settings → ComfyUI → LaMa model (e.g. big-lama.pt)");
+        bail!("LaMa model is not configured — set Settings → ComfyUI → LaMa model");
     }
     let model = settings.lama_model.clone();
     let wf = json!({
@@ -1524,7 +1491,7 @@ mod tests {
     #[test]
     fn the_workflow_is_core_nodes_only_and_wired_in_order() {
         let opts = Img2Img {
-            checkpoint: "v1-5-pruned-emaonly.safetensors".into(),
+            checkpoint: "fixture-checkpoint".into(),
             negative: "blurry".into(),
             steps: 20,
             cfg: 6.0,

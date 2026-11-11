@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// restricting a file to what its source may supply CHANGED it, so the
 /// "warn about what was ignored" check can never drift from the stripping
 /// itself (they used to be two hand-maintained field lists).
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalSettings {
     pub analysis_provider: Option<String>,
     pub analysis_model: Option<String>,
@@ -84,6 +84,8 @@ pub struct LocalSettings {
     /// shell environment at all, so `AUTOSHADE_PYTHON` was unreachable for
     /// exactly the users who need it (user ruling 2026-08-29, Q3).
     pub python_bin: Option<String>,
+    /// ComfyUI settings live in this SAME per-user file under `comfy`.
+    pub comfy: Option<serde_json::Value>,
 }
 
 /// Path to the local settings file — the per-user store root, so the SAME
@@ -1835,6 +1837,7 @@ mod tests {
             // ambient file loses it exactly like the endpoints above — becoming
             // settable from the CENTRAL file must not make it settable here.
             python_bin: Some("D:/attacker-drop/python.exe".into()),
+            ..Default::default()
         };
         assert!(
             planted.names_beyond(Source::WorkingDirFile),
