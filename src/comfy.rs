@@ -672,6 +672,64 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     Ok(bytes)
 }
 
+/// LaMa object removal through the ComfyUI inpaint nodes. It is the backend
+/// that actually removes large scene objects without inventing a new building:
+/// a tight object mask (e.g. OpenCV GrabCut) and a local model fill the hole
+/// from the surrounding pixels. Model: `models/inpaint/big-lama.pt`.
+pub fn lama_inpaint(input_png: &[u8], mask_png: &[u8], _prompt: &str, _quality: &str) -> Result<Vec<u8>> {
+    let cli = Cli::resolve();
+    let settings = &cli.settings;
+    let url = cli.ensure_server()?;
+    let dir = crate::store::store_root().join("comfy-tmp");
+    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let input_path = dir.join(format!("lama-in-{pid}-{stamp}.png"));
+    let mask_path = dir.join(format!("lama-mask-{pid}-{stamp}.png"));
+    std::fs::write(&input_path, input_png)
+        .with_context(|| format!("write {}", input_path.display()))?;
+    let rgba = image::load_from_memory(mask_png)
+        .context("decode the LaMa mask")?
+        .to_rgba8();
+    let (mw, mh) = rgba.dimensions();
+    let mut binary = image::GrayImage::new(mw, mh);
+    for (x, y, px) in rgba.enumerate_pixels() {
+        binary.put_pixel(x, y, image::Luma([if px[3] == 0 { 255 } else { 0 }]));
+    }
+    let mut mask_png = Vec::new();
+    image::DynamicImage::ImageLuma8(binary)
+        .write_to(&mut std::io::Cursor::new(&mut mask_png), image::ImageFormat::Png)
+        .context("encode the LaMa binary mask")?;
+    std::fs::write(&mask_path, &mask_png)
+        .with_context(|| format!("write {}", mask_path.display()))?;
+    let image = upload_file(&cli, &url, &input_path)?;
+    let mask = upload_file(&cli, &url, &mask_path)?;
+    let model = std::env::var("AUTOSHADE_COMFY_LAMA_MODEL")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| "big-lama.pt".into());
+    let wf = json!({
+        "1": { "class_type": "LoadImage", "inputs": { "image": image } },
+        "2": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
+        "3": { "class_type": "INPAINT_LoadInpaintModel", "inputs": { "model_name": model } },
+        "4": { "class_type": "INPAINT_InpaintWithModel", "inputs": {
+            "inpaint_model": ["3", 0], "image": ["1", 0], "mask": ["2", 0],
+            "seed": (stamp as u64) } },
+        "5": { "class_type": "SaveImage",
+               "inputs": { "filename_prefix": format!("autoshade_lama_{pid}_{stamp}"),
+                           "images": ["4", 0] } }
+    });
+    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let _ = std::fs::remove_file(&input_path);
+    let _ = std::fs::remove_file(&mask_path);
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
+    bytes
+}
+
 /// SDXL inpainting checkpoint via the proper `InpaintModelConditioning` graph.
 /// This is the quality path for object removal: SDXL's 9-channel inpaint UNet
 /// understands the mask as a hole, unlike the SD1.5 inpaint checkpoints.
@@ -749,7 +807,7 @@ pub fn inpaint_model() -> String {
     std::env::var("AUTOSHADE_COMFY_INPAINT_MODEL")
         .ok()
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "sdxl".into())
+        .unwrap_or_else(|| "lama".into())
         .to_ascii_lowercase()
 }
 
@@ -921,6 +979,7 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
         return match inpaint_model().as_str() {
             "sd15" => inpaint(input_png, mask, prompt, quality),
             "qwen" | "qwen-crop" => qwen_crop_inpaint(input_png, mask, prompt, quality),
+            "lama" => lama_inpaint(input_png, mask, prompt, quality),
             "sdxl" | "sdxl-inpaint" => sdxl_inpaint(input_png, mask, prompt, quality),
             _ => crop_inpaint(input_png, mask, prompt, quality),
         };
