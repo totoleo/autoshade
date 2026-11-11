@@ -251,7 +251,7 @@ pub fn plan_size_aligned((w, h): (u32, u32), max_edge: u32, align: u32) -> (u32,
 pub fn plan_size_for_model(frame: (u32, u32), max_edge: u32) -> (u32, u32) {
     // Model-agnostic: workflows own their latent alignment; the app only
     // constrains the frame to a safe multiple of 8 and the edge cap.
-    plan_size_aligned(frame, max_edge, 8)
+    plan_size_aligned(frame, max_edge, 32)
 }
 
 struct Cli {
