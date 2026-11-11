@@ -705,21 +705,6 @@ pub fn inpaint_model() -> String {
     }
 }
 
-fn resolved_inpaint_model() -> String {
-    let selected = inpaint_model();
-    if selected != "auto" {
-        return selected;
-    }
-    let settings = Settings::load();
-    if !settings.lama_model.trim().is_empty() {
-        "lama".into()
-    } else if !settings.sdxl_inpaint_checkpoint.trim().is_empty() {
-        "sdxl".into()
-    } else {
-        "sd15".into()
-    }
-}
-
 /// The checkpoint a masked fill uses: an explicit
 /// `AUTOSHADE_COMFY_INPAINT_CHECKPOINT`, else the first installed checkpoint
 /// whose name says "inpaint", else the normal checkpoint.
@@ -869,60 +854,26 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
 
 /// Some image, whole-frame: the model setting decides which graph (SD1.5
 /// img2img / Qwen edit / Z-Image img2img).
-pub fn whole_frame(input_png: &[u8], prompt: &str, opts: &Img2Img, quality: &str) -> Result<Vec<u8>> {
+pub fn whole_frame(input_png: &[u8], prompt: &str, _opts: &Img2Img, _quality: &str) -> Result<Vec<u8>> {
     let settings = Settings::load();
-    if !settings.reimagine_workflow.trim().is_empty() {
-        return custom_workflow(input_png, None, prompt, settings.reimagine_workflow.trim());
+    if settings.reimagine_workflow.trim().is_empty() {
+        bail!("Reimagine workflow is not configured — set Settings → ComfyUI → Reimagine workflow");
     }
-    match model().as_str() {
-        "" => bail!("model is not configured — set Settings → ComfyUI → Model (sd15/qwen/zimage)"),
-        "qwen" => qwen_edit(input_png, prompt, quality),
-        "zimage" => zimage_img2img(input_png, prompt, quality),
-        _ => img2img(input_png, prompt, opts),
-    }
+    custom_workflow(input_png, None, prompt, settings.reimagine_workflow.trim())
 }
 
-/// The `images/edits` replacement for the shared fill/adjust path. The model
-/// setting picks the backend: `sd15` inpaints (mask) or img2img (no mask),
-/// `qwen` runs the Qwen-Image 2.1 turbo edit template on the whole frame (the
-/// caller composites the masked region), `zimage` runs Z-Image img2img.
-pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality: &str) -> Result<Vec<u8>> {
+/// Masked task: ONE configured workflow. No model fallback.
+pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, _quality: &str) -> Result<Vec<u8>> {
     let settings = Settings::load();
-    if let Some(mask) = mask_png
-        && !settings.fill_workflow.trim().is_empty()
-    {
-        return custom_workflow(input_png, Some(mask), prompt, settings.fill_workflow.trim());
+    let path = if mask_png.is_some() {
+        settings.fill_workflow.trim()
+    } else {
+        settings.reimagine_workflow.trim()
+    };
+    if path.is_empty() {
+        bail!("workflow is not configured — set Settings → ComfyUI → Reimagine/Fill workflow");
     }
-    // A masked fill uses the inpaint backend; the whole-frame model setting is
-    // for reimagine/adjust (no mask) and for the fill's fallback.
-    if let Some(mask) = mask_png {
-        return match resolved_inpaint_model().as_str() {
-            "sd15" => inpaint(input_png, mask, prompt, quality),
-            "qwen" | "qwen-crop" => qwen_crop_inpaint(input_png, mask, prompt, quality),
-            "lama" => lama_inpaint(input_png, mask, prompt, quality),
-            "sdxl" | "sdxl-inpaint" => sdxl_inpaint(input_png, mask, prompt, quality),
-            _ => crop_inpaint(input_png, mask, prompt, quality),
-        };
-    }
-    match model().as_str() {
-        "" => bail!("model is not configured — set Settings → ComfyUI → Model (sd15/qwen/zimage)"),
-        "qwen" => qwen_edit(input_png, prompt, quality),
-        "zimage" => zimage_img2img(input_png, prompt, quality),
-        _ => {
-            let opts = Img2Img {
-                checkpoint: checkpoint(),
-                negative: "blurry, low quality, watermark, text, extra limbs".into(),
-                steps: steps_for(quality),
-                cfg: 6.0,
-                denoise: 0.55,
-                seed: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos() as u64)
-                    .unwrap_or(42),
-            };
-            img2img(input_png, prompt, &opts)
-        }
-    }
+    custom_workflow(input_png, mask_png, prompt, path)
 }
 
 /// The 8-step Qwen-Image 2.1 turbo sigma schedule (official template).
