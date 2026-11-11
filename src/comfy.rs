@@ -260,12 +260,12 @@ pub fn plan_size_aligned((w, h): (u32, u32), max_edge: u32, align: u32) -> (u32,
 
 /// The alignment the configured model's latent path actually uses.
 pub fn plan_size_for_model(frame: (u32, u32), max_edge: u32) -> (u32, u32) {
-    let align = match model().as_str() {
-        "qwen" => 32,
-        "zimage" => 16,
-        _ => 8,
+    let (align, cap) = match model().as_str() {
+        "qwen" => (32, max_edge),
+        "zimage" => (16, max_edge),
+        _ => (8, max_edge),
     };
-    plan_size_aligned(frame, max_edge, align)
+    plan_size_aligned(frame, cap, align)
 }
 
 struct Cli {
@@ -991,16 +991,20 @@ pub fn qwen_edit(input_png: &[u8], prompt: &str, _quality: &str) -> Result<Vec<u
     let _ = std::fs::remove_file(&input_path);
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let bytes = bytes?;
-    let generated = image::load_from_memory(&bytes).context("decode the Qwen edit result")?;
-    if generated.dimensions() == (iw, ih) {
-        return Ok(bytes);
-    }
-    let resized = image::imageops::resize(
-        &generated.to_rgb8(),
-        iw,
-        ih,
-        image::imageops::FilterType::Lanczos3,
-    );
+    let generated = image::load_from_memory(&bytes)
+        .context("decode the Qwen edit result")?
+        .to_rgb8();
+    let generated = unsharp_rgb(&generated, 0.4);
+    let resized = if generated.dimensions() == (iw, ih) {
+        generated
+    } else {
+        image::imageops::resize(
+            &generated,
+            iw,
+            ih,
+            image::imageops::FilterType::Lanczos3,
+        )
+    };
     let mut out = Vec::new();
     image::DynamicImage::ImageRgb8(resized)
         .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
@@ -1207,7 +1211,7 @@ fn blend_crop(
         }
     }
     let weights = blur_weights(weights, cw, ch, feather);
-    let generated = unsharp_rgb(generated, 0.55);
+    let generated = unsharp_rgb(generated, 0.25);
 
     // Colour-match the crop's CONTEXT to the base before blending: the model
     // re-renders the whole crop (not just the hole), and its white balance /
