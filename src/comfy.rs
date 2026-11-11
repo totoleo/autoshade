@@ -490,23 +490,8 @@ pub fn img2img(input_png: &[u8], prompt: &str, opts: &Img2Img) -> Result<Vec<u8>
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI workflow did not complete: {run}");
     }
-    let output_url = run
-        .get("outputs")
-        .and_then(Value::as_array)
-        .and_then(|urls| urls.first())
-        .and_then(Value::as_str)
-        .with_context(|| format!("ComfyUI workflow completed without an output URL: {run}"))?
-        .to_string();
-    let bytes = fetch(&output_url)?;
-
-    // "Don't litter": remove the staged input from the server's input dir and
-    // the output file from OUR output dir. Both are best-effort — the pixels are
-    // already returned by value, a cleanup failure is not an error.
-    let input_on_server = Path::new(&settings.input_dir).join(&image);
-    let _ = std::fs::remove_file(input_on_server);
-    if let Some(path) = local_output_path(&output_url, &settings.output_dir) {
-        let _ = std::fs::remove_file(path);
-    }
+    let bytes = download_result(&cli, &url, &run)?;
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     Ok(bytes)
 }
 
@@ -605,19 +590,9 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI inpaint did not complete: {run}");
     }
-    let output_url = run
-        .get("outputs")
-        .and_then(Value::as_array)
-        .and_then(|urls| urls.first())
-        .and_then(Value::as_str)
-        .with_context(|| format!("ComfyUI inpaint completed without an output URL: {run}"))?
-        .to_string();
-    let bytes = fetch(&output_url)?;
+    let bytes = download_result(&cli, &url, &run)?;
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
     let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
-    if let Some(path) = local_output_path(&output_url, &settings.output_dir) {
-        let _ = std::fs::remove_file(path);
-    }
     Ok(bytes)
 }
 
@@ -997,6 +972,42 @@ fn upload_file(cli: &Cli, url: &str, path: &Path) -> Result<String> {
         .with_context(|| format!("comfy upload returned no file name: {data}"))
 }
 
+
+/// Ask comfy-cli to download the finished job's outputs; no `/view` URL is
+/// fetched by this process. Returns the first image file.
+fn download_result(cli: &Cli, url: &str, run: &Value) -> Result<Vec<u8>> {
+    let prompt_id = run
+        .get("prompt_id")
+        .and_then(Value::as_str)
+        .with_context(|| format!("comfy run completed without a prompt_id: {run}"))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let dir = crate::store::store_root()
+        .join("comfy-tmp")
+        .join(format!("download-{}-{stamp}", std::process::id()));
+    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let dir_s = dir.display().to_string();
+    let result = cli.json(Some(url), &["download", prompt_id, "--out-dir", &dir_s]);
+    let bytes = (|| -> Result<Vec<u8>> {
+        result.context("comfy download")?;
+        let image = std::fs::read_dir(&dir)
+            .with_context(|| format!("read {}", dir.display()))?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .find(|p| {
+                p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg" | "webp"))
+            })
+            .with_context(|| format!("comfy download wrote no image into {}", dir.display()))?;
+        std::fs::read(&image).with_context(|| format!("read {}", image.display()))
+    })();
+    let _ = std::fs::remove_dir_all(&dir);
+    bytes
+}
+
 fn run_workflow_json(cli: &Cli, url: &str, settings: &Settings, wf: &Value) -> Result<Vec<u8>> {
     let dir = crate::store::store_root().join("comfy-tmp");
     std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
@@ -1015,17 +1026,7 @@ fn run_workflow_json(cli: &Cli, url: &str, settings: &Settings, wf: &Value) -> R
     if run.get("status").and_then(Value::as_str) != Some("completed") {
         bail!("ComfyUI workflow did not complete: {run}");
     }
-    let output_url = run
-        .get("outputs")
-        .and_then(Value::as_array)
-        .and_then(|urls| urls.first())
-        .and_then(Value::as_str)
-        .with_context(|| format!("ComfyUI workflow completed without an output URL: {run}"))?
-        .to_string();
-    let bytes = fetch(&output_url)?;
-    if let Some(path) = local_output_path(&output_url, &settings.output_dir) {
-        let _ = std::fs::remove_file(path);
-    }
+    let bytes = download_result(cli, url, &run)?;
     remove_compare_temp(Path::new(&settings.temp_dir));
     Ok(bytes)
 }
@@ -1234,63 +1235,9 @@ pub fn zimage_img2img(input_png: &[u8], prompt: &str, _quality: &str) -> Result<
     bytes
 }
 
-/// Resolve a `/view?filename=..&subfolder=..&type=output` URL back to the local
-/// file under our managed output dir (so it can be removed after fetching).
-fn local_output_path(url: &str, output_dir: &str) -> Option<PathBuf> {
-    let query = url.split_once('?')?.1;
-    let mut filename = None;
-    let mut subfolder = String::new();
-    for pair in query.split('&') {
-        let (key, value) = pair.split_once('=')?;
-        let value = percent_decode(value);
-        match key {
-            "filename" => filename = Some(value),
-            "subfolder" => subfolder = value,
-            _ => {}
-        }
-    }
-    let filename = filename?;
-    Some(Path::new(output_dir).join(subfolder).join(filename))
-}
-
-fn percent_decode(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
-            if let Some(value) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
-                out.push(value);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-fn fetch(url: &str) -> Result<Vec<u8>> {
-    let response = ureq::get(url)
-        .timeout(std::time::Duration::from_secs(120))
-        .call()
-        .with_context(|| format!("GET {url}"))?;
-    let mut reader = response.into_reader();
-    let mut bytes = Vec::new();
-    std::io::Read::read_to_end(&mut reader, &mut bytes).with_context(|| format!("read {url}"))?;
-    Ok(bytes)
-}
-
 /// Path to the executable this module will call, for diagnostics/tests.
 pub fn cli_path() -> String {
     Cli::resolve().exe
-}
-
-/// The current server URL comfy-cli/this module will target, if configured.
-pub fn server_url() -> Option<String> {
-    Cli::resolve().url
 }
 
 /// True when a ComfyUI server is reachable through the configured CLI.
@@ -1510,14 +1457,6 @@ mod tests {
         assert_eq!(wf["6"]["inputs"]["positive"], json!(["4", 0]));
         assert_eq!(wf["2"]["inputs"]["image"], json!("input.png"));
         assert_eq!(wf["8"]["inputs"]["filename_prefix"], json!("prefix"));
-    }
-
-    #[test]
-    fn a_view_url_resolves_to_the_managed_output_file() {
-        let url = "http://127.0.0.1:8188/view?filename=autoshade_comfy_1_2_00001_.png&subfolder=&type=output";
-        let path = local_output_path(url, r"D:\store\comfy\output").unwrap();
-        assert_eq!(path, Path::new(r"D:\store\comfy\output\autoshade_comfy_1_2_00001_.png"));
-        assert_eq!(percent_decode("a%20b%2Fc"), "a b/c");
     }
 
     #[test]
