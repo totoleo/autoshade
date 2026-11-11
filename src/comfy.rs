@@ -821,7 +821,7 @@ pub fn crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, _quality: &
         image::imageops::FilterType::Lanczos3,
     );
     let mut out = base;
-    let feather = (cw.min(ch) / 20).clamp(8, 32);
+    let feather = (cw.min(ch) / 12).clamp(16, 96);
     blend_crop(&mut out, &generated, &mask, (x0, y0), feather);
     let mut png = Vec::new();
     image::DynamicImage::ImageRgb8(out)
@@ -1052,7 +1052,7 @@ pub fn qwen_crop_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, qualit
         .to_rgb8();
     let generated = image::imageops::resize(&generated, cw, ch, image::imageops::FilterType::Lanczos3);
     let mut out = base;
-    let feather = (cw.min(ch) / 20).clamp(8, 32);
+    let feather = (cw.min(ch) / 12).clamp(16, 96);
     blend_crop(&mut out, &generated, &mask, (x0, y0), feather);
     let mut png = Vec::new();
     image::DynamicImage::ImageRgb8(out)
@@ -1207,17 +1207,100 @@ fn blend_crop(
         }
     }
     let weights = blur_weights(weights, cw, ch, feather);
+    let generated = unsharp_rgb(generated, 0.55);
+
+    // Colour-match the crop's CONTEXT to the base before blending: the model
+    // re-renders the whole crop (not just the hole), and its white balance /
+    // exposure can differ by a visible step at the seam. Fit a per-channel
+    // gain+offset on the pixels OUTSIDE the mask, where both images describe
+    // the same scenery, then apply it to the generated pixels.
+    let mut b_sum = [0.0f64; 3];
+    let mut b_sq = [0.0f64; 3];
+    let mut g_sum = [0.0f64; 3];
+    let mut g_sq = [0.0f64; 3];
+    let mut n = 0u64;
+    for y in 0..ch {
+        for x in 0..cw {
+            if mask.get_pixel(origin.0 + x, origin.1 + y)[3] < 200 {
+                continue;
+            }
+            let b = base.get_pixel(origin.0 + x, origin.1 + y);
+            let g = generated.get_pixel(x, y);
+            for c in 0..3 {
+                b_sum[c] += b[c] as f64;
+                b_sq[c] += (b[c] as f64) * (b[c] as f64);
+                g_sum[c] += g[c] as f64;
+                g_sq[c] += (g[c] as f64) * (g[c] as f64);
+            }
+            n += 1;
+        }
+    }
+    let mut gain = [1.0f32; 3];
+    let mut offset = [0.0f32; 3];
+    if n >= 32 {
+        for c in 0..3 {
+            let bm = b_sum[c] / n as f64;
+            let gm = g_sum[c] / n as f64;
+            let bv = (b_sq[c] / n as f64 - bm * bm).max(0.0);
+            let gv = (g_sq[c] / n as f64 - gm * gm).max(0.0);
+            let b_std = bv.sqrt();
+            let g_std = gv.sqrt();
+            // A flat context (a test swatch, a clear sky) has no reliable
+            // statistics; leave it alone rather than dividing by ~zero.
+            if b_std < 1.0 || g_std < 1.0 {
+                continue;
+            }
+            gain[c] = (b_std / g_std).clamp(0.6, 1.67) as f32;
+            offset[c] = (bm - gain[c] as f64 * gm) as f32;
+        }
+    }
+
     for y in 0..ch {
         for x in 0..cw {
             let w = weights[(y * cw + x) as usize];
             let b = base.get_pixel(origin.0 + x, origin.1 + y);
             let g = generated.get_pixel(x, y);
             let mix = |i: usize| {
-                (b[i] as f32 * (1.0 - w) + g[i] as f32 * w).round().clamp(0.0, 255.0) as u8
+                let corrected = (g[i] as f32 * gain[i] + offset[i]).clamp(0.0, 255.0);
+                (b[i] as f32 * (1.0 - w) + corrected * w).round().clamp(0.0, 255.0) as u8
             };
             base.put_pixel(origin.0 + x, origin.1 + y, image::Rgb([mix(0), mix(1), mix(2)]));
         }
     }
+}
+
+
+/// Mild unsharp mask on the generated crop: the diffusion crop is often a
+/// little soft next to the photographic surroundings; 0.55 recovers micro
+/// texture without ringing. A 3×3 box blur supplies the low-pass.
+fn unsharp_rgb(src: &image::RgbImage, amount: f32) -> image::RgbImage {
+    let (w, h) = src.dimensions();
+    let mut out = image::RgbImage::new(w, h);
+    for y in 0..h {
+        for x in 0..w {
+            let mut lo = [0f32; 3];
+            let mut n = 0f32;
+            for dy in -1i32..=1 {
+                for dx in -1i32..=1 {
+                    let xx = (x as i32 + dx).clamp(0, w as i32 - 1) as u32;
+                    let yy = (y as i32 + dy).clamp(0, h as i32 - 1) as u32;
+                    let p = src.get_pixel(xx, yy);
+                    for c in 0..3 {
+                        lo[c] += p[c] as f32;
+                    }
+                    n += 1.0;
+                }
+            }
+            let p = src.get_pixel(x, y);
+            let mut q = [0u8; 3];
+            for c in 0..3 {
+                let v = p[c] as f32 + amount * (p[c] as f32 - lo[c] / n);
+                q[c] = v.round().clamp(0.0, 255.0) as u8;
+            }
+            out.put_pixel(x, y, image::Rgb(q));
+        }
+    }
+    out
 }
 
 fn blur_weights(mut w: Vec<f32>, width: u32, height: u32, radius: u32) -> Vec<f32> {
@@ -1333,3 +1416,4 @@ mod tests {
         assert!(edge > 0 && edge < 255, "feather must blend the edge, got {edge}");
     }
 }
+
