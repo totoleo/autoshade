@@ -1550,5 +1550,3 @@ mod tests {
         assert!(edge > 0 && edge < 255, "feather must blend the edge, got {edge}");
     }
 }
-
-
