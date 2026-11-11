@@ -60,12 +60,6 @@ pub struct Settings {
     pub checkpoint: String,
     #[serde(default)]
     pub max_edge: Option<u32>,
-    /// Whole-frame model: `qwen`, `zimage` or `sd15`.
-    #[serde(default)]
-    pub model: String,
-    /// Masked-fill backend: `lama` (default), `sdxl`, `sd15`, `qwen`.
-    #[serde(default)]
-    pub inpaint_model: String,
     /// ONE model manifest. Shape:
     /// `{"qwen":{"unet":..,"clip":..,"vae":..},"zimage":{..},"lama":..,"sdxl_inpaint":..}`
     #[serde(default)]
@@ -116,10 +110,8 @@ impl Settings {
         if let Some(v) = env("AUTOSHADE_COMFY_MAX_EDGE").and_then(|v| v.parse().ok()) {
             settings.max_edge = Some(v);
         }
-        if let Some(v) = env("AUTOSHADE_COMFY_MODEL") { settings.model = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_REIMAGINE_WORKFLOW") { settings.reimagine_workflow = v; }
         if let Some(v) = env("AUTOSHADE_COMFY_FILL_WORKFLOW") { settings.fill_workflow = v; }
-        if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") { settings.inpaint_model = v; }
         settings.fill_defaults();
         settings
     }
@@ -208,10 +200,6 @@ pub fn max_edge() -> u32 {
     Settings::load().max_edge_value()
 }
 
-pub fn model() -> String {
-    Settings::load().model.to_ascii_lowercase()
-}
-
 /// Quality tier -> sampler steps (SD1.5-class defaults; `AUTOSHADE_COMFY_STEPS`
 /// overrides for another checkpoint's speed).
 pub fn steps_for(quality: &str) -> u32 {
@@ -261,12 +249,9 @@ pub fn plan_size_aligned((w, h): (u32, u32), max_edge: u32, align: u32) -> (u32,
 
 /// The alignment the configured model's latent path actually uses.
 pub fn plan_size_for_model(frame: (u32, u32), max_edge: u32) -> (u32, u32) {
-    let (align, cap) = match model().as_str() {
-        "qwen" => (32, max_edge),
-        "zimage" => (16, max_edge),
-        _ => (8, max_edge),
-    };
-    plan_size_aligned(frame, cap, align)
+    // Model-agnostic: workflows own their latent alignment; the app only
+    // constrains the frame to a safe multiple of 8 and the edge cap.
+    plan_size_aligned(frame, max_edge, 8)
 }
 
 struct Cli {
@@ -693,21 +678,6 @@ pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &s
 /// The inpaint backend for masked fills: `sdxl` (SDXL inpaint checkpoint,
 /// default), `sd15`, `qwen`/`qwen-crop` (reference-conditioned Qwen edit on a
 /// crop), or any other value for the Z-Image crop path.
-pub fn inpaint_model() -> String {
-    if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_MODEL") {
-        return v.to_ascii_lowercase();
-    }
-    let saved = Settings::load().inpaint_model;
-    if saved.trim().is_empty() {
-        "auto".into()
-    } else {
-        saved.to_ascii_lowercase()
-    }
-}
-
-/// The checkpoint a masked fill uses: an explicit
-/// `AUTOSHADE_COMFY_INPAINT_CHECKPOINT`, else the first installed checkpoint
-/// whose name says "inpaint", else the normal checkpoint.
 fn inpaint_checkpoint(settings: &Settings) -> String {
     if let Some(v) = env("AUTOSHADE_COMFY_INPAINT_CHECKPOINT") {
         return v;
