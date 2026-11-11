@@ -62,8 +62,8 @@ pub struct Settings {
     pub url: String,
     #[serde(default)]
     pub max_edge: Option<u32>,
-    /// `sd15` (checkpoint img2img/inpaint), `qwen` (Qwen-Image 2.1 turbo edit
-    /// template) or `zimage` (Z-Image turbo). Empty = sd15.
+    /// `sdxl` (SDXL inpainting checkpoint, default), `sd15`, `qwen`, `zimage`,
+    /// `lama` (ComfyUI inpaint nodes).
     #[serde(default)]
     pub model: String,
     #[serde(default)]
@@ -672,14 +672,84 @@ pub fn inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -
     Ok(bytes)
 }
 
-/// The inpaint backend for masked fills: `sd15` (InpaintModelConditioning via
-/// `inpaint`), `qwen`/`qwen-crop` (reference-conditioned Qwen edit on a crop),
-/// or any other value for the Z-Image crop path.
+/// SDXL inpainting checkpoint via the proper `InpaintModelConditioning` graph.
+/// This is the quality path for object removal: SDXL's 9-channel inpaint UNet
+/// understands the mask as a hole, unlike the SD1.5 inpaint checkpoints.
+pub fn sdxl_inpaint(input_png: &[u8], mask_png: &[u8], prompt: &str, quality: &str) -> Result<Vec<u8>> {
+    let cli = Cli::resolve();
+    let settings = &cli.settings;
+    let url = cli.ensure_server()?;
+    let dir = crate::store::store_root().join("comfy-tmp");
+    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    let input_path = dir.join(format!("sdxl-fill-in-{pid}-{stamp}.png"));
+    let mask_path = dir.join(format!("sdxl-fill-mask-{pid}-{stamp}.png"));
+    std::fs::write(&input_path, input_png)
+        .with_context(|| format!("write {}", input_path.display()))?;
+    let rgba = image::load_from_memory(mask_png)
+        .context("decode the SDXL fill mask")?
+        .to_rgba8();
+    let (mw, mh) = rgba.dimensions();
+    let mut binary = image::GrayImage::new(mw, mh);
+    for (x, y, px) in rgba.enumerate_pixels() {
+        binary.put_pixel(x, y, image::Luma([if px[3] == 0 { 255 } else { 0 }]));
+    }
+    let mut mask_png = Vec::new();
+    image::DynamicImage::ImageLuma8(binary)
+        .write_to(&mut std::io::Cursor::new(&mut mask_png), image::ImageFormat::Png)
+        .context("encode the SDXL binary fill mask")?;
+    std::fs::write(&mask_path, &mask_png)
+        .with_context(|| format!("write {}", mask_path.display()))?;
+    let image = upload_file(&cli, &url, &input_path)?;
+    let mask = upload_file(&cli, &url, &mask_path)?;
+    let steps = match quality {
+        "high" => 32,
+        "medium" => 28,
+        _ => 24,
+    };
+    let wf = json!({
+        "1": { "class_type": "CheckpointLoaderSimple",
+               "inputs": { "ckpt_name": "SDXL-INPAINT\\sd_xl_base_1.0_inpainting_0.1.safetensors" } },
+        "2": { "class_type": "LoadImage", "inputs": { "image": image } },
+        "3": { "class_type": "LoadImageMask", "inputs": { "image": mask, "channel": "red" } },
+        "4": { "class_type": "CLIPTextEncode", "inputs": { "text": prompt, "clip": ["1", 1] } },
+        "5": { "class_type": "CLIPTextEncode",
+               "inputs": { "text": "blurry, low quality, watermark, text, duplicate",
+                           "clip": ["1", 1] } },
+        "6": { "class_type": "InpaintModelConditioning", "inputs": {
+            "positive": ["4", 0], "negative": ["5", 0], "vae": ["1", 2],
+            "pixels": ["2", 0], "mask": ["3", 0], "noise_mask": true } },
+        "7": { "class_type": "KSampler", "inputs": {
+            "seed": (stamp as u64), "steps": steps, "cfg": 7.0,
+            "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0,
+            "model": ["1", 0], "positive": ["6", 0], "negative": ["6", 1],
+            "latent_image": ["6", 2] } },
+        "8": { "class_type": "VAEDecode",
+               "inputs": { "samples": ["7", 0], "vae": ["1", 2] } },
+        "9": { "class_type": "SaveImage",
+               "inputs": { "filename_prefix": format!("autoshade_sdxl_fill_{pid}_{stamp}"),
+                           "images": ["8", 0] } }
+    });
+    let bytes = run_workflow_json(&cli, &url, settings, &wf);
+    let _ = std::fs::remove_file(&input_path);
+    let _ = std::fs::remove_file(&mask_path);
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&image));
+    let _ = std::fs::remove_file(Path::new(&settings.input_dir).join(&mask));
+    bytes
+}
+
+/// The inpaint backend for masked fills: `sdxl` (SDXL inpaint checkpoint,
+/// default), `sd15`, `qwen`/`qwen-crop` (reference-conditioned Qwen edit on a
+/// crop), or any other value for the Z-Image crop path.
 pub fn inpaint_model() -> String {
     std::env::var("AUTOSHADE_COMFY_INPAINT_MODEL")
         .ok()
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "sd15".into())
+        .unwrap_or_else(|| "sdxl".into())
         .to_ascii_lowercase()
 }
 
@@ -851,6 +921,7 @@ pub fn edit_png(input_png: &[u8], mask_png: Option<&[u8]>, prompt: &str, quality
         return match inpaint_model().as_str() {
             "sd15" => inpaint(input_png, mask, prompt, quality),
             "qwen" | "qwen-crop" => qwen_crop_inpaint(input_png, mask, prompt, quality),
+            "sdxl" | "sdxl-inpaint" => sdxl_inpaint(input_png, mask, prompt, quality),
             _ => crop_inpaint(input_png, mask, prompt, quality),
         };
     }
@@ -1420,4 +1491,5 @@ mod tests {
         assert!(edge > 0 && edge < 255, "feather must blend the edge, got {edge}");
     }
 }
+
 
