@@ -165,8 +165,11 @@ windows-sys = { version = "0.59", features = ["Win32_System_ProcessStatus"] }
 [profile.dev.package.ring]
 debug = false
 
-# Vendored rawler 0.8.0 + the ARW6 codec from dnglab main (LGPL-2.1):
-# the released 0.8.0 registers the mode but its decompressor is a stub.
+# rawler 0.8.0 on crates.io registers the ARW6 mode but its decompressor is a
+# stub, and dnglab's ARW6 implementation (PR #825) is not in a release yet.
+# Pin the upstream merge commit (LGPL-2.1) instead of keeping a local copy.
+# Exit condition: when a released rawler carries ARW6, delete this patch and
+# bump the crate.
 [patch.crates-io]
-rawler = { path = "vendor/rawler" }
+rawler = { git = "https://github.com/dnglab/dnglab", rev = "41cc1e012222d2bebbaf7623bf771ae5f0c356a4" }
 

@@ -1964,13 +1964,6 @@ pub const DNG_ONRAMP: &str = "Adobe DNG Converter (free, from Adobe) rewrites it
                               which AutoShade develops from the file's own colour tags — that \
                               route works for any body";
 
-/// Does this failure mean "Sony wavelet compression this decoder cannot read"?
-#[cfg(test)]
-fn arw6_error(e: &anyhow::Error) -> bool {
-    let s = format!("{e:#}");
-    s.contains("wavelet-compressed ARW") || s.contains("compression 32766")
-}
-
 /// Turn rawler's `get_decoder` refusal into a sentence that names WHICH of the
 /// three quite different failures happened (A7). They used to arrive as one
 /// opaque `no rawler decoder for {path}: {e}` line, and the three want three
@@ -1989,26 +1982,13 @@ fn arw6_error(e: &anyhow::Error) -> bool {
 ///
 /// The path is always named because a batch scan reports many files at once.
 fn describe_decoder_failure(path: &Path, e: &rawler::RawlerError) -> anyhow::Error {
-    let rawler::RawlerError::Unsupported { what, make, model, mode } = e else {
+    let rawler::RawlerError::Unsupported { what, make, model, .. } = e else {
         // DecoderFailed — the container was recognised and then would not
         // read. That is a file-integrity story, not a camera-support one, so
         // it keeps rawler's own words and gains no on-ramp advice.
         return anyhow!("{} could not be decoded: {e}", path.display());
     };
     let (make, model) = (make.trim(), model.trim());
-    // Some Sony bodies (the A7 V among them) write Sony's newer wavelet
-    // compression (TIFF compression 32766, rawler mode "arw6"). rawler 0.8.0
-    // REGISTERS the mode but its decoder is a literal stub, so the file fails
-    // as "Unknown camera" for a camera the build otherwise supports. The old
-    // "no calibration for that model" sentence sent the user chasing a camera
-    // entry that already exists; say what is actually missing.
-    if mode == "arw6" {
-        return anyhow!(
-            "{} uses Sony's wavelet-compressed ARW (compression 32766 / arw6), which this \
-             build's RAW decoder does not implement yet. {DNG_ONRAMP}",
-            path.display()
-        );
-    }
     if !make.is_empty() && !model.is_empty() {
         anyhow!(
             "{} is a {make} {model}, and this build's RAW decoder has no calibration for that \
@@ -4591,7 +4571,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod arw6_message_tests {
+mod decoder_failure_message_tests {
     use super::*;
 
     fn unsupported(mode: &str) -> rawler::RawlerError {
@@ -4604,23 +4584,11 @@ mod arw6_message_tests {
     }
 
     #[test]
-    fn arw6_is_named_as_the_missing_codec_not_as_a_camera_gap() {
-        let msg = format!(
-            "{:#}",
-            describe_decoder_failure(Path::new("DSC02258.ARW"), &unsupported("arw6"))
-        );
-        assert!(msg.contains("wavelet-compressed ARW"), "{msg}");
-        assert!(!msg.contains("no calibration"), "must not blame the camera table: {msg}");
-        assert!(arw6_error(&anyhow!(msg)));
-    }
-
-    #[test]
     fn a_genuinely_unknown_model_keeps_the_calibration_wording() {
         let msg = format!(
             "{:#}",
             describe_decoder_failure(Path::new("DSC00001.ARW"), &unsupported(""))
         );
         assert!(msg.contains("no calibration"), "{msg}");
-        assert!(!arw6_error(&anyhow!(msg)));
     }
 }

@@ -1,7 +1,0 @@
-make = "Leica Camera AG"
-model = "M Monochrom"
-clean_make = "Leica"
-clean_model = "M Monochrom"
-
-[[cameras.modes]]
-mode = "dng"
