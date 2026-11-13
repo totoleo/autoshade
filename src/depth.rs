@@ -22,7 +22,7 @@ pub fn estimate_depth(cfg: &crate::config::Config, input: &Path, output: &Path) 
     }
     let args: Vec<std::ffi::OsString> =
         vec!["-E".into(), script.into(), "--input".into(), input.into(), "--output".into(), output.into()];
-    let before = crate::run_model_sidecar_artifact("depth sidecar", &cfg.python_bin, args, output)?;
+    let before = crate::run_model_sidecar_artifact("depth sidecar", &cfg.sidecar_python(), args, output)?;
     if let Err(e) = crate::render::open_mask_bounded(output) {
         crate::denoise::discard_failed_output(output, before);
         return Err(e.context(format!("depth sidecar produced an undecodable map {}", output.display())));

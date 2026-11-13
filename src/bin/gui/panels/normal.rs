@@ -1,8 +1,9 @@
-//! Normal mode's sidebar (design-normal-mode.md §3, approved 2026-10-23): four
+//! Normal's sidebar (design-normal-mode.md §3, approved 2026-10-23): four
 //! groups in the order a person asks for them — make it look good (a one-click
 //! look), a little brighter or warmer (fine-tune), less noise, save it — and
-//! nothing else. Drawn in place of the shared panels when the mode's
-//! `Shell::one_click_sidebar` is on (`app.rs` `controls_column`).
+//! nothing else. Drawn in the one workspace's controls column, between the
+//! Portraits panel above and the shared panels below (`app.rs`
+//! `controls_column`).
 //!
 //! Every verb here reuses a door the full workspace already has: a one-click
 //! look is `produce_recipe` through `spawn_analyze` (a preset is a typed
@@ -83,26 +84,6 @@ impl SaveQuality {
     }
 }
 
-/// What the status bar's marker says in Normal (`normal_look_mark`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LookMark {
-    /// The look changed since the photo opened or was last saved as a jpg.
-    Unsaved,
-    /// The look on screen is the one just saved as a jpg.
-    Saved,
-}
-
-impl LookMark {
-    /// The marker's words and its hover, in plain words.
-    pub(crate) fn words(self, lang: Lang) -> (&'static str, &'static str) {
-        let label = match self {
-            LookMark::Unsaved => tr(lang, "unsaved changes"),
-            LookMark::Saved => tr(lang, "saved as jpg"),
-        };
-        (label, tr(lang, "Ctrl+S saves a jpg"))
-    }
-}
-
 /// The noise switch's two cards for one photo: the card it was turned on
 /// from, and the ◈ card the AI denoise made from it (`None` while it runs).
 /// Ids, not indices: the strip can change under them in the full workspace.
@@ -168,13 +149,6 @@ pub(crate) struct NormalState {
     pub(crate) apply_all: Option<PathBuf>,
     /// A Save-group delivery is running (its landing is worded here).
     pub(crate) delivering: bool,
-    /// The photo, card and look a running Save-group delivery is saving.
-    pub(crate) saving: Option<(PathBuf, Option<PathBuf>, EditRecipe)>,
-    /// The status-bar marker's anchor: the photo, the card and look it is
-    /// measured from (as opened, or as last saved as a jpg — the card by the
-    /// file it renders from, so the noise switch's ◈ card is another
-    /// picture), and whether that was saved (`normal_look_mark`).
-    pub(crate) look_mark: Option<(PathBuf, Option<PathBuf>, EditRecipe, bool)>,
     /// Test seam: what the last analysis asked for (request, direction,
     /// library name).
     #[cfg(test)]
@@ -406,19 +380,6 @@ impl AutoShadeApp {
         }
     }
 
-    /// A mode without canvas tools (`Shell::canvas_tool_marks` off: Normal)
-    /// holds none armed. `choose_mode` puts them down on the way in; this is
-    /// the frame's own check, so no other route (a mode set without the page,
-    /// a later arming path) can leave a brush ring on the canvas or its hint
-    /// in the status bar. Run before the status bar and the canvas draw.
-    pub(crate) fn put_down_hidden_tools(&mut self) {
-        if self.mode.shell().canvas_tool_marks || !(self.tool_armed() || self.lens_focus_picking) {
-            return;
-        }
-        self.disarm_tools();
-        self.status = self.normal_line_text(self.lang);
-    }
-
     /// The jpg the Save group delivers.
     fn normal_export_opts(&self) -> autoshade::render::ExportOpts {
         autoshade::render::ExportOpts { jpeg_quality: self.normal.quality.jpeg_quality(), ..Default::default() }
@@ -449,7 +410,6 @@ impl AutoShadeApp {
         let picked = (how == OutName::Chosen).then(|| out.parent().map(|d| d.to_path_buf())).flatten();
         if self.start_render_with(out, export, None, false, how) {
             self.normal.delivering = true;
-            self.normal.saving = self.saving_now();
             if picked.is_some() {
                 self.last_export_dir = picked;
             }
@@ -467,12 +427,6 @@ impl AutoShadeApp {
             dlg = dlg.set_directory(d);
         }
         dlg.save_file()
-    }
-
-    /// What a Save-group delivery starting now saves: the photo, the card on
-    /// screen (the file it renders from) and its look.
-    fn saving_now(&self) -> Option<(PathBuf, Option<PathBuf>, EditRecipe)> {
-        self.src_path.clone().map(|p| (p, self.active_source_path(), self.recipe.clone()))
     }
 
     /// 「Apply this look to every photo in the folder」: the open photo's look
@@ -527,8 +481,6 @@ impl AutoShadeApp {
         self.start_batch_render_for(targets, "jpg".into(), export, dest, true);
         if self.busy {
             self.normal.delivering = true;
-            // The open photo is one of them: its look counts as saved too.
-            self.normal.saving = self.saving_now();
             self.status = tr(lang, "Saving every photo in the folder…").into();
         }
     }
@@ -539,46 +491,38 @@ impl AutoShadeApp {
         if !std::mem::take(&mut self.normal.delivering) {
             return None;
         }
-        let saving = self.normal.saving.take();
-        let (words, whole) = match outcome {
+        match outcome {
             // The file actually written: a numbered save names its number.
             ExportOutcome::Single { out, .. } => {
                 let dir = out.parent().map(folder_name).unwrap_or_default();
                 let file = out.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                (Some(trf(lang, "Saved {file} to {folder}", &[("file", &file), ("folder", &dir)])), true)
+                Some(trf(lang, "Saved {file} to {folder}", &[("file", &file), ("folder", &dir)]))
             }
             ExportOutcome::Batch { ok, errs, dest, renamed, .. } if errs.is_empty() => {
                 let saved = trf(lang, "{n} photos saved to {folder}", &[("n", &ok.to_string()), ("folder", &folder_name(dest))]);
-                let words = if renamed.is_empty() {
+                Some(if renamed.is_empty() {
                     saved
                 } else {
                     let k = renamed.len().to_string();
                     let numbered = trf(lang, "{k} of them have a number added to the name, so no earlier photo was replaced.", &[("k", &k)]);
                     format!("{saved}. {numbered}")
-                };
-                (Some(words), true)
+                })
             }
             // Every failure was the refusal to save into the photos' own
             // folder (counted by type in the worker): the plain sentence.
             ExportOutcome::Batch { errs, refused, .. } if *refused == errs.len() => {
-                (Some(tr(lang, "AutoShade never saves into the folder your photos are in. Pick another folder.").to_string()), false)
+                Some(tr(lang, "AutoShade never saves into the folder your photos are in. Pick another folder.").to_string())
             }
-            ExportOutcome::Batch { .. } => (None, false),
-        };
-        // Delivered whole: the look that went out is the photo's saved jpg
-        // (a batch with failures names no photo, so it marks none).
-        if whole && let Some((photo, card, look)) = saving {
-            self.normal.look_mark = Some((photo, card, look, true));
+            ExportOutcome::Batch { .. } => None,
         }
-        words
     }
 
     /// Normal's words for `pipeline::SourceFolderRefused` — the refusal
     /// Normal's numbered saves can still meet — matched by type (anywhere in
-    /// the chain), never by its English; `None` for any other error, or
-    /// outside Normal, where the library's own line stands.
+    /// the chain), never by its English; `None` for any other error.
     pub(crate) fn plain_refusal(&self, lang: Lang, e: &anyhow::Error) -> Option<String> {
-        (self.mode.shell().one_click_sidebar && e.chain().any(|c| c.is::<autoshade::pipeline::SourceFolderRefused>()))
+        e.chain()
+            .any(|c| c.is::<autoshade::pipeline::SourceFolderRefused>())
             .then(|| tr(lang, "AutoShade never saves into the folder your photos are in. Pick another folder.").to_string())
     }
 
@@ -700,31 +644,7 @@ impl AutoShadeApp {
         if let Some(h) = history {
             self.carry_look_history(h);
         }
-        if self.mode.shell().one_click_sidebar {
-            self.reword_landing(tr(lang, "AI denoise done. Turn the switch off to see the photo without it.").into());
-        }
-    }
-
-    /// The status bar's marker in Normal: the open photo's card and look
-    /// against the card and look it opened with or was last saved as a jpg
-    /// with (`look_mark`, re-anchored whenever another photo is open) —
-    /// 「saved」 only while the card on screen, with its current look, is what
-    /// was last saved. `None` = nothing to say: unchanged since it opened and
-    /// not saved yet.
-    pub(crate) fn normal_look_mark(&mut self) -> Option<LookMark> {
-        let photo = self.src_path.clone()?;
-        let card = self.active_source_path();
-        if self.normal.look_mark.as_ref().is_none_or(|(p, ..)| *p != photo) {
-            self.normal.look_mark = Some((photo, card.clone(), self.recipe.clone(), false));
-        }
-        let (_, at, look, saved) = self.normal.look_mark.as_ref()?;
-        if *look != self.recipe || *at != card {
-            Some(LookMark::Unsaved)
-        } else if *saved {
-            Some(LookMark::Saved)
-        } else {
-            None
-        }
+        self.reword_landing(tr(lang, "AI denoise done. Turn the switch off to see the photo without it.").into());
     }
 
     /// The one-click group's line, in the session language.

@@ -236,6 +236,13 @@ impl AutoShadeApp {
                     trf(self.lang, "saved → {path}", &[("path", &p.display().to_string())])
                 };
                 self.status = tr(self.lang, "settings saved — applies to the next AI call (Analyze / Fill / Generate image)").into();
+                // The interpreter field may have just changed: measure it now
+                // and let the note ride the same line (a wrong one would fail
+                // every sidecar later with a different error).
+                if let Some(note) = self.refresh_python_check() {
+                    self.status.push_str(" — ");
+                    self.status.push_str(&note);
+                }
             }
             Err(e) => {
                 self.settings.status =
@@ -567,7 +574,7 @@ impl AutoShadeApp {
                 )
                 .on_hover_text(tr(
                     lang,
-                    "Which Python runs the AI sidecars (segmentation, denoise, style). Blank = the platform default. It can only be set here or by the AUTOSHADE_PYTHON environment variable — never by a file that arrives beside your photos.",
+                    "Which Python runs the AI sidecars (segmentation, denoise, style). Blank = the managed environment when it is prepared, otherwise the platform default. It can only be set here or by the AUTOSHADE_PYTHON environment variable — never by a file that arrives beside your photos.",
                 ));
                 if action(ui, true, tr(lang, "Detect"))
                     .on_hover_text(tr(
@@ -605,7 +612,64 @@ impl AutoShadeApp {
         // spelling and an `AUTOSHADE_PYTHON` in the environment outranks it,
         // so a user whose environment already answers would otherwise be
         // looking at an empty box.
-        ui.label(egui::RichText::new(cfg_now.python_bin.clone()).small().weak());
+        ui.label(egui::RichText::new(cfg_now.sidecar_python()).small().weak());
+        // The managed environment: an app-owned interpreter carrying the
+        // sidecars' wheels. Prepared only on request — the CUDA set is a
+        // multi-gigabyte download, so it is never fetched in the background.
+        ui.horizontal(|ui| {
+            ui.label(tr(lang, "Managed Python"));
+            match autoshade::python_env::readiness() {
+                autoshade::python_env::Readiness::Ready(p) => {
+                    ui.label(egui::RichText::new(p.display().to_string()).small())
+                        .on_hover_text(tr(
+                            lang,
+                            "The AI sidecars run in this environment unless you name an interpreter above",
+                        ));
+                }
+                autoshade::python_env::Readiness::NotPrepared => {
+                    ui.label(egui::RichText::new(tr(lang, "not prepared")).small().weak());
+                }
+            }
+        });
+        if action(ui, !self.busy, tr(lang, "Prepare Python environment"))
+            .on_hover_text(tr(
+                lang,
+                "Runs uv to create a private environment and install python/requirements-*.txt into it — a few gigabytes, downloaded once",
+            ))
+            .clicked()
+        {
+            self.start_python_env_install();
+        }
+        if let Some(line) = &self.python_env_line {
+            ui.label(egui::RichText::new(line).small().weak());
+        }
+        // What the sidecars will actually launch — the launch check's answer,
+        // which is the only place a wrong interpreter becomes visible before a
+        // sidecar fails.
+        if let Some(check) = &self.python_check {
+            use autoshade::python_env::PythonState;
+            let fact = match &check.state {
+                PythonState::Managed(_) => None,
+                PythonState::Interpreter => Some(trf(
+                    lang,
+                    "AI sidecars use the interpreter named above: {bin}",
+                    &[("bin", &check.bin)],
+                )),
+                PythonState::UnpreparedDefault => Some(trf(
+                    lang,
+                    "AI sidecars currently use {bin} — the managed environment is not prepared",
+                    &[("bin", &check.bin)],
+                )),
+                PythonState::Unusable => Some(trf(
+                    lang,
+                    "AI sidecars need Python 3 — {bin} is not one",
+                    &[("bin", &check.bin)],
+                )),
+            };
+            if let Some(fact) = fact {
+                ui.label(egui::RichText::new(fact).small().weak());
+            }
+        }
         // --- the SEGMENTATION SIDECAR path (R25, closing R22-1) --------------
         // R22 left "a settings row for the sidecar path" to R23; R23 and R24
         // did not do it, and this is why. `AUTOSHADE_SEGMENT_SCRIPT` names a
@@ -929,5 +993,97 @@ impl AutoShadeApp {
         if let Some(role) = fetch {
             self.fetch_models(role);
         }
+    }
+}
+
+impl AutoShadeApp {
+    /// 「准备 Python 环境」: create the managed environment with `uv` and
+    /// install the sidecar requirements into it. Explicit, because the wheel
+    /// set is a multi-gigabyte download; the app must not start one on its own.
+    pub(crate) fn start_python_env_install(&mut self) {
+        if self.busy {
+            return;
+        }
+        let lang = self.lang;
+        let plan = match autoshade::python_env::Plan::resolve() {
+            Ok(p) => p,
+            Err(e) => {
+                let t = format!("{e:#}");
+                self.status = t.clone();
+                self.toast(ToastKind::Error, t);
+                return;
+            }
+        };
+        self.busy = true;
+        self.python_env_line = None;
+        self.status = tr(
+            lang,
+            "Preparing the Python environment (uv)… the download is a few gigabytes",
+        )
+        .into();
+        let tx = self.tx.clone();
+        self.spawn_worker(
+            move || {
+                // uv writes pip's progress to stderr; each line lands in the
+                // Settings row, so a long download says what it is doing.
+                let mut send = |line: &str| {
+                    let _ = tx.send(Msg::PythonEnvLine(line.to_string()));
+                };
+                Msg::PythonEnvReady(plan.install(&mut send).map(|p| p.display().to_string()))
+            },
+            |e| Msg::PythonEnvReady(Err(e)),
+        );
+    }
+
+    /// The install's landing: the interpreter it produced, or the failure.
+    pub(crate) fn on_python_env_ready(&mut self, lang: Lang, res: anyhow::Result<String>) {
+        self.busy = false;
+        match res {
+            Ok(path) => {
+                self.python_env_line = Some(path.clone());
+                self.status = trf(lang, "Python environment ready: {path}", &[("path", &path)]);
+                // The environment is ready now: re-measure so the Settings row
+                // and any later note describe the new interpreter.
+                self.refresh_python_check();
+            }
+            Err(e) => {
+                let t = format!("{e:#}");
+                self.python_env_line = Some(t.clone());
+                self.status = t.clone();
+                self.toast(ToastKind::Error, t);
+            }
+        }
+    }
+
+    /// Measure what the AI sidecars would run (`python_env::inspect`) and keep
+    /// the fact on the app; returns the line a launch has to say about it, when
+    /// it has to say one.
+    pub(crate) fn refresh_python_check(&mut self) -> Option<String> {
+        let check = autoshade::python_env::inspect(&autoshade::config::Config::load());
+        let words = python_startup_words(self.lang, &check);
+        self.python_check = Some(check);
+        words
+    }
+}
+
+/// The launch line a check with something wrong gets; `None` when the sidecars
+/// have a Python 3 and nothing has to be said.
+pub(crate) fn python_startup_words(
+    lang: Lang,
+    check: &autoshade::python_env::PythonCheck,
+) -> Option<String> {
+    use autoshade::python_env::PythonState;
+    match &check.state {
+        PythonState::Managed(_) | PythonState::Interpreter => None,
+        PythonState::UnpreparedDefault => Some(trf(
+            lang,
+            "The managed Python environment is not prepared — the AI sidecars would use {bin}. Prepare it in Settings",
+            &[("bin", &check.bin)],
+        )),
+        PythonState::Unusable => Some(trf(
+            lang,
+            "The AI sidecars need Python 3 — {bin} did not report one. Prepare the managed environment in Settings, or name another interpreter",
+            &[("bin", &check.bin)],
+        )),
     }
 }

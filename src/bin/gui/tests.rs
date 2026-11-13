@@ -22,7 +22,38 @@
     include!("tests/headings_and_widths.rs");
     include!("tests/screenshot.rs");
     include!("tests/lens_blur.rs");
-    include!("tests/mode.rs");
     include!("tests/normal.rs");
     include!("tests/portrait.rs");
     include!("tests/fit_prompt.rs");
+
+    /// One headless frame of the whole app (`run_frame`, i.e. `update`
+    /// without the prefs flush) over a `size`-point screen, with `events`.
+    fn app_frame(
+        ctx: &egui::Context,
+        app: &mut AutoShadeApp,
+        size: egui::Vec2,
+        frame: usize,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            time: Some(frame as f64 / 2.0),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| app.run_frame(ctx))
+    }
+
+    /// A primary click at `at`: press on one frame, release on the next.
+    fn click_at(ctx: &egui::Context, app: &mut AutoShadeApp, size: egui::Vec2, frame: &mut usize, at: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        for events in [vec![egui::Event::PointerMoved(at), button(true)], vec![button(false)]] {
+            app_frame(ctx, app, size, *frame, events);
+            *frame += 1;
+        }
+    }

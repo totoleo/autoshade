@@ -292,7 +292,7 @@ impl DenoiseOpts {
     /// [`DEFAULT_STRENGTH`] — never their own literal.
     pub fn from_config(cfg: &Config, model_override: Option<String>, strength: f32) -> Self {
         DenoiseOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.denoise_script),
             raw_script: PathBuf::from(&cfg.denoise_raw_script),
             cache: PathBuf::from(&cfg.weights_dir),

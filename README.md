@@ -157,12 +157,12 @@ Six techniques you will not find in another RAW developer. Each is written up in
 | **macOS** | `AutoShade-1.17.1-macos-universal.zip` (Apple silicon + Intel), or `-macos-cli.zip` |
 | **Linux** | `AutoShade-1.17.1-linux-x64.zip` — command line only |
 
-All on the **[v1.17.1 release page](https://github.com/skymanbp/autoshade/releases/tag/v1.17.1)**. Python 3 is needed only for the local AI sidecars; model weights download on first use.
+All on the **[v1.17.1 release page](https://github.com/skymanbp/autoshade/releases/tag/v1.17.1)**. Python 3 is needed only for the local AI sidecars; model weights download on first use. The app prepares its own Python environment on request — **Settings → Prepare Python environment**, or `autoshade python-env --install` — with [`uv`](https://docs.astral.sh/uv/) (a few gigabytes, once).
 
 > [!NOTE]
 > **macOS:** the app is ad-hoc signed, not notarised — on first launch use **System Settings → Privacy & Security → Open Anyway** (once per machine).
 
-**Desktop app** — it starts on a mode page (Landscape, Portraits, Normal; see [Choosing a mode](docs/USER_MANUAL.md#choosing-a-mode)); then open a photo (`Ctrl+O`), move a slider, export with `Ctrl+Shift+E`. The original is never touched. **Normal** is a short one-click panel for phone and jpg photos ([Normal mode](docs/USER_MANUAL.md#normal-mode)).
+**Desktop app** — it opens straight into the workspace ([The workspace](docs/USER_MANUAL.md#the-workspace)); open a photo (`Ctrl+O`), move a slider, export with `Ctrl+Shift+E`. The original is never touched. The side panel also holds a short one-click workflow for phone and jpg photos ([Normal's panel](docs/USER_MANUAL.md#normals-panel)) and, at its top, the **Portraits** panel with the people, skin, eyes and background tools ([Portraits panel](docs/USER_MANUAL.md#portraits-panel)).
 
 **CLI**
 
@@ -299,7 +299,7 @@ Model weights download separately and remain their authors' property; every pinn
 | OneFormer ADE20K | Sky segmentation | MIT |
 | SAM 2.1 | Point-prompted object masks | Apache-2.0 |
 | MoGe-2 ViT-L (code in `python/_moge/`) | AI lens blur depth map | MIT (DINOv2 backbone code Apache-2.0) |
-| MediaPipe Face Landmarker (BlazeFace + Face Mesh V2) | Portraits mode face and eye outlines | Apache-2.0 |
+| MediaPipe Face Landmarker (BlazeFace + Face Mesh V2) | Portraits panel face and eye outlines | Apache-2.0 |
 | SigLIP 2 | Style embeddings | Apache-2.0 |
 | Qwen3-VL-2B-Instruct | Local look descriptions | Apache-2.0 |
 | Stable Diffusion 2.1 | DIFT correspondence field | CreativeML Open RAIL++-M |

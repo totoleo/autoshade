@@ -1,8 +1,7 @@
-//! The Portraits mode's panel (design-portraits-mode.md §3, the user's ruling
-//! of 2026-10-23: the full workspace, and one "Portraits" panel at the top of
-//! the sidebar). Drawn above the shared panels when the mode's
-//! `Shell::portrait_panel` is on (`app.rs` `controls_column`); nothing else is
-//! hidden.
+//! The Portraits panel (design-portraits-mode.md §3, the user's ruling of
+//! 2026-10-23: the full workspace, and one "Portraits" panel at the top of
+//! the sidebar). Drawn first in the one workspace's controls column
+//! (`app.rs` `controls_column`), above Normal's groups and the shared panels.
 //!
 //! Four groups, in the order a portrait is worked: find the people and the
 //! faces (and an AI look made for portraits), the skin, the eyes, the
@@ -16,12 +15,12 @@
 //! of them is also in the mask list below, editable there.
 //!
 //! "Keep skin natural" (§4) is a switch of this panel, on by default, not a
-//! recipe field. While it is on, every write of the recipe in this mode — a
-//! slider here or in the mask list, a paste, an AI landing — meets the same
-//! limits at one place (`guard_portrait_skin`, run once per frame after the
-//! panels drew and the workers landed). A write that goes to DISK in the
-//! same step — an AI landing's save, a paste onto other photos — meets them
-//! where it is written (`skin_held` / `skin_held_for`), before the file.
+//! recipe field. While it is on, every write of the recipe — a slider here or
+//! in the mask list, a paste, an AI landing — meets the same limits at one
+//! place (`guard_portrait_skin`, run once per frame after the panels drew and
+//! the workers landed). A write that goes to DISK in the same step — an AI
+//! landing's save, a paste onto other photos — meets them where it is written
+//! (`skin_held` / `skin_held_for`), before the file.
 
 use crate::*;
 use autoshade::recipe::{LocalAdjustment, MaskGeometry, MaskRole};
@@ -450,30 +449,29 @@ impl AutoShadeApp {
         }
     }
 
-    /// Does "Keep skin natural" hold the open card's writes: Portraits, and
-    /// the switch on for this card.
+    /// Does "Keep skin natural" hold the open card's writes: the switch on
+    /// for this card.
     pub(crate) fn skin_held(&self) -> bool {
-        self.mode.shell().portrait_panel && self.keep_skin_on()
+        self.keep_skin_on()
     }
 
     /// Does it hold a write landing on `photo` (a paste): the open card's
     /// switch for the open photo, a stashed photo's card's own, and on for a
     /// photo not opened this session — the write replaces the edit opening
-    /// would decide it on. Outside Portraits: never.
+    /// would decide it on.
     pub(crate) fn skin_held_for(&self, photo: &std::path::Path) -> bool {
         if self.src_path.as_deref() == Some(photo) {
             return self.skin_held();
         }
-        self.mode.shell().portrait_panel
-            && self.nav_stash.get(photo).is_none_or(|st| {
-                self.portrait.keep_skin.get(&(photo.to_path_buf(), st.id.clone())).copied().unwrap_or(true)
-            })
+        self.nav_stash.get(photo).is_none_or(|st| {
+            self.portrait.keep_skin.get(&(photo.to_path_buf(), st.id.clone())).copied().unwrap_or(true)
+        })
     }
 
     /// Undo or redo put back an edit past the skin limits (made before the
-    /// switch was on, or in another mode): it is put back as it was, so the
-    /// switch goes off for the card — the next frame must not pull it back
-    /// and record a new step over the redo history.
+    /// switch was on): it is put back as it was, so the switch goes off for
+    /// the card — the next frame must not pull it back and record a new step
+    /// over the redo history.
     pub(crate) fn release_skin_for_history(&mut self) {
         if self.skin_held()
             && autoshade::face::skin_values_beyond(&self.recipe) > 0
@@ -536,14 +534,6 @@ impl AutoShadeApp {
     pub(crate) fn decide_keep_skin_for_photo(&mut self) {
         let Some(photo) = self.src_path.clone() else { return };
         self.portrait.keep_skin.retain(|(p, _), _| *p != photo);
-        self.switch_off_cards_past_limits();
-    }
-
-    /// Portraits was just entered from another mode: a card whose edit was
-    /// pushed past the skin limits there is switched off, as opening decides
-    /// it — entering a mode changes no value (design-mode-select.md §2). The
-    /// other cards keep the switch they had.
-    pub(crate) fn decide_keep_skin_on_entry(&mut self) {
         self.switch_off_cards_past_limits();
     }
 

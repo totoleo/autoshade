@@ -7,6 +7,10 @@
 # taking minutes" is not a question the sidecars can answer for you. cu128 is
 # the CUDA runtime AutoShade's own setup was measured on; if your driver needs
 # a different one, change the two lines below and nothing else.
+#
+# The app's own setup does not read this line as pip does: `uv` needs the
+# backend named (`--torch-backend cu128`, what `autoshade python-env --install`
+# passes) or it takes torch from its default index. Keep the two in step.
 
 -r requirements-common.txt
 

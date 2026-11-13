@@ -54,7 +54,7 @@ pub struct EmbedOpts {
 impl EmbedOpts {
     pub fn from_config(cfg: &Config) -> Self {
         EmbedOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.embed_script),
             text_file: None,
         }

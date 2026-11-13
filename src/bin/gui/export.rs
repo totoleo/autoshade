@@ -421,7 +421,7 @@ impl AutoShadeApp {
     }
 
     /// [`start_render_to`](Self::start_render_to) with the delivery options
-    /// given rather than read off the Export section — the Normal mode's Save
+    /// given rather than read off the Export section — Normal's Save
     /// group (`panels/normal.rs`) delivers a jpg at its own quality step.
     /// `denoise` is the AI denoise strength when it runs; `denoise_asked`
     /// says the switch was on even though it sits out (a ◈ card).
@@ -652,8 +652,8 @@ impl AutoShadeApp {
     }
 
     /// [`start_batch_render`](Self::start_batch_render) over `targets` into
-    /// `dest`, in the container `ext` with `export`'s options — the Normal
-    /// mode's 「apply this look to every photo in the folder」
+    /// `dest`, in the container `ext` with `export`'s options — Normal's
+    /// 「apply this look to every photo in the folder」
     /// (`panels/normal.rs`) renders every photo of the folder as a jpg without
     /// touching the Export section, into the folder it resolved before its
     /// paste. `numbered` is [`start_render_with`](Self::start_render_with)'s:
@@ -1504,7 +1504,7 @@ impl AutoShadeApp {
 
     /// [`start_paste`](Self::start_paste) with its inputs given: the recipe
     /// `src` copied from `copied_from`, onto `targets`, with or without the
-    /// crop. The Normal mode's 「apply this look to every photo in the folder」
+    /// crop. Normal's 「apply this look to every photo in the folder」
     /// (`panels/normal.rs`) pastes the open photo's look onto the whole folder
     /// this way — the clipboard and the selection are left as they are.
     pub(crate) fn start_paste_to(

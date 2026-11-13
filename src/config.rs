@@ -1765,7 +1765,7 @@ fn bundled_helper_roots_for(exe: &Path, app_bundles: bool) -> Vec<PathBuf> {
 /// FIRST candidate still names the expected location, so the sidecar's
 /// "not found at <path>" error stays actionable — and never names a path an
 /// untrusted pack could satisfy.
-fn bundled_helper(rel: &str) -> String {
+pub fn bundled_helper(rel: &str) -> String {
     let roots = env::current_exe()
         .map(|exe| bundled_helper_roots_for(&exe, cfg!(target_os = "macos")))
         .unwrap_or_default();
@@ -1785,6 +1785,25 @@ fn bundled_helper(rel: &str) -> String {
         // fires instead.
         format!("\u{0}install-dir-unavailable/{rel}")
     })
+}
+
+impl Config {
+    /// The interpreter the AI sidecars actually run.
+    ///
+    /// An interpreter the user named — the settings field, or
+    /// `AUTOSHADE_PYTHON` — is used as given. Otherwise the managed
+    /// environment ([`crate::python_env`]) outranks the platform default, so
+    /// the app never executes whichever `python` happens to be first on
+    /// `PATH`: on Windows that name is Python 2 on machines that still carry
+    /// it, and Python 2 cannot parse the sidecars.
+    pub fn sidecar_python(&self) -> String {
+        if self.python_bin != default_python_bin() {
+            return self.python_bin.clone();
+        }
+        crate::python_env::installed_python()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.python_bin.clone())
+    }
 }
 
 #[cfg(test)]

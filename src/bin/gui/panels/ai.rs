@@ -978,8 +978,6 @@ impl AutoShadeApp {
 
     fn ai_reverse_fit(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        // Portraits (`mode::Shell::zoned_folded`) folds the local-area switches.
-        let shell = self.mode.shell();
         ui.add_space(SPACE_XS);
         card_fold(ui, egui::CollapsingHeader::new(tr(lang, "Match a look (reverse-fit) · local"))
             .id_salt("sec_ai_reverse_fit")
@@ -1226,15 +1224,7 @@ impl AutoShadeApp {
                 ui.checkbox(&mut app.zoned_four_regions, tr(lang, "Up to four semantic regions"))
                     .on_hover_text(tr(lang, "Opt in to semantic regions beyond the historical sky/land pass; this costs one OneFormer pass per frame and may take longer."));
             };
-            if shell.zoned_folded {
-                // Portraits: the same two switches, in a fold closed by default.
-                egui::CollapsingHeader::new(tr(lang, "Local areas"))
-                    .id_salt("sec_fit_zoned")
-                    .default_open(false)
-                    .show(ui, |ui| zoned_rows(self, ui));
-            } else {
-                zoned_rows(self, ui);
-            }
+            zoned_rows(self, ui);
             });
     }
 }

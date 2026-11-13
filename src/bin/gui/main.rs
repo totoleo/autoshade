@@ -55,7 +55,6 @@ mod budget;
 mod canvas;
 mod export;
 mod masks;
-mod mode;
 mod panels;
 mod side_panel;
 mod window_chrome;
@@ -68,7 +67,6 @@ use theme::*;
 use util::*;
 use app::*;
 use side_panel::*;
-use mode::*;
 
 
 

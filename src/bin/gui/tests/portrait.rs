@@ -1,6 +1,6 @@
 // One part of the GUI's tests (src/bin/gui/tests.rs includes it): the
-// Portraits mode's panel (panels/portrait.rs, design-portraits-mode.md §3–§4;
-// v1.14.0).
+// Portraits panel in the one workspace's sidebar (panels/portrait.rs,
+// design-portraits-mode.md §3–§4; v1.14.0).
 
     /// The four masks the find step makes, over rasters that need not exist
     /// (the panel reads the recipe, not the pixels).
@@ -13,11 +13,9 @@
         ]
     }
 
-    /// The photo with every button armed, in Portraits, with or without the
-    /// people found.
+    /// The photo with every button armed, with or without the people found.
     fn portrait_app(lang: Lang, found: bool) -> AutoShadeApp {
         let mut app = app_with_every_button(lang);
-        app.choose_mode(Mode::Portraits);
         if found {
             app.recipe.masks.extend(found_masks());
         }
@@ -108,39 +106,32 @@
         }
     }
 
-    /// The panel sits at the TOP of the sidebar in Portraits, above the full
-    /// workspace, and is drawn in no other mode.
+    /// The panel sits at the TOP of the one sidebar, above Normal's groups
+    /// and the full workspace below.
     ///
-    /// MUTATION THIS CATCHES: `portrait_panel` off for Portraits (or on for
-    /// another row of the table), or the panel drawn below the AI panel.
+    /// MUTATION THIS CATCHES: the panel drawn after Normal's groups or below
+    /// the AI panel in `controls_column`.
     #[test]
-    fn the_portrait_panel_tops_the_sidebar_in_portraits_only() {
-        for mode in Mode::ALL {
-            let mut app = app_with_every_button(Lang::En);
-            app.mode = mode;
-            let ctx = egui::Context::default();
-            crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let mut out = None;
-            for i in 0..3 {
-                let input = egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                    time: Some(i as f64),
-                    ..Default::default()
-                };
-                out = Some(ctx.run(input, |ctx| {
-                    controls_panel(ctx, &mut app, 320.0);
-                }));
-            }
-            let texts = drawn_texts(&out.unwrap().shapes);
-            let at = |key: &str| texts.iter().position(|t| t.starts_with(key));
-            let panel = at("People and background");
-            assert_eq!(panel.is_some(), mode == Mode::Portraits, "{mode:?}");
-            assert_eq!(mode.shell().portrait_panel, mode == Mode::Portraits);
-            if mode == Mode::Portraits {
-                let ai = at("AI generation & reverse-fit").expect("the full workspace stays");
-                assert!(panel.unwrap() < ai, "the panel is drawn first");
-                assert!(at("Tone & WB").is_some(), "the develop panel stays too");
-            }
+    fn the_portrait_panel_tops_the_sidebar() {
+        let mut app = app_with_every_button(Lang::En);
+        let ctx = egui::Context::default();
+        crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+        let mut out = None;
+        for i in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
+                time: Some(i as f64),
+                ..Default::default()
+            };
+            out = Some(ctx.run(input, |ctx| {
+                controls_panel(ctx, &mut app, 320.0);
+            }));
+        }
+        let texts = drawn_texts(&out.unwrap().shapes);
+        let at = |key: &str| texts.iter().position(|t| t.starts_with(key));
+        let panel = at("People and background").expect("the panel is drawn");
+        for below in ["One-click look", "AI generation & reverse-fit", "Tone & WB"] {
+            assert!(panel < at(below).expect("the panels below stay"), "{below:?} is drawn after the Portraits panel");
         }
     }
 
@@ -284,10 +275,10 @@
     /// Design §4 in the GUI: with "Keep skin natural" on, a write past the
     /// limits — the user's own and an AI landing's alike — is pulled back
     /// at the frame's one place (`guard_portrait_skin`); off, nothing is
-    /// clamped; and outside Portraits the switch does not reach.
+    /// clamped.
     ///
     /// MUTATION THIS CATCHES: drop the `guard_portrait_skin` call from the
-    /// frame, ignore the switch, or run it in every mode.
+    /// frame, or ignore the switch.
     #[test]
     fn keep_skin_natural_holds_user_and_ai_writes_and_off_holds_none() {
         // ON: a card inside the limits opens with the switch on, and a later
@@ -296,7 +287,6 @@
         assert!(app.keep_skin_on(), "a card inside the limits opens with the switch on");
         push_skin(&mut app);
         let ctx = egui::Context::default();
-        app.mode_chosen_this_launch = true;
         let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
         let skin = crate::panels::portrait::skin_target(&mut app.recipe).unwrap().clone();
         assert_eq!((skin.saturation, skin.sharpness, skin.texture), (15.0, 0.0, -60.0), "pulled back to the limits");
@@ -308,12 +298,6 @@
         free.guard_portrait_skin();
         let skin = crate::panels::portrait::skin_target(&mut free.recipe).unwrap();
         assert_eq!((skin.saturation, skin.sharpness, skin.texture), (60.0, 40.0, -90.0), "off clamps nothing");
-        // Another mode: the switch is not drawn there, so it does not hold.
-        let mut landscape = portrait_app(Lang::En, true);
-        landscape.mode = Mode::Landscape;
-        push_skin(&mut landscape);
-        landscape.guard_portrait_skin();
-        assert_eq!(crate::panels::portrait::skin_target(&mut landscape.recipe).unwrap().saturation, 60.0);
     }
 
     /// Three skin values past the limits on the skin mask.
@@ -356,7 +340,6 @@
         app.src_path = Some(src.clone());
         app.load_version(1);
         let ctx = egui::Context::default();
-        app.mode_chosen_this_launch = true;
         for _ in 0..2 {
             let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
         }
@@ -433,7 +416,6 @@
     #[test]
     fn the_ai_portrait_look_asks_for_the_portrait_direction_and_lands_under_the_guardrail() {
         let (mut app, src, _scrub) = normal_photo("portrait-look");
-        app.choose_mode(Mode::Portraits);
         app.normal.runner = Some(portrait_look_runner);
         let mut skin = autoshade::face::skin_adjustment("mask-face.png".into(), [0.8, 0.6, 0.5], [0.4, 0.3]);
         skin.texture = -25.0;
@@ -497,7 +479,6 @@
         use crate::buttons::DRAWN;
         let (mut app, _src, scrub) = normal_photo(tag);
         app.lang = lang;
-        app.choose_mode(Mode::Portraits);
         let b0 = std::sync::Arc::new(image::DynamicImage::new_rgb8(6, 4));
         app.variants = vec![crate::model::Variant {
             id: crate::model::new_variant_id(),
@@ -626,27 +607,6 @@
         assert_eq!(crate::panels::portrait::face_raster(&app.recipe), None, "🤖 Remove blemishes has no face");
     }
 
-    /// Switching modes changes only the shell: skin values pushed past the
-    /// limits in Landscape are not pulled back when Portraits opens — the
-    /// card's switch is decided on the way in, as opening a photo decides it.
-    ///
-    /// MUTATION THIS CATCHES: drop the decision from `choose_mode` and the
-    /// first Portraits frame clamps the values.
-    #[test]
-    fn entering_portraits_never_changes_a_value_pushed_in_landscape() {
-        let mut app = app_with_every_button(Lang::En);
-        app.active = 0;
-        app.choose_mode(Mode::Landscape);
-        app.recipe.masks.extend(found_masks());
-        push_skin(&mut app);
-        app.choose_mode(Mode::Portraits);
-        assert!(!app.keep_skin_on(), "past the limits: the switch is off for this card");
-        let ctx = egui::Context::default();
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
-        let skin = crate::panels::portrait::skin_target(&mut app.recipe).unwrap();
-        assert_eq!((skin.saturation, skin.sharpness, skin.texture), (60.0, 40.0, -90.0), "nothing changed");
-    }
-
     /// Ctrl+Z back to an edit made past the limits (before the switch was
     /// turned on) puts it back as it was: the switch goes off for the card,
     /// the next frame does not pull it back, and Ctrl+Y still has its step.
@@ -658,7 +618,6 @@
     fn undo_to_an_edit_past_the_skin_limits_puts_it_back_and_keeps_redo() {
         let mut app = portrait_app(Lang::En, true);
         app.active = 0;
-        app.mode_chosen_this_launch = true;
         let ctx = egui::Context::default();
         app.reset_history();
         app.set_keep_skin(false);
@@ -688,7 +647,6 @@
     fn redo_after_switching_the_skin_guard_on_turns_it_back_on() {
         let mut app = portrait_app(Lang::En, true);
         app.active = 0;
-        app.mode_chosen_this_launch = true;
         let ctx = egui::Context::default();
         app.reset_history();
         app.set_keep_skin(false);
@@ -725,7 +683,6 @@
     fn undo_and_redo_of_a_value_edit_keep_the_switch_the_user_set() {
         let mut app = portrait_app(Lang::En, true);
         app.active = 0;
-        app.mode_chosen_this_launch = true;
         let ctx = egui::Context::default();
         app.reset_history();
         assert!(app.keep_skin_on());
@@ -757,7 +714,6 @@
     fn a_new_edit_after_undoing_the_switch_on_drops_its_redo() {
         let mut app = portrait_app(Lang::En, true);
         app.active = 0;
-        app.mode_chosen_this_launch = true;
         let ctx = egui::Context::default();
         app.reset_history();
         app.set_keep_skin(false);

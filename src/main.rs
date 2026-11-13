@@ -580,6 +580,16 @@ enum Command {
         #[arg(long)]
         data_dir: Option<PathBuf>,
     },
+    /// Prepare or report the managed Python environment the AI sidecars run
+    /// in: `uv venv` plus `uv pip install -r python/requirements-*.txt` under
+    /// the app's data directory. The desktop app has the same action in
+    /// Settings.
+    PythonEnv {
+        /// Install it now. On a CUDA machine the wheel set is a few gigabytes,
+        /// downloaded once.
+        #[arg(long)]
+        install: bool,
+    },
     /// Print the default EditRecipe as JSON — the exact shape the AI must emit.
     RecipeSchema,
 }
@@ -615,6 +625,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Decode { raw, out } => decode_cmd(&raw, out),
+        Command::PythonEnv { install } => python_env_cmd(install),
         Command::Analyze { raw, out, guidance, guide, style, strength, adherence, embed, no_embed, deep, reference_image } => {
             let guide = pipeline::Guide::resolve(guide, guidance.as_deref())?;
             analyze_cmd(&raw, out, guidance, guide, style, strength, adherence, deep, reference_image, embed_switch(embed, no_embed))
@@ -852,6 +863,35 @@ fn library_search_cmd(photo: &Path, style: f32) -> Result<()> {
     if let Some(note) = pipeline::references_note(&files) {
         println!("  {}", autoshade::rationale::render_one(&note).trim());
     }
+    Ok(())
+}
+
+fn python_env_cmd(install: bool) -> Result<()> {
+    let readiness = autoshade::python_env::readiness();
+    match &readiness {
+        autoshade::python_env::Readiness::Ready(p) => println!("python-env: ready {}", p.display()),
+        autoshade::python_env::Readiness::NotPrepared => println!(
+            "python-env: not prepared ({})",
+            autoshade::python_env::env_dir().display()
+        ),
+    }
+    if !install {
+        if readiness.ready().is_none() {
+            println!("  prepare it:  autoshade python-env --install");
+        }
+        return Ok(());
+    }
+    let plan = autoshade::python_env::Plan::resolve()?;
+    println!(
+        "installing {} into {} (uv)…",
+        plan.requirements.display(),
+        plan.env_dir.display()
+    );
+    // pip's progress goes to uv's stderr; forward it through the run's own sink
+    // so the CLI keeps ONE writer to the process stderr.
+    let diag = autoshade::diag::run();
+    let python = plan.install(&mut |line| diag.emit(autoshade::diag::Mark::Bare, line))?;
+    println!("python-env: ready {}", python.display());
     Ok(())
 }
 
@@ -3053,6 +3093,28 @@ mod tests {
             describe_script: String::new(),
             style_strength: 0.5,
             send_reference_image: false,
+        }
+    }
+
+    /// A named interpreter wins over the managed environment; the managed
+    /// environment wins over the platform default (the `PATH` name can be
+    /// Python 2 on Windows, which cannot parse the sidecars).
+    #[test]
+    fn a_named_interpreter_wins_over_the_managed_environment() {
+        let cfg = autoshade::config::Config { python_bin: "/custom/python3".into(), ..cfg_fixture() };
+        assert_eq!(cfg.sidecar_python(), "/custom/python3");
+    }
+
+    /// `python-env` reports, and with `--install` prepares, the managed
+    /// environment — the CLI twin of Settings' button.
+    #[test]
+    fn python_env_parses_its_install_flag() {
+        use clap::Parser;
+        for (argv, want) in [(&["autoshade", "python-env", "--install"][..], true), (&["autoshade", "python-env"][..], false)] {
+            match Cli::try_parse_from(argv).expect("python-env parses").command {
+                Command::PythonEnv { install } => assert_eq!(install, want),
+                _ => panic!("python-env parsed as some other subcommand"),
+            }
         }
     }
 

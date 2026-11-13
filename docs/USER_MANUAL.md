@@ -10,9 +10,9 @@ is, what is new in it, and how it works are the README's opening sections;
 subsystem boundaries are in [ARCHITECTURE.md](ARCHITECTURE.md) and the
 algorithms in [TECH_STACK.md](TECH_STACK.md).
 
-- [Choosing a mode](#choosing-a-mode)
-- [Normal mode](#normal-mode)
-- [Portraits mode](#portraits-mode)
+- [The workspace](#the-workspace)
+- [Normal's panel](#normals-panel)
+- [Portraits panel](#portraits-panel)
 - [1. Open and inspect a photo](#1-open-and-inspect-a-photo)
 - [2. Develop the image](#2-develop-the-image)
 - [3. Add local masks](#3-add-local-masks)
@@ -24,27 +24,24 @@ algorithms in [TECH_STACK.md](TECH_STACK.md).
 - [Privacy, trust, and paid-feature boundary](#privacy-trust-and-paid-feature-boundary)
 - [Install, upgrade, and uninstall on Windows](#install-upgrade-and-uninstall-on-windows)
 
-## Choosing a mode
+## The workspace
 
-The desktop app opens on a mode page every time it starts: three cards, and a
-click on one enters the workspace. The card you chose last is marked
-**Last used**. Inside the workspace the mode's name is the first button of the
-toolbar; it brings the page back, and the open photo, its edits and the
-library stay as they are.
+The desktop app opens straight into the workspace. Every control is in one
+place: the side panel is one scroll column with the **Portraits** panel at the
+top (the people, the skin, the eyes and the background; see
+[Portraits panel](#portraits-panel)), then Normal's four groups (one-click
+looks, four sliders, a noise switch and saving as jpg; see
+[Normal's panel](#normals-panel)), then the shared AI, Develop and Retouch
+panels. The toolbar, the library's copy / paste / render rows, the canvas tool
+marks and the strip of versions under the canvas are always drawn. The Open
+dialog lists RAWs before jpg and other rendered images. `Ctrl+S` saves the
+develop and `Ctrl+E` exports.
 
-| Mode | What the workspace shows |
-|---|---|
-| **Landscape** | Everything — the workspace as it was before modes existed. |
-| **Portraits** | Everything, with a **Portraits** panel of its own at the top of the side panel — the people, the skin, the eyes and the background; see [Portraits mode](#portraits-mode). The reverse-fit's local-area switches sit in a fold of their own, closed until you open it. |
-| **Normal** | A short panel of its own for phone and jpg photos — one-click looks, four sliders, a noise switch and saving as jpg; see [Normal mode](#normal-mode). The Open dialog lists jpg and other rendered images before RAWs. |
+## Normal's panel
 
-A mode changes only which controls are drawn. Recipes do not record it, every
-photo opens in every mode, and the CLI and the web UI do not have modes.
-
-## Normal mode
-
-Normal is for photos from a phone or any jpg. Its panel answers four questions,
-top to bottom, and shows nothing else.
+Normal's four groups are for photos from a phone or any jpg. They answer four
+questions, top to bottom, and sit in the workspace's side panel above the
+shared panels.
 
 **One-click look.** Six cards — **Natural**, **Bright & clean**, **Warm**,
 **Cool night**, **Film** and **Black & white**. A click sends the photo to the
@@ -59,7 +56,7 @@ the folder is read, saving, the noise switch and the other buttons that start
 work wait for it, and the look is made for the photo you picked the folder
 on; if it cannot start, the line says so. The
 folder is kept in Normal's own reference file, so it never replaces the
-reference library you built in Landscape. **Look strength** sets how strong
+shared reference library. **Look strength** sets how strong
 the look is (65 by default). The line under it says what happened; without
 an image key set in Settings (⚙) the app uses a simple built-in look instead
 and says so.
@@ -71,7 +68,7 @@ the colour temperature. **Back to the one-click result** puts the four sliders
 back where the last one-click left them.
 
 **Noise.** **AI denoise** cleans grain out of the photo. It is the same AI
-denoise as **AI Denoise now** in Landscape, at the same strength. It helps
+denoise as **AI Denoise now** in the Retouch panel, at the same strength. It helps
 most with night and dark phone photos. It takes a moment; then the preview
 shows the cleaned photo, and that is what **Save as jpg** saves. Turn the
 switch off to see the photo without it again, and on again to bring the
@@ -82,13 +79,11 @@ either way. The first time, the noise model is downloaded (about 72 MB).
 quality you pick (High, Medium or Small file); the original file is never
 changed. It never goes next to the photo: the line under the button names
 where it goes — the app's output folder (change it in Settings), the folder
-you last saved to, or a question each time, the same destination the full
-workspace's Export uses. `Ctrl+S` and `Ctrl+E` do the same as the button.
-The status bar says **unsaved changes** once the look differs from how the
-photo opened or was last saved, and **saved as jpg** right after a save (the
-folder-wide save counts for the open photo too; turning **AI denoise** on or
-off changes the picture, so the bar says **unsaved changes** until that one is
-saved). A save never replaces a photo saved earlier under a name the app
+you last saved to, or a question each time, the same destination Export uses. `Ctrl+S` saves the develop and `Ctrl+E` exports, as
+everywhere else in the workspace; **Save as jpg** is the panel's own button.
+The status bar's ● marker says **unsaved** while the card differs from its
+saved develop, and `Ctrl+S` clears it; a jpg save is not the develop save.
+A save never replaces a photo saved earlier under a name the app
 made: when the folder already holds a jpg of that name, the new one gets a
 number — `name-2.jpg`, then `name-3.jpg` — and the line says which file was
 written. A name you pick yourself in the save window is yours to replace. The app never saves into the folder the photo itself
@@ -97,29 +92,24 @@ is in; if you pick that folder, it says so and you pick another.
 (if you cancel, nothing changes), then gives every photo of the folder open
 in the library the same look and saves each one there as a jpg.
 
-The toolbar keeps only the mode button, **Open photo…**, undo and redo,
-**Compare** (click again for the photo alone; hold `B` to see the original)
-and Settings. The library shows the folder and its thumbnails; the canvas
-keeps **Fit** and **1:1**; there is no strip of versions under it — each
-one-click replaces the look, and undo brings the previous one back. Switch to
-Landscape from the mode button for every other control; the photo and its
-look come along.
+The toolbar keeps **Open photo…**, **Reset**, undo and redo, the two turns,
+**Compare** and **⬛ Single**, **Export**, **Save develop** and Settings; the
+library's copy / paste / render rows, the canvas tool marks and the version
+strip under the canvas are drawn too.
 
-## Portraits mode
+## Portraits panel
 
-Portraits keeps the whole workspace and adds one panel at the top of the side
-panel, in four groups, top to bottom.
+The Portraits panel is the first thing in the side panel, above Normal's groups
+and the shared panels. It has four groups, top to bottom.
 
 **People and background.** **🤖 Find people and faces** finds the person and
 every face in the photo, on this computer: the person the same way
 **🤖 Select subject** does, the faces and eyes with Google's MediaPipe face
-finder. MediaPipe is a Python package of its own — install it once with
-`pip install mediapipe` into the Python the app uses (Settings, **Python
-interpreter**); the first run downloads its small face model (about 3.8 MB).
-MediaPipe pulls in `opencv-contrib-python`, which shares one `cv2` folder with
-`opencv-python`: uninstalling either one means reinstalling the other, and
-installing everything from `python/requirements-common.txt` in one go keeps the
-two at the same version. The
+finder. MediaPipe is a Python package: the managed environment (Settings,
+**Prepare Python environment**) already carries it, and an interpreter you
+name yourself needs `python/requirements-common.txt` installed into it — which
+also keeps its `opencv-contrib-python` and `opencv-python` at one version. The
+first run downloads its small face model (about 3.8 MB). The
 line under the button says how many faces were found. The search adds four
 masks to the photo — **Face**, **Eyes**, **Skin** (the face, narrowed to the
 colour of its skin) and **Background** (everything but the person) — which
@@ -145,8 +135,7 @@ skin looks fake (fine texture no lower than −60, local contrast no lower than
 here and in the mask list — and for the AI's alike, on the face and skin
 masks. Turn it off to go further. If a photo's saved edits already go
 further, the switch opens off for that photo, and nothing is changed until you
-turn it on — the same when you switch to Portraits with skin values set past
-the limits in another mode, or undo back to such an edit; turning it on brings those values back within the limits, and the
+turn it on — and the same when undo brings back such an edit; turning it on brings those values back within the limits, and the
 status line says how many. **🤖 Remove blemishes** has the AI find small
 spots and blemishes and heals each from the skin around it, the way
 **🤖 AI heal (auto)** under **Heal (pixel)** does, but only the spots on the face (the heal of a spot at the face's edge
@@ -964,6 +953,7 @@ The following commands and flags match the command definitions in
 
 ```text
 autoshade decode <src> [-o|--out FILE]
+autoshade python-env [--install]
 autoshade analyze <src> [-o|--out FILE] [--guidance TEXT] [--guide library|direction] [--style 0..1] [--strength 0..1] [--adherence 0..1] [--embed|--no-embed] [--deep] [--reference-image]
 autoshade apply <src> <recipe.json> (-o|--out) FILE [--long-edge N]
 autoshade auto <src> [-o|--out FILE] [--guidance TEXT] [--guide library|direction] [--style 0..1] [--strength 0..1] [--adherence 0..1] [--embed|--no-embed] [--deep] [--reference-image] [--denoise] [--denoise-strength 0..1] [--denoise-model NAME] [--long-edge N]
@@ -985,6 +975,9 @@ autoshade session
 autoshade recipe-schema
 ```
 
+`autoshade python-env` prints whether the managed Python environment is
+prepared; `--install` prepares it with `uv` — the same action as Settings'
+**Prepare Python environment**.
 `autoshade session show <id|path> [--json]` prints one harness transcript —
 verdicts, develop/XMP, turns, tool calls, tokens and USD cost, plus the
 failure class of a failed run; `autoshade session replay <id|path>
@@ -1229,6 +1222,25 @@ cannot become a credential or path override.
 violet or green) for the main buttons and highlights. The choice is saved with
 your preferences and applies at once.
 
+**Managed Python.** AutoShade can prepare a Python environment of its own:
+Settings carries a **Managed Python** row with a **Prepare Python environment**
+button (the CLI has the same action as `autoshade python-env --install`). It
+runs [`uv`](https://docs.astral.sh/uv/) to create an environment under the
+app's data directory and installs the sidecar requirements into it — on
+Windows and Linux the CUDA wheel set, a few gigabytes, downloaded once; the
+macOS file on a Mac. While the download runs, its progress line sits under the
+button. The AI sidecars run in that environment unless you name an interpreter
+in the field above, so the app does not depend on whichever `python` happens
+to be first on `PATH` (on Windows that name is Python 2 on machines that still
+carry it, and Python 2 cannot run the sidecars). `uv` itself is not bundled;
+install it first, or put its path on `PATH`.
+
+Every launch checks the interpreter the sidecars would run. A managed
+environment that is prepared, or a Python 3 you named, passes silently; an
+unprepared environment or an interpreter that is not a Python 3 gets one line
+in the status bar naming the interpreter and where to fix it, and the same
+fact sits under the managed row in Settings.
+
 **Python interpreter.** The AI sidecars run under a Python 3 that AutoShade
 does not bundle. Settings carries a **Python interpreter** field with a
 **Detect** button beside it; Detect looks in the standard install locations and
@@ -1241,8 +1253,9 @@ python.org framework at
 `/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, and
 `/usr/bin/python3` last; you can also type a full path instead of pressing
 Detect. Finding none is reported as such rather than leaving the field
-silently unchanged. Blank means the platform default: `python` on Windows,
-`python3` elsewhere.
+silently unchanged. Blank means the platform default — the managed
+environment when it is prepared, otherwise `python` on Windows and `python3`
+elsewhere.
 
 The field matters most on macOS, where an app launched from Finder inherits no
 shell environment and the variable below therefore cannot be set for it at all.
@@ -1346,8 +1359,7 @@ develop** (Analysis, Adjust the selected variant, Reference library).
   **Reverse-fit** (Enter) starts the same fit as the fold's button, and **Not
   now** (Esc) changes nothing. Tick **Don't ask again after generating** to stop
   the question; **Ask after each AI generation** in the reverse-fit fold turns
-  it back on. An Adjust or a fill does not ask, and neither does Normal mode,
-  which has no reverse-fit.
+  it back on. An Adjust or a fill does not ask.
 
 - **Adjust generated image · paid API:** the fold directly after Reimagine
   under **AI generation & reverse-fit** edits the selected **✨ AI generated**

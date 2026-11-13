@@ -112,16 +112,11 @@
             "a ✨ adjust",
         );
 
-        // A workspace without the reverse-fit fold (Normal), or a running
-        // job: no question. Portraits keeps the fold, so it asks.
+        // The one workspace keeps the reverse-fit fold, so it asks; a running
+        // job is the only quiet case left below.
         let mut app = app_before_a_generation(Lang::En);
-        app.mode = Mode::Normal;
         land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
-        assert!(app.fit_prompt.is_none(), "Normal has no reverse-fit to offer");
-        let mut app = app_before_a_generation(Lang::En);
-        app.mode = Mode::Portraits;
-        land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
-        assert!(app.fit_prompt.is_some(), "Portraits keeps the fold, so it asks");
+        assert!(app.fit_prompt.is_some(), "the workspace keeps the fold, so it asks");
         let mut app = app_before_a_generation(Lang::En);
         land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
         app.fit_prompt = None;

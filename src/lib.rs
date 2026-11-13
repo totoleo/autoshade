@@ -37,6 +37,7 @@ pub(crate) mod mask_refine;
 pub mod openai_models;
 pub mod panic_guard;
 pub mod pipeline;
+pub mod python_env;
 pub mod rationale;
 pub mod recipe;
 pub mod render;

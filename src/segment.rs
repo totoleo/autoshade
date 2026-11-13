@@ -200,7 +200,7 @@ fn cleanup_manifest_planes(manifest: &Path) {
 impl SegmentOpts {
     pub fn from_config(cfg: &Config, target: &str) -> Self {
         SegmentOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.segment_script),
             target: target.to_string(),
             reference_point: None,
@@ -229,7 +229,7 @@ impl SegmentOpts {
             _ => return None,
         };
         Some(SegmentOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.segment_script),
             target: target.to_string(),
             // Space-separated with 6 decimals: the sidecar's own spelling

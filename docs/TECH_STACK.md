@@ -1361,7 +1361,7 @@ the photo identity, mask subtype, orientation, click/gesture data, backend
 generation, and exact points sent; a fallback-produced subject alpha is
 therefore invalidated when the pinned BiRefNet backend later becomes available.
 
-Faces and eyes for the Portraits mode (v1.14.0) come from MediaPipe's Face
+Faces and eyes for the Portraits panel (v1.14.0) come from MediaPipe's Face
 Landmarker, run by `python/face.py` through the `mediapipe` package. The
 sidecar writes JSON, not a mask: per face a box, the detector's score, the
 face outline and the two eye outlines, taken from the outline sets MediaPipe
@@ -2225,6 +2225,10 @@ than the pre-call state; model weights remain outside the repository.
   ones bind rather than copy, the table of our own mirrors that
   `_fetch_verified` tries before each pin's upstream host, and the
   per-platform dependency sets.
+- `src/python_env.rs` — the managed sidecar Python environment: `uv venv` plus
+  the platform requirements file under the store root, prepared by Settings'
+  「Prepare Python environment」 or `autoshade python-env --install`, and chosen
+  over the `PATH` default by `Config::sidecar_python`.
 - `.github/workflows/build.yml`, `.github/workflows/release.yml`,
   `.github/workflows/installer-upgrade.yml` and `scripts/check_docs.py` —
   CI, the installer scenario chain run against the previous published

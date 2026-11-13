@@ -54,6 +54,18 @@ impl AutoShadeApp {
         {
             app.restore_prefs(prefs);
         }
+        // The launch check of the interpreter the AI sidecars would run: a fact
+        // about this machine, measured once before the first frame. It spawns
+        // the interpreter only when the managed environment is not the answer,
+        // so a prepared install costs one file check. After the prefs restore
+        // (which decides the language) and outside it, so headless tests that
+        // restore prefs run no interpreter.
+        if let Some(note) = app.refresh_python_check() {
+            app.startup_note = Some(note);
+        }
+        if !app.busy {
+            app.show_startup_note();
+        }
         // The quit guard's two process-wide hooks (see `quit.rs`): the repaint
         // handle a vetoed quit wakes the UI with, and — on macOS — the
         // delegate method that does the vetoing. Both need a live event loop,
@@ -116,8 +128,6 @@ impl AutoShadeApp {
         // default before prefs were readable (same shape as the greeting).
         app.theme = prefs.theme;
         app.accent = prefs.accent;
-        // Only the highlighted card: the mode page still opens first.
-        app.mode = prefs.mode;
         install_look(&app.egui_ctx, app.theme, app.accent);
         // The greeting was set by default() BEFORE the language was known —
         // re-issue it, or a Chinese install opens with one English line.
@@ -2756,13 +2766,11 @@ impl AutoShadeApp {
 
     /// Raise the fit prompt after a whole-frame reimagine landed and the strip
     /// switched to its ✨ card. Not over a running job (the answer could not
-    /// start), not once the user said not to ask, not in a workspace without
-    /// the fold the fit lives in (Normal's one-click sidebar), and not without
-    /// the negative's preview [`Self::start_fit`] reads.
+    /// start), not once the user said not to ask, and not without the
+    /// negative's preview [`Self::start_fit`] reads.
     pub(crate) fn offer_fit_prompt(&mut self, ctx: &egui::Context, divergence: f32) {
         if self.busy
             || !self.ask_fit_after_generate
-            || self.mode.shell().one_click_sidebar
             || self.source_preview.is_none()
         {
             return;

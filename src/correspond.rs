@@ -49,7 +49,7 @@ pub struct CorrespondOpts {
 impl CorrespondOpts {
     pub fn from_config(cfg: &Config) -> Self {
         CorrespondOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.correspond_script),
         }
     }

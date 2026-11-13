@@ -151,7 +151,7 @@ pub fn detect_faces(cfg: &crate::config::Config, input: &Path, output: &Path) ->
     }
     let args: Vec<std::ffi::OsString> =
         vec!["-E".into(), script.into(), "--input".into(), input.into(), "--output".into(), output.into()];
-    let text = crate::run_model_sidecar_bounded("face sidecar", &cfg.python_bin, args, output, Some(FACES_MAX_BYTES))?;
+    let text = crate::run_model_sidecar_bounded("face sidecar", &cfg.sidecar_python(), args, output, Some(FACES_MAX_BYTES))?;
     parse_faces(&text).with_context(|| format!("face sidecar produced an unusable result {}", output.display()))
 }
 

@@ -513,6 +513,28 @@
         fn flush(&mut self) {}
     }
 
+    /// A prefs file written while the removed mode page existed still
+    /// decodes: RON ignores its unknown `mode` key, and every setting beside
+    /// it is restored.
+    #[test]
+    fn an_old_prefs_file_with_a_mode_key_still_decodes() {
+        for old in [
+            "(mode:Normal,lang:Zh,theme:Light,accent:Gold)",
+            "(mode:Portraits)",
+            "(mode:Landscape,lang:Zh)",
+        ] {
+            let mut storage = PrefsMemory::default();
+            eframe::Storage::set_string(&mut storage, eframe::APP_KEY, old.into());
+            let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY)
+                .unwrap_or_else(|| panic!("{old}: a prefs file with a mode key still loads"));
+            let mut app = AutoShadeApp::default();
+            app.restore_prefs(prefs);
+            if old.contains("lang:Zh") {
+                assert_eq!(app.lang, Lang::Zh, "{old}: the settings beside the removed key restore");
+            }
+        }
+    }
+
     #[test]
     fn era_zero_denoise_prefs_reset_both_dials_and_explain_the_old_values() {
         for lang in [Lang::En, Lang::Zh] {
@@ -775,4 +797,54 @@
             !worker.contains("fn panel_strength") && !worker.contains("self.panel_strength()"),
             "no shared reading is left (the name may survive in prose, never as code)"
         );
+    }
+    /// The managed Python environment is prepared by an EXPLICIT action: the
+    /// Settings row draws its readiness and the button that runs `uv`, in both
+    /// languages.
+    #[test]
+    fn settings_offer_the_managed_python_environment() {
+        for lang in [Lang::En, Lang::Zh] {
+            let mut app = AutoShadeApp { lang, ..Default::default() };
+            let seen = tall_frame(&mut app, |a, ui| a.settings_ui(ui));
+            assert!(
+                seen.contains(&tr(lang, "Managed Python").to_string()),
+                "{lang:?}: the managed environment row is drawn"
+            );
+            assert!(
+                seen.contains(&tr(lang, "Prepare Python environment").to_string()),
+                "{lang:?}: the button that prepares it is drawn"
+            );
+        }
+    }
+    /// The launch check: a sidecar interpreter that is not a Python 3 is said
+    /// out loud; a prepared managed environment or a named Python 3 says
+    /// nothing. The Settings row repeats the same fact.
+    #[test]
+    fn a_launch_names_a_wrong_sidecar_python_and_stays_quiet_otherwise() {
+        use autoshade::python_env::{PythonCheck, PythonState};
+        let check = |bin: &str, state: PythonState, major: Option<u32>| PythonCheck {
+            bin: bin.to_string(),
+            state,
+            major,
+        };
+        for lang in [Lang::En, Lang::Zh] {
+            let managed = check("C:/data/python-env/Scripts/python.exe", PythonState::Managed("x".into()), Some(3));
+            assert!(crate::panels::settings::python_startup_words(lang, &managed).is_none());
+            let named = check("C:/tools/python3.exe", PythonState::Interpreter, Some(3));
+            assert!(crate::panels::settings::python_startup_words(lang, &named).is_none());
+            let bad = check("C:\\Python27\\python.exe", PythonState::Unusable, Some(2));
+            let words = crate::panels::settings::python_startup_words(lang, &bad).expect("a wrong interpreter is said");
+            assert!(words.contains("Python27"), "{lang:?}: {words}");
+            let unprepared = check("python", PythonState::UnpreparedDefault, Some(3));
+            let words = crate::panels::settings::python_startup_words(lang, &unprepared).expect("an unprepared environment is said");
+            assert!(words.contains("python"), "{lang:?}: {words}");
+
+            // The Settings row repeats it, for the interpreter the launch found.
+            let mut app = AutoShadeApp { lang, python_check: Some(bad), ..Default::default() };
+            let seen = tall_frame(&mut app, |a, ui| a.settings_ui(ui));
+            assert!(
+                seen.iter().any(|t| t.contains("Python27")),
+                "{lang:?}: the Settings row names the wrong interpreter"
+            );
+        }
     }

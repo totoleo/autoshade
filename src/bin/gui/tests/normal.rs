@@ -1,11 +1,10 @@
-// One part of the GUI's tests (src/bin/gui/tests.rs includes it): Normal
-// mode's own sidebar and the §4 hiding switches (panels/normal.rs,
+// One part of the GUI's tests (src/bin/gui/tests.rs includes it): Normal's
+// four groups in the one workspace's sidebar (panels/normal.rs,
 // design-normal-mode.md, design-normal-oneclick.md; 2026-10-23).
 
-    /// One full window in `app`'s mode — toolbar, status bar, strips, both
-    /// side panels and the canvas, as `full_window_shot` lays them — and
-    /// what it drew: every text, every vocabulary button of the last frame,
-    /// and the picture.
+    /// One full window — toolbar, status bar, strips, both side panels and
+    /// the canvas, as `full_window_shot` lays them — and what it drew: every
+    /// text, every vocabulary button of the last frame, and the picture.
     fn window_frame(app: &mut AutoShadeApp, size: egui::Vec2) -> (Vec<String>, Vec<crate::buttons::Drawn>, image::RgbaImage) {
         use crate::buttons::DRAWN;
         let theme = crate::theme::ThemePref::Dark;
@@ -47,168 +46,153 @@
         (texts, drawn, rasterise(&prims, &tex, size, out.pixels_per_point, egui::Color32::BLACK))
     }
 
-    /// The photo with every button armed, entered in `mode` the way the mode
-    /// page enters it, with the key state fixed (no key: the disclosure line
-    /// is drawn too).
-    fn app_in(mode: Mode, lang: Lang) -> AutoShadeApp {
+    /// The photo with every button armed, with the key state fixed (no key:
+    /// the disclosure line is drawn too). The brush is armed on the real
+    /// canvas: the one workspace draws its marks.
+    fn app_in(lang: Lang) -> AutoShadeApp {
         let mut app = app_with_every_button(lang);
-        app.choose_mode(mode);
-        // Armed again after the mode change put it down, with its status-bar
-        // hint: Normal must show neither the tool's marks nor its words even
-        // then (`put_down_hidden_tools`).
         app.start_mask_brush(None);
         app.normal.key_present = Some(false);
         app
     }
 
-    /// Design §3 and §4 on one frame: Normal's sidebar is the four groups,
-    /// and the toolbar, the library panel, the canvas and the bottom carry
-    /// only what the table leaves them. Landscape and Portraits, on the same
-    /// photo, still draw every item Normal hides — so each assertion below is
-    /// about the mode, not about a fixture that never drew it.
+    /// The one workspace's sidebar draws, top to bottom: the Portraits panel,
+    /// Normal's four groups, then the shared AI / Develop / Retouch panels —
+    /// and the full toolbar, the library batch rows, the canvas tool marks and
+    /// the variant strip are all on the same frame.
     ///
-    /// MUTATION THIS CATCHES: any of Normal's §4 switches in `Mode::shell`
-    /// (`one_click_sidebar`, `full_toolbar`, `library_batch_rows`,
-    /// `canvas_tool_marks`, `variant_strip`) flipped fails one block below.
+    /// MUTATION THIS CATCHES: dropping any of those panels or rows from
+    /// `controls_column` / `upd_top_bar` / `upd_strips_and_side_panels`, or
+    /// drawing them out of order.
     #[test]
-    fn normal_draws_its_four_groups_and_hides_the_rest_of_the_workspace() {
-        let size = egui::vec2(1400.0, 1000.0);
+    fn the_one_workspace_draws_the_portraits_panel_normal_groups_and_shared_panels_in_order() {
         let shots = std::env::var_os("AUTOSHADE_SHOT_DIR").map(PathBuf::from);
         for lang in [Lang::En, Lang::Zh] {
-            let toolbar_hidden = [
-                tr(lang, "Reset"),
-                tr(lang, "⭯ Turn left"),
-                tr(lang, "⭮ Turn right"),
-                tr(lang, "Export"),
-                tr(lang, "Save develop"),
-                "⌨",
-            ]
-            .map(str::to_string);
-            let library_hidden = [
-                tr(lang, "Copy recipe").to_string(),
-                trf(lang, "Paste to selected ({n})", &[("n", "1")]),
-                trf(lang, "Render selected ({n})", &[("n", "1")]),
+            let mut app = app_in(lang);
+            // Portraits with the people found: its panel's four groups open.
+            app.recipe.masks.extend(found_masks());
+            let ctx = egui::Context::default();
+            crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+            let mut out = None;
+            for i in 0..3 {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
+                    time: Some(i as f64),
+                    ..Default::default()
+                };
+                out = Some(ctx.run(input, |ctx| {
+                    ctx.memory_mut(|m| m.set_everything_is_visible(true));
+                    controls_panel(ctx, &mut app, 320.0);
+                }));
+            }
+            let texts = drawn_texts(&out.unwrap().shapes);
+            let at = |key: &str| texts.iter().position(|t| t.starts_with(key));
+            // (a) Portraits, (b) Normal's four groups, (c) the shared panels.
+            let order = [
+                tr(lang, "People and background"),
+                tr(lang, "One-click look"),
+                tr(lang, "Fine-tune"),
+                tr(lang, "Noise"),
+                tr(lang, "Save"),
+                tr(lang, "AI generation & reverse-fit"),
+                tr(lang, "Tone & WB"),
             ];
-            let canvas_hidden = [
-                tr(lang, "Mask brush — paint to select · 「Erase」 removes · 「Apply」 bakes · Esc cancels"),
-                tr(lang, "▨ Bitmap mask"),
-                "1280px",
-            ]
-            .map(str::to_string);
-            let strip = tr(lang, "▣ Original").to_string();
-            let groups = [tr(lang, "One-click look"), tr(lang, "Fine-tune"), tr(lang, "Noise"), tr(lang, "Save")];
-            let presets = [
+            let mut last = None;
+            for key in order {
+                let here = at(key).unwrap_or_else(|| panic!("{lang:?}: the sidebar draws {key:?}"));
+                assert!(last.is_none_or(|l| here > l), "{lang:?}: {key:?} is out of order");
+                last = Some(here);
+            }
+            // Normal's controls are all reachable on that same sidebar.
+            for key in [
                 tr(lang, "Natural"),
                 tr(lang, "Bright & clean"),
                 tr(lang, "Warm"),
                 tr(lang, "Cool night"),
                 tr(lang, "Film"),
                 tr(lang, "Black & white"),
-            ];
-            let rows = [
                 tr(lang, "Match my reference photos…"),
                 tr(lang, "Save as jpg"),
                 tr(lang, "Apply this look to every photo in the folder"),
-            ];
-            let sliders = [
-                tr(lang, "Look strength"),
-                tr(lang, "Brightness"),
-                tr(lang, "Contrast"),
-                tr(lang, "Warmth"),
-                tr(lang, "Vividness"),
-                tr(lang, "AI denoise"),
-            ];
-            for mode in Mode::ALL {
-                let mut app = app_in(mode, lang);
-                let (texts, drawn, img) = window_frame(&mut app, size);
-                let labels: Vec<&str> = drawn.iter().map(|d| d.label.as_str()).collect();
-                let has_text = |s: &str| texts.iter().any(|x| x == s);
-                let has_button = |s: &str| labels.contains(&s);
-                let percent = texts.iter().any(|x| x.ends_with('%') && x[..x.len() - 1].parse::<f32>().is_ok());
-                let normal = mode == Mode::Normal;
-                // Toolbar.
-                for keep in [mode.name(lang), tr(lang, "Open photo…"), tr(lang, "↶ Undo"), tr(lang, "↷ Redo"), "⚙"] {
-                    assert!(has_button(keep), "{mode:?} {lang:?}: the toolbar keeps {keep:?}");
-                }
-                assert!(has_text(tr(lang, "◫ Compare")), "{mode:?} {lang:?}: compare is drawn");
-                for gone in &toolbar_hidden {
-                    assert_eq!(has_button(gone.as_str()), !normal, "{mode:?} {lang:?}: toolbar {gone:?}");
-                }
-                assert_eq!(has_text(tr(lang, "⬛ Single")), !normal, "{mode:?} {lang:?}: one compare switch in Normal");
-                // Library panel.
-                assert!(has_button(tr(lang, "🗂 Open folder…")), "{mode:?} {lang:?}: open-folder stays");
-                for gone in &library_hidden {
-                    assert_eq!(has_button(gone.as_str()), !normal, "{mode:?} {lang:?}: library {gone:?}");
-                }
-                // Canvas.
-                for keep in [tr(lang, "Fit"), "1:1"] {
-                    assert!(has_button(keep), "{mode:?} {lang:?}: the canvas keeps {keep:?}");
-                }
-                for gone in &canvas_hidden {
-                    assert_eq!(texts.iter().any(|x| x == gone), !normal, "{mode:?} {lang:?}: canvas {gone:?}");
-                }
-                assert_eq!(percent, !normal, "{mode:?} {lang:?}: the zoom readout");
-                // The brush armed above: put down in Normal (no ring on the
-                // canvas — it is drawn only while `paint_mode` is on), left
-                // armed where its tools are drawn.
-                assert_eq!(app.paint_mode, !normal, "{mode:?} {lang:?}: the armed brush");
-                assert!(has_text(&app.status), "{mode:?} {lang:?}: the status bar is in the frame's texts");
-                // Bottom: the variant strip.
-                assert_eq!(has_text(&strip), !normal, "{mode:?} {lang:?}: the variant strip");
-                // Sidebar: Normal's four groups, and nothing of the shared panels.
-                for group in groups {
-                    assert_eq!(has_text(group), normal, "{mode:?} {lang:?}: group {group:?}");
-                }
-                assert_eq!(texts.iter().any(|x| x.starts_with(tr(lang, "AI generation & reverse-fit"))), !normal, "{mode:?} {lang:?}: the shared panels");
-                if normal {
-                    for preset in presets {
-                        assert!(has_button(preset), "{lang:?}: preset card {preset:?}");
-                    }
-                    for row in rows {
-                        assert!(has_button(row), "{lang:?}: {row:?}");
-                    }
-                    for label in sliders {
-                        assert!(texts.iter().any(|x| x.starts_with(label)), "{lang:?}: {label:?}");
-                    }
-                    assert!(has_text(tr(lang, "To make looks with AI, add a service key in Settings (⚙).")), "{lang:?}: the no-key line");
-                }
-                if let Some(dir) = &shots {
-                    std::fs::create_dir_all(dir).unwrap();
-                    img.save(dir.join(format!("window-{mode:?}-{lang:?}.png"))).unwrap();
-                }
+            ] {
+                assert!(texts.iter().any(|t| t == key), "{lang:?}: {key:?}");
+            }
+            // …and the full window's toolbar, library rows, canvas marks and
+            // variant strip are on, on the same photo.
+            let (texts, drawn, img) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
+            let labels: Vec<&str> = drawn.iter().map(|d| d.label.as_str()).collect();
+            let has_text = |s: &str| texts.iter().any(|x| x == s);
+            let has_button = |s: &str| labels.contains(&s);
+            for keep in [
+                tr(lang, "Reset"),
+                tr(lang, "⭯ Turn left"),
+                tr(lang, "⭮ Turn right"),
+                tr(lang, "Export"),
+                tr(lang, "Save develop"),
+                "⌨",
+            ] {
+                assert!(has_button(keep), "{lang:?}: the toolbar keeps {keep:?}");
+            }
+            for keep in [tr(lang, "◫ Compare"), tr(lang, "⬛ Single")] {
+                assert!(has_text(keep), "{lang:?}: both view switches: {keep:?}");
+            }
+            for keep in [
+                tr(lang, "Copy recipe").to_string(),
+                trf(lang, "Paste to selected ({n})", &[("n", "1")]),
+                trf(lang, "Render selected ({n})", &[("n", "1")]),
+            ] {
+                assert!(has_button(&keep), "{lang:?}: the library keeps {keep:?}");
+            }
+            for keep in [tr(lang, "Fit"), "1:1"] {
+                assert!(has_button(keep), "{lang:?}: the canvas keeps {keep:?}");
+            }
+            assert!(
+                texts.iter().any(|x| x.ends_with('%') && x[..x.len() - 1].parse::<f32>().is_ok()),
+                "{lang:?}: the zoom readout"
+            );
+            assert_eq!(app.paint_mode, true, "{lang:?}: the armed brush stays armed");
+            assert!(has_text(&app.status), "{lang:?}: the status bar is in the frame's texts");
+            assert!(has_text(tr(lang, "▣ Original")), "{lang:?}: the variant strip");
+            if let Some(dir) = &shots {
+                std::fs::create_dir_all(dir).unwrap();
+                img.save(dir.join(format!("window-one-workspace-{lang:?}.png"))).unwrap();
             }
         }
     }
 
-    /// Design §5: 「没有一个术语」 — every text a Normal frame draws, in both
-    /// languages, is free of the workspace's trade words. The frame is the
-    /// whole window, status bar included, over the photo with every button
-    /// armed and a brush armed after the mode was entered (its status-bar
-    /// hint says 「蒙版」 / "mask").
+    /// Every text Normal's four groups draw on their own, in one tall frame.
+    fn normal_panel_texts(app: &mut AutoShadeApp) -> Vec<String> {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+        let mut out = None;
+        for i in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(420.0, 4000.0))),
+                time: Some(i as f64),
+                ..Default::default()
+            };
+            out = Some(ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| app.normal_panel(ui));
+            }));
+        }
+        drawn_texts(&out.unwrap().shapes)
+    }
+
+    /// Design §5: 「没有一个术语」 — every text Normal's four groups draw, in
+    /// both languages, is free of the workspace's trade words. The shared
+    /// panels around them in the same sidebar do use those words.
     ///
-    /// MUTATION THIS CATCHES: draw the shared panels in Normal (flip
-    /// `one_click_sidebar`), keep the canvas tool hint or the variant strip,
-    /// drop `choose_mode`'s status line, or drop `put_down_hidden_tools`
-    /// (the brush hint stays in the status bar), and a word below is found.
+    /// MUTATION THIS CATCHES: word a Normal control with a trade term (a
+    /// "recipe", a "develop", a "mask") and a line below fails; drawing only
+    /// the groups keeps the check about Normal's own words.
     #[test]
-    fn a_normal_frame_says_no_trade_words_in_either_language() {
+    fn the_normal_groups_say_no_trade_words_in_either_language() {
         let words = ["配方", "显影", "反推", "变体", "蒙版", "API", "recipe", "develop", "reverse-fit", "variant", "mask"];
         for lang in [Lang::En, Lang::Zh] {
-            let mut app = app_in(Mode::Normal, lang);
-            let (mut texts, _, _) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
-            assert!(texts.len() > 40, "{lang:?}: a whole window was drawn ({} texts)", texts.len());
-            // The look changed: the status bar's marker is drawn and scanned,
-            // and so are both its states' words and its hover (a hover is
-            // drawn only under the pointer, so its text is read directly).
-            app.recipe.exposure_ev += 0.5;
-            let (marked, _, _) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
-            assert!(marked.iter().any(|t| t == tr(lang, "unsaved changes")), "{lang:?}: the marker is drawn");
-            texts.extend(marked);
-            for mark in [crate::panels::normal::LookMark::Unsaved, crate::panels::normal::LookMark::Saved] {
-                let (label, hover) = mark.words(lang);
-                texts.push(label.to_string());
-                texts.push(hover.to_string());
-            }
+            let mut app = app_in(lang);
+            let texts = normal_panel_texts(&mut app);
+            assert!(texts.len() > 30, "{lang:?}: the four groups were drawn ({} texts)", texts.len());
             for text in &texts {
                 let low = text.to_lowercase();
                 for w in words {
@@ -216,17 +200,6 @@
                     assert!(!hit, "{lang:?}: {text:?} says {w:?}");
                 }
             }
-            // …and the same check has teeth: the Landscape frame says them,
-            // in its status bar too (the brush hint).
-            let mut landscape = app_in(Mode::Landscape, lang);
-            let (texts, _, _) = window_frame(&mut landscape, egui::vec2(1400.0, 1000.0));
-            assert!(
-                texts.iter().any(|t| words.iter().any(|w| t.to_lowercase().contains(&w.to_lowercase()))),
-                "{lang:?}: the Landscape frame is the control"
-            );
-            let hint = landscape.status.to_lowercase();
-            assert!(hint.contains("mask") || hint.contains("蒙版"), "{lang:?}: the brush hint: {hint}");
-            assert!(texts.contains(&landscape.status), "{lang:?}: the status bar is scanned");
         }
     }
 
@@ -277,7 +250,6 @@
         let dev = autoshade::store::develop_dir(&src);
         let _ = std::fs::remove_dir_all(&dev);
         let mut app = AutoShadeApp { src_path: Some(src.clone()), ..Default::default() };
-        app.choose_mode(Mode::Normal);
         app.normal.runner = Some(heuristic_runner);
         (app, src, Scrub(vec![dir, dev]))
     }
@@ -296,7 +268,7 @@
         app.grade_strength = 0.4;
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let size = egui::vec2(1400.0, 1000.0);
+        let size = egui::vec2(1400.0, 6000.0);
         let mut frame = 0;
         app.normal.key_present = Some(true);
         app_frame(&ctx, &mut app, size, frame, Vec::new());
@@ -438,23 +410,16 @@
         }
     }
 
-    /// Ctrl+S and Ctrl+E in Normal take 「Save as jpg」's own path
-    /// (`start_normal_save`), never the workspace's develop save or export
-    /// dialog: a Save-group delivery starts, into the destination setting's
-    /// folder, as a jpg.
+    /// The workspace's save keys keep their meaning: Ctrl+S saves the develop
+    /// and Ctrl+E exports. Normal's own jpg save is its sidebar button
+    /// (`start_normal_save`), not a key.
     ///
-    /// MUTATION THIS CATCHES: route either key back to `save_xmp` /
-    /// `start_export` in `upd_shortcuts` and no Save-group delivery starts.
+    /// MUTATION THIS CATCHES: route either key to `start_normal_save` in
+    /// `upd_shortcuts` and a Save-group jpg delivery starts instead of the
+    /// workspace's save / export.
     #[test]
-    fn in_normal_the_save_keys_take_the_save_as_jpg_path() {
-        for k in [egui::Key::S, egui::Key::E] {
-            let tag = format!("keys-{k:?}");
-            let (mut app, _src, _scrub) = normal_photo(&tag);
-            let out = std::env::temp_dir().join(format!("autoshade-gui-normal-{tag}-out-{}", std::process::id()));
-            let _scrub_out = Scrub(vec![out.clone()]);
-            app.exp_dest = ExportDest::LastUsed;
-            app.last_export_dir = Some(out.clone());
-            let ctx = egui::Context::default();
+    fn the_workspace_save_keys_save_the_develop_and_export() {
+        let press = |app: &mut AutoShadeApp, ctx: &egui::Context, k: egui::Key| {
             let mut input = egui::RawInput { modifiers: egui::Modifiers::COMMAND, ..Default::default() };
             input.events.push(egui::Event::Key {
                 key: k,
@@ -464,22 +429,43 @@
                 modifiers: egui::Modifiers::COMMAND,
             });
             let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
-            assert!(app.normal.delivering, "{k:?}: the Save group's delivery started");
-            assert!(app.busy, "{k:?}: rendering");
-            assert!(app.status.contains(".jpg"), "{k:?}: a jpg: {}", app.status);
-            assert!(app.status.contains(&out.file_name().unwrap().to_string_lossy().into_owned()), "{k:?}: {}", app.status);
-            land_all(&mut app, &ctx);
-        }
-        // The library rows' key twins (Ctrl+Shift+C copies the look) are dead
-        // where the rows are not drawn; Landscape is the control.
-        for mode in [Mode::Normal, Mode::Landscape] {
-            let mut app = AutoShadeApp { src_path: Some(PathBuf::from("phone.jpg")), mode, ..Default::default() };
-            let ctx = egui::Context::default();
-            let mods = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
-            let input = egui::RawInput { modifiers: mods, events: vec![egui::Event::Copy], ..Default::default() };
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
-            assert_eq!(app.copied.is_some(), mode != Mode::Normal, "{mode:?}: Ctrl+Shift+C");
-        }
+        };
+        // Ctrl+E exports into the destination setting's folder.
+        let (mut app, src, _scrub) = normal_photo("keys-export");
+        image::RgbImage::from_pixel(32, 24, image::Rgb([120, 90, 60])).save(&src).unwrap();
+        let out = std::env::temp_dir().join(format!("autoshade-gui-normal-keys-export-out-{}", std::process::id()));
+        let _scrub_out = Scrub(vec![out.clone()]);
+        app.exp_dest = ExportDest::LastUsed;
+        app.last_export_dir = Some(out.clone());
+        let ctx = egui::Context::default();
+        press(&mut app, &ctx, egui::Key::E);
+        assert!(app.busy, "the workspace export started");
+        assert!(!app.normal.delivering, "not the Save group's delivery");
+        assert!(app.status.contains(&out.file_name().unwrap().to_string_lossy().into_owned()), "{}", app.status);
+        land_all(&mut app, &ctx);
+        // Ctrl+S saves the develop: the shared ● marker goes clean.
+        let (mut app, src, _scrub) = normal_photo("keys-save");
+        image::RgbImage::from_pixel(32, 24, image::Rgb([60, 90, 120])).save(&src).unwrap();
+        let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
+        app.variants = vec![Variant {
+            id: ORIGINAL_VARIANT_ID.into(),
+            name: None,
+            kind: VariantKind::Original,
+            recipe: EditRecipe::default(),
+            base: Some(b0.clone()),
+            origin: None,
+            thumb: None,
+        }];
+        app.active = 0;
+        app.base_preview = Some(b0);
+        app.reset_history();
+        app.recipe.exposure_ev = 0.4;
+        assert!(app.unsaved_marker_dirty(), "the edit is unsaved before Ctrl+S");
+        let ctx = egui::Context::default();
+        press(&mut app, &ctx, egui::Key::S);
+        assert!(!app.normal.delivering, "not the Save group's delivery");
+        assert!(!app.busy);
+        assert!(!app.unsaved_marker_dirty(), "the develop was saved: {}", app.status);
     }
 
     /// 「Apply this look to every photo in the folder」 settles the jpgs'
@@ -516,20 +502,20 @@
     #[test]
     fn the_save_line_names_where_the_jpg_goes() {
         for lang in [Lang::En, Lang::Zh] {
-            let mut app = app_in(Mode::Normal, lang);
+            let mut app = app_in(lang);
             app.exp_dest = ExportDest::LastUsed;
             app.last_export_dir = Some(std::env::temp_dir().join("Deliveries"));
-            let (texts, _, _) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
+            let texts = normal_panel_texts(&mut app);
             let last = trf(lang, "Saves to the folder you last saved to: {folder}", &[("folder", "Deliveries")]);
             assert!(texts.contains(&last), "{lang:?}: {last:?}");
             app.exp_dest = ExportDest::OutFolder;
-            let (texts, _, _) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
+            let texts = normal_panel_texts(&mut app);
             let root = autoshade::config::delivery_root();
             let name = root.file_name().map_or_else(|| abs_display(&root), |n| n.to_string_lossy().into_owned());
             let out = trf(lang, "Saves to the app's output folder {folder} (change it in Settings ⚙)", &[("folder", &name)]);
             assert!(texts.contains(&out), "{lang:?}: {out:?}");
             app.exp_dest = ExportDest::Ask;
-            let (texts, _, _) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
+            let texts = normal_panel_texts(&mut app);
             assert!(texts.iter().any(|t| t == tr(lang, "Asks where to save each time")), "{lang:?}: ask");
         }
     }
@@ -679,53 +665,6 @@
         assert!(!now.contains("default_strength_for"), "the export-time denoise came back");
     }
 
-    /// The status bar's marker in Normal follows the jpg, not the develop
-    /// record: nothing while the look is as the photo opened; 「unsaved
-    /// changes」 once it changes; 「saved as jpg」 after a Save as jpg lands;
-    /// 「unsaved changes」 again on the next change; and 「apply this look to
-    /// every photo」 counts as saved for the open photo too. Real renders of a
-    /// real (tiny) jpg into a scratch folder.
-    ///
-    /// MUTATION THIS CATCHES: drop the re-anchor on a landed save, draw the
-    /// workspace's develop marker in Normal, or leave the open photo out of
-    /// the folder delivery, and a step below fails.
-    #[test]
-    fn the_normal_marker_flips_with_the_jpg() {
-        use crate::panels::normal::LookMark;
-        let (mut app, src, _scrub) = normal_photo("mark");
-        image::RgbImage::from_pixel(32, 24, image::Rgb([120, 90, 60])).save(&src).unwrap();
-        let out = std::env::temp_dir().join(format!("autoshade-gui-normal-mark-out-{}", std::process::id()));
-        let _scrub_out = Scrub(vec![out.clone()]);
-        app.exp_dest = ExportDest::LastUsed;
-        app.last_export_dir = Some(out.clone());
-        app.normal.key_present = Some(false);
-        let ctx = egui::Context::default();
-        let size = egui::vec2(1400.0, 1000.0);
-        let drawn = |app: &mut AutoShadeApp, text: &str| window_frame(app, size).0.iter().any(|t| t == text);
-        assert_eq!(app.normal_look_mark(), None, "as opened: nothing to say");
-        app.recipe.exposure_ev = 0.4;
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Unsaved));
-        assert!(drawn(&mut app, tr(Lang::En, "unsaved changes")), "the status bar says so");
-        app.start_normal_save();
-        assert!(app.busy, "the save runs: {}", app.status);
-        land_all(&mut app, &ctx);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "{}", app.status);
-        assert!(drawn(&mut app, tr(Lang::En, "saved as jpg")), "the status bar says so");
-        assert!(!drawn(&mut app, tr(Lang::En, "unsaved changes")));
-        app.recipe.contrast = 20.0;
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Unsaved), "changed again");
-        // The folder delivery saves the open photo too (into a folder of its
-        // own: a batch never overwrites the jpg the single save just wrote).
-        let out2 = std::env::temp_dir().join(format!("autoshade-gui-normal-mark-all-{}", std::process::id()));
-        let _scrub_out2 = Scrub(vec![out2.clone()]);
-        app.exp_dest = ExportDest::Ask;
-        app.normal.folder_pick = Some(Some(out2));
-        app.gallery = vec![src.clone()];
-        app.start_apply_to_folder();
-        land_all(&mut app, &ctx);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "{}", app.status);
-    }
-
     /// A second save into a name the app made never replaces the first and
     /// is never refused: it gets a number — `-2`, then `-3` — claimed on disk
     /// (`claim_numbered`), and the finished line names the file actually
@@ -733,8 +672,8 @@
     /// replace itself) is theirs: it is replaced, not numbered — and the next
     /// app-made name is numbered again. 「Apply to every photo」 into a folder
     /// already saved once writes every photo as `-2`, and says how many got a
-    /// number. Landscape, the control, keeps the library's refusal to replace
-    /// a photo outside its output areas.
+    /// number. The workspace's render path keeps the library's refusal to
+    /// replace a photo outside its output areas.
     ///
     /// MUTATION THIS CATCHES: drop `OutName::Numbered` on either Normal path
     /// (the guard refuses the second save), number the picked file
@@ -742,8 +681,7 @@
     /// (the first jpg is replaced), or name the bare file in the landing,
     /// and an assert below fails.
     #[test]
-    fn a_second_save_gets_a_number_and_never_replaces_the_first() {
-        use crate::panels::normal::LookMark;
+    fn a_second_sidebar_save_gets_a_number_and_never_replaces_the_first() {
         let (mut app, src, _scrub) = normal_photo("numbered");
         image::RgbImage::from_pixel(32, 24, image::Rgb([60, 90, 120])).save(&src).unwrap();
         let src2 = src.with_file_name("_gui_normal_numbered_b.jpg");
@@ -764,7 +702,6 @@
             land_all(&mut app, &ctx);
             let folder = out.file_name().unwrap().to_string_lossy().into_owned();
             assert_eq!(app.status, trf(Lang::En, "Saved {file} to {folder}", &[("file", name), ("folder", &folder)]));
-            assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "{}", app.status);
             sizes.push(std::fs::metadata(out.join(name)).map(|m| m.len()).unwrap_or(0));
         }
         assert!(sizes.iter().all(|&n| n > 0), "three real jpgs, none replaced by the next: {sizes:?}");
@@ -820,87 +757,25 @@
             ],
             "every photo once bare, once with -2"
         );
-        // Landscape keeps the library's refusal (outside its output areas).
-        app.mode = Mode::Landscape;
+        // The workspace's render path keeps the library's refusal (outside
+        // its output areas).
         app.start_render_to(out.join(names[0]));
         assert!(!app.busy);
         assert!(app.status.contains("refusing to overwrite"), "{}", app.status);
     }
 
-    /// The marker says 「saved as jpg」 only while the card on screen, with its
-    /// current look, is what was last saved — so the noise switch, which
-    /// changes the picture and not the look, flips it: saved; denoised card
-    /// on → unsaved; saved again → saved; switch off → unsaved (the original
-    /// card was saved, but before the denoised one); on again → saved (that
-    /// card, that look, is the last jpg).
-    ///
-    /// MUTATION THIS CATCHES: drop the card from `look_mark`'s comparison,
-    /// or record the look without the card on a landed save, and a step
-    /// below fails.
-    #[test]
-    fn the_normal_marker_follows_the_card_on_screen() {
-        use crate::panels::normal::{DenoisePair, LookMark};
-        let (mut app, src, _scrub) = normal_photo("markcard");
-        image::RgbImage::from_pixel(32, 24, image::Rgb([120, 90, 60])).save(&src).unwrap();
-        let master = src.with_file_name("_gui_normal_markcard.denoise.png");
-        image::RgbImage::from_pixel(32, 24, image::Rgb([118, 92, 61])).save(&master).unwrap();
-        let out = std::env::temp_dir().join(format!("autoshade-gui-normal-markcard-out-{}", std::process::id()));
-        let _scrub_out = Scrub(vec![out.clone()]);
-        app.exp_dest = ExportDest::LastUsed;
-        app.last_export_dir = Some(out.clone());
-        let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
-        app.variants = vec![Variant {
-            id: ORIGINAL_VARIANT_ID.into(),
-            name: None,
-            kind: VariantKind::Original,
-            recipe: EditRecipe::default(),
-            base: Some(b0.clone()),
-            origin: None,
-            thumb: None,
-        }];
-        app.active = 0;
-        app.base_preview = Some(b0);
-        app.reset_history();
-        let ctx = egui::Context::default();
-        assert_eq!(app.normal_look_mark(), None, "as opened");
-        app.recipe.exposure_ev = 0.4;
-        app.start_normal_save();
-        land_all(&mut app, &ctx);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "{}", app.status);
-        // The switch's ◈ card lands (through the worker's message): same
-        // look, another picture.
-        app.normal.denoise_pair = Some(DenoisePair { photo: src.clone(), plain: ORIGINAL_VARIANT_ID.into(), denoised: None });
-        let note = RetouchNote::Denoised { out: master.clone(), on_mosaic: false };
-        let done = Ok((image::DynamicImage::new_rgba8(4, 4), note, master.clone(), RetouchKind::NewDenoised));
-        app.tx.send(Msg::Retouched(app.gen_epoch, Box::new(done))).unwrap();
-        app.poll_workers(&ctx);
-        assert_eq!(app.active_source_path().as_deref(), Some(master.as_path()), "the ◈ card is on screen");
-        assert_eq!(app.recipe.exposure_ev, 0.4, "the look is unchanged");
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Unsaved), "denoised: not what was saved");
-        app.start_normal_save();
-        assert!(app.busy, "{}", app.status);
-        land_all(&mut app, &ctx);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "the ◈ card saved: {}", app.status);
-        app.set_normal_denoise(false);
-        assert_eq!(app.active_source_path().as_deref(), Some(src.as_path()));
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Unsaved), "off: the last jpg is the denoised one");
-        app.set_normal_denoise(true);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Saved), "on again: that card and look are the last jpg");
-    }
-
-    /// The refusal Normal's saves still meet — into the photo's own folder,
-    /// which the library guard keeps read-only (`SourceFolderRefused`) —
-    /// reads as one plain sentence on both saving paths, matched by type:
-    /// the single save (refused before it renders, no claim left behind) and
-    /// 「apply to every photo」 (refused per photo inside the batch, nothing
-    /// marked saved). Landscape, the control, keeps the library's own line.
+    /// The refusal a save into the photo's own folder meets — the library
+    /// guard keeps that folder read-only (`SourceFolderRefused`) — reads as
+    /// one plain sentence on every path, matched by type: the single save
+    /// (refused before it renders, no claim left behind), 「apply to every
+    /// photo」 (refused per photo inside the batch) and the workspace's own
+    /// render path.
     ///
     /// MUTATION THIS CATCHES: let a numbered save step past this refusal,
     /// stop counting it by type in the batch worker, or stop mapping it on
     /// the single path, and an assert below fails.
     #[test]
     fn a_save_into_the_photos_own_folder_is_refused_plainly_in_normal() {
-        use crate::panels::normal::LookMark;
         let (mut app, src, _scrub) = normal_photo("ownfolder");
         image::RgbImage::from_pixel(32, 24, image::Rgb([60, 90, 120])).save(&src).unwrap();
         let own = src.parent().unwrap().to_path_buf();
@@ -908,7 +783,6 @@
         app.last_export_dir = Some(own.clone());
         let ctx = egui::Context::default();
         let plain = tr(Lang::En, "AutoShade never saves into the folder your photos are in. Pick another folder.");
-        assert_eq!(app.normal_look_mark(), None, "as opened");
         app.recipe.exposure_ev = 0.3;
         app.start_normal_save();
         assert!(!app.busy);
@@ -918,12 +792,10 @@
         app.start_apply_to_folder();
         land_all(&mut app, &ctx);
         assert_eq!(app.status, plain);
-        assert_eq!(app.normal_look_mark(), Some(LookMark::Unsaved), "nothing was saved");
         let files: Vec<_> = std::fs::read_dir(&own).unwrap().map(|e| e.unwrap().file_name()).collect();
         assert_eq!(files, vec![src.file_name().unwrap().to_os_string()], "nothing written beside the photo");
-        app.mode = Mode::Landscape;
         app.start_render_to(own.join(app.export_file_name_as("jpg")));
-        assert!(app.status.contains("refusing to write into"), "{}", app.status);
+        assert_eq!(app.status, plain, "the workspace's render path words the same refusal plainly");
     }
 
     /// The mean brightness of a jpg the Save group wrote.

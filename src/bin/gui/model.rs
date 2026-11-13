@@ -293,11 +293,6 @@ pub(crate) struct Prefs {
     pub(crate) lang: Lang,
     pub(crate) theme: ThemePref,
     pub(crate) accent: AccentPref,
-    /// The mode chosen last (`mode.rs`): it only highlights that card on the
-    /// mode page, which opens on every launch (user ruling 2026-10-23). An
-    /// older prefs file decodes to `Landscape` through the struct's
-    /// `#[serde(default)]`, the workspace every user had before.
-    pub(crate) mode: Mode,
 }
 
 impl Default for Prefs {
@@ -353,7 +348,6 @@ impl Default for Prefs {
             lang: Lang::En, // English is the default / skeleton language
             theme: ThemePref::Dark, // the historical look
             accent: AccentPref::Gold,
-            mode: Mode::Landscape,
         }
     }
 }
@@ -811,12 +805,16 @@ pub(crate) enum Msg {
     StyleBuildProgress { stage: autoshade::library::BuildStage, done: usize, total: usize },
     /// A reference-library build finished — see [`StyleBuildOutcome`].
     StyleBuilt(Box<StyleBuildOutcome>),
-    /// Normal mode's reference folder is being read into its own library
+    /// Normal's reference folder is being read into its own library
     /// (`panels/normal.rs`): `done` of `total` photos.
     OneClickBuildProgress { done: usize, total: usize },
     /// …and finished: how many photos the library holds, or why it failed.
     /// The landing hands over to the analysis (`on_one_click_built`).
     OneClickBuilt(Result<usize, String>),
+    /// The managed Python environment's install printed a line (uv's stderr).
+    PythonEnvLine(String),
+    /// …and finished: the environment's interpreter, or why it failed.
+    PythonEnvReady(anyhow::Result<String>),
     /// The Portraits panel's find step finished (`panels/portrait.rs`): the
     /// subject matte and the faces, as facts for the landing.
     PortraitFound(Box<crate::panels::portrait::PortraitFind>),

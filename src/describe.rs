@@ -52,7 +52,7 @@ pub struct DescribeOpts {
 impl DescribeOpts {
     pub fn from_config(cfg: &Config) -> Self {
         DescribeOpts {
-            python_bin: cfg.python_bin.clone(),
+            python_bin: cfg.sidecar_python(),
             script: PathBuf::from(&cfg.describe_script),
         }
     }

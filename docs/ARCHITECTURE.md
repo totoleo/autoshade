@@ -1337,7 +1337,7 @@
 > | `correspond.py` | `correspond.rs` | **Stable Diffusion 2.1** as a DIFT featurizer (unet+vae+text encoder, fp16), sha256-pinned | CreativeML Open RAIL++-M | 2,580,061,174 B |
 > | `describe.py` | `describe.rs` | **Qwen3-VL-2B-Instruct**, one grade sentence per photo, sha256-pinned | Apache-2.0 | 4,255,140,312 B |
 > | `depth.py` | `depth.rs` | **MoGe-2 ViT-L + normal head**, the AI lens blur's depth map, sha256-pinned; its inference code is vendored in `python/_moge/` (see `VENDORED.md`) because the upstream package pulls a web UI, a mesh library and a CUDA extension that must compile | MIT (DINOv2 backbone code Apache-2.0) | 1,323,815,904 B |
-> | `face.py` | `face.rs` | **MediaPipe Face Landmarker** bundle (`face_landmarker.task`, float16, version 1: BlazeFace short-range detector, Face Mesh V2, blendshapes), sha256-pinned; run by the `mediapipe` package; the Portraits mode's face and eye outlines. When the whole-frame pass finds fewer faces than asked, the same models search again on overlapping 2×2, 3×3 then 4×4 tiles, so a face down to 1/25 of the frame's long edge is found | Apache-2.0 (all three model cards) | 3,758,596 B |
+> | `face.py` | `face.rs` | **MediaPipe Face Landmarker** bundle (`face_landmarker.task`, float16, version 1: BlazeFace short-range detector, Face Mesh V2, blendshapes), sha256-pinned; run by the `mediapipe` package; the Portraits panel's face and eye outlines. When the whole-frame pass finds fewer faces than asked, the same models search again on overlapping 2×2, 3×3 then 4×4 tiles, so a face down to 1/25 of the frame's long edge is found | Apache-2.0 (all three model cards) | 3,758,596 B |
 >
 > **Faces, portrait masks and the protected blur (v1.14.0).** `face.py` writes
 > JSON rather than a mask: every face's box, the detector's score, the face
@@ -1531,6 +1531,22 @@
 > a reproduction of Adobe's mask, and `MaskImportReason::AiMaskRecomputed` /
 > `MaskLossReason::AiMaskRecomputed` say that in both languages and in both
 > directions.
+>
+> **The interpreter the sidecars run in (2026-11-12).**
+> `config::Config::sidecar_python` resolves what every sidecar spawn executes:
+> an interpreter the user named (the Settings field or `AUTOSHADE_PYTHON`)
+> wins; otherwise the managed environment under the store root
+> ([`src/python_env.rs`](../src/python_env.rs) — `uv venv` plus
+> `uv pip install -r python/requirements-{cuda,macos}.txt`) outranks the
+> platform default, so the app never executes whichever `python` happens to be
+> first on `PATH`. The environment is PREPARED only by an explicit action —
+> Settings' 「Prepare Python environment」 or
+> `autoshade python-env --install` — because the CUDA wheel set is a
+> multi-gigabyte download; `install` forwards `uv`'s stderr line by line so the
+> caller can say what the download is doing. The desktop app runs
+> `python_env::inspect` once at launch — a file check when the managed
+> environment answers, a probe (`-c` reporting the major version) otherwise —
+> and says one line when the interpreter is not a Python 3.
 
 ## 1. The core idea
 
@@ -3458,8 +3474,8 @@ kind or store flag is needed.
 A whole-frame reimagine (`RetouchNote::Reimagined`) lands the same way and,
 since v1.17.0, then asks whether to reverse-fit it. `offer_fit_prompt` opens
 a `FitPrompt` (the new card's id, its D, the「From:」pick, the「Don't ask
-again」box) unless a job is running, `Prefs::ask_fit_after_generate` is off,
-or the shell has no reverse-fit fold (`Shell::one_click_sidebar`); an adjust
+again」box) unless a job is running or `Prefs::ask_fit_after_generate` is off;
+an adjust
 does not ask. The pick starts on the ▣ card, not on `negative_index`, which
 would choose a ◈ / ▦ master. `fit_prompt_layer` is the quit layer's shape — a
 scrim and a centred `egui::Window`, with `modal_up` gating the shortcut tiers
@@ -7473,24 +7489,24 @@ app, with `eframe/persistence` remembering window geometry and our own prefs),
 egui pulls — used to pre-validate a CJK font before handing it to egui, which
 panics on an unparseable one, so font loading degrades safely.
 
-**The GUI's modes.** The desktop app opens on a mode page
-([`src/bin/gui/mode.rs`](../src/bin/gui/mode.rs)) on every launch — Landscape,
-Portraits, Normal — and the choice is a GUI-layer preference only: `Prefs.mode`
-in `gui-prefs.ron`, read back just to mark the last card. A mode is a table of
-display switches (`Mode::shell`) that the shared panel code reads at the one
-place each switch governs — which sections are drawn, whether the reverse-fit's
-local-area switches are folded, the Open dialog's extension order. The
-library, the CLI, the web UI and the recipe format know nothing of it, so no battery, gate or saved develop forks
-on a mode.
+**The GUI's one workspace.** The desktop app opens straight into the
+workspace: there is no mode page and no `Mode`/`Shell` table. Every shared
+panel, the full toolbar, the library batch rows, the canvas tool marks and the
+variant strip are always drawn; the Open dialog lists RAWs before rendered
+images, and the reverse-fit's local-area switches stand in place rather than
+in a fold. `Prefs` has no mode key, and an older `gui-prefs.ron` that still
+carries `mode:…` decodes — RON ignores the unknown field — with every setting
+beside it restored.
 
-**Normal mode's panel.** Normal is the same table of switches, not a second
-workspace: `Shell::one_click_sidebar` draws
-[`src/bin/gui/panels/normal.rs`](../src/bin/gui/panels/normal.rs) in place of
-the shared panels, and `full_toolbar`, `library_batch_rows`,
-`canvas_tool_marks` and `variant_strip` hide the rest (§4 of the design: the
-toolbar keeps mode / open / undo / redo / compare / settings, the library
-panel its folder and thumbnails, the canvas Fit and 1:1). Every verb on the
-panel is an existing door. A one-click look is `pipeline::produce_recipe`
+`controls_column` is one scroll column. Top to bottom it draws the Portraits
+panel ([`src/bin/gui/panels/portrait.rs`](../src/bin/gui/panels/portrait.rs)),
+Normal's four groups
+([`src/bin/gui/panels/normal.rs`](../src/bin/gui/panels/normal.rs)), then the
+shared AI / Develop / Retouch panels.
+
+**Normal's four groups.** Normal is not a second workspace: its four groups —
+one-click look, fine-tune, noise, save — are drawn in the same sidebar above
+the shared panels. Every verb on the panel is an existing door. A one-click look is `pipeline::produce_recipe`
 through the analyze worker every analysis shares (`spawn_analyze`): a preset
 is `Guide::Direction` with a fixed text from
 [`advisor::presets`](../src/advisor/presets.rs) (six looks, each saying what
@@ -7522,27 +7538,24 @@ forbids — and `OutName::Numbered` for a name the app made: `pipeline::claim_nu
 claims the bare name or the first free `-2`, `-3`, … beside it by
 `create_new`, so a second save never replaces the first and is not refused; a
 file picked in the save window is `OutName::Chosen` and is replaced, as that
-window confirmed), and Ctrl+S / Ctrl+E take the same
-path in Normal; "apply to every
+window confirmed). The workspace's Ctrl+S saves the develop and Ctrl+E
+exports; 「Save as jpg」 is this sidebar's own button. "apply to every
 photo" settles that folder first, then runs `start_paste_to` and
 `start_batch_render_for` over the folder, numbered the same way (each
-numbered name joins the batch's `renamed` disclosures). A mode without canvas tools holds
-none armed: `put_down_hidden_tools` runs at the head of the status bar each
-frame, before the status text and the canvas are drawn. The status bar's
-marker in Normal follows the jpg (`normal_look_mark`: the card on screen — the
-file it renders from — and its look against the ones the photo opened with or
-a landed Save-group delivery last wrote), not the develop record the
-workspace's marker compares. `guard_readonly`'s two refusals are
+numbered name joins the batch's `renamed` disclosures). The status bar's
+unsaved marker is the workspace's develop marker (`unsaved_marker_dirty`):
+a jpg delivery has no second marker of its own.
+`guard_readonly`'s two refusals are
 typed (`pipeline::OverwriteRefused` and `pipeline::SourceFolderRefused`, same
 messages as before): Normal's numbered saves step past the first and meet only
 the second, which the batch worker counts per photo by type
-(`ExportOutcome::Batch::refused`) and Normal words plainly on both the single
-and the batch path, never by matching its English.
+(`ExportOutcome::Batch::refused`) and both saving paths word plainly, never by
+matching its English.
 
-**The Portraits mode's panel.** Portraits keeps every shared panel and adds
-one above them: `Shell::portrait_panel` draws
-[`src/bin/gui/panels/portrait.rs`](../src/bin/gui/panels/portrait.rs) at the
-top of `controls_column`. Its four groups are doors the workspace already has.
+**The Portraits panel.** It is drawn first in the same sidebar, above Normal's
+groups and the shared panels
+([`src/bin/gui/panels/portrait.rs`](../src/bin/gui/panels/portrait.rs)).
+Its four groups are doors the workspace already has.
 "Find people and faces" is one worker running two sidecars on the
 original-frame preview — `segment::segment_file` with the `subject` target and
 `face::detect_faces` — and its landing (`on_portrait_found`) adds or
@@ -7580,8 +7593,7 @@ them where it is written, not a frame later: an analysis landing in
 Portraits clamps the recipe `on_analyzed` saves (`skin_held`), the AI
 portrait look's masks and blur are put back on the landed recipe before that
 write (`restore_portrait_masks`), and a paste clamps each target by its own
-switch (`skin_held_for`). Entering Portraits from another mode switches off a
-card already past the limits (`decide_keep_skin_on_entry`), and an undo or
+switch (`skin_held_for`). An undo or
 redo that puts such a step back does the same (`release_skin_for_history`),
 so neither changes a value nor records a step over the redo history. A
 search that finds no face takes the Face, Eyes and Skin masks away. The skin

@@ -591,6 +591,8 @@ impl AutoShadeApp {
                     self.normal.build_progress = Some((done, total));
                 }
                 Msg::OneClickBuilt(res) => self.on_one_click_built(lang, res),
+                Msg::PythonEnvLine(line) => self.python_env_line = Some(line),
+                Msg::PythonEnvReady(res) => self.on_python_env_ready(lang, res),
                 Msg::PortraitFound(found) => self.on_portrait_found(lang, *found),
                 Msg::Exported(Ok(outcome)) => {
                     // Normal's Save group words its own landing (`normal.rs`).
@@ -728,7 +730,6 @@ impl AutoShadeApp {
                 Msg::Exported(Err(e)) => {
                     self.batch_progress = None;
                     self.normal.delivering = false;
-                    self.normal.saving = None;
                     self.fail(tr(lang, "export failed"), e);
                 }
                 Msg::BatchProgress { done, total } => {
