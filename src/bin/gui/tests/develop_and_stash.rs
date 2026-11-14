@@ -143,11 +143,11 @@
         app.saved_recipe = app.recipe.clone(); // this canvas is clean
         app.variants[0].origin = None;
         app.pixels_on_disk = None;
-        let clean = PathBuf::from("D:/__autoshade_chain__/clean.ARW");
+        let clean = std::env::temp_dir().join(format!("autoshade-chain-{}/clean.ARW", std::process::id()));
         app.src_path = Some(clean.clone());
         // ANOTHER photo's stash holds a dirty background variant.
         app.nav_stash.insert(
-            PathBuf::from("D:/__autoshade_chain__/other.ARW"),
+            std::env::temp_dir().join(format!("autoshade-chain-{}/other.ARW", std::process::id())),
             StashEntry {
                 id: String::new(),
                 name: None,
@@ -171,7 +171,7 @@
             app.inactive_dirty_variants() > 0,
             "the quit surfaces still see the other photo's work"
         );
-        app.open_path(PathBuf::from("D:/__autoshade_chain__/next.ARW"));
+        app.open_path(std::env::temp_dir().join(format!("autoshade-chain-{}/next.ARW", std::process::id())));
         assert!(
             !app.nav_stash.contains_key(&clean),
             "a clean photo must not be stashed for another photo's background work"
@@ -204,11 +204,11 @@
         // cwd ./out legacy sidecars by stem (see the keep-fact test). The
         // nav target's own rename is defence-in-depth — its decode fails
         // into the Err arm, which never reads a sidecar.
-        let old = PathBuf::from("D:/__autoshade_h4__/__autoshade_h4_a__.ARW");
+        let old = std::env::temp_dir().join(format!("autoshade-h4-{}/__autoshade_h4_a__.ARW", std::process::id()));
         app.src_path = Some(old.clone());
         assert_eq!(app.inactive_dirty_variants(), 1, "premise: background dirty");
         // Navigate away — the stash snapshot is written synchronously.
-        app.open_path(PathBuf::from("D:/__autoshade_h4__/__autoshade_h4_b__.ARW"));
+        app.open_path(std::env::temp_dir().join(format!("autoshade-h4-{}/__autoshade_h4_b__.ARW", std::process::id())));
         {
             let st = app.nav_stash.get(&old).expect("background work must stash the strip");
             assert_eq!(st.others.len(), 1);
@@ -334,7 +334,7 @@
         // sidecar → migrated into the central store on first read. Unique stem
         // so parallel tests can't race; the whole develop dir is scrubbed
         // before and after (its key is derived from this fake path only).
-        let src = std::path::Path::new("D:/library/_sidecar_prio_test.ARW"); // never touched
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/_sidecar_prio_test.ARW", std::process::id())); // never touched
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev); // a crashed earlier run may have left files
         std::fs::create_dir_all(&dev).unwrap();
@@ -423,7 +423,7 @@
         // other's. A SEPARATE photo path: migrate_legacy memoizes per photo per
         // process, so `src` (already touched above with nothing legacy) would
         // correctly skip the scan — the production contract, not a test bug.
-        let src2 = std::path::Path::new("D:/library/_sidecar_prio_test_legacy.ARW");
+        let src2 = &std::env::temp_dir().join(format!("autoshade-library-{}/_sidecar_prio_test_legacy.ARW", std::process::id()));
         let dev2 = autoshade::store::develop_dir(src2);
         let _ = std::fs::remove_dir_all(&dev2);
         let legacy_rj2 =
@@ -454,7 +454,7 @@
     /// reading side widened.
     #[test]
     fn a_neutral_active_card_does_not_deny_strip_or_pixel_work() {
-        let src = std::path::Path::new("D:/library/_noop_note_scope_test.ARW"); // never touched
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/_noop_note_scope_test.ARW", std::process::id())); // never touched
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev);
         std::fs::create_dir_all(&dev).unwrap();
@@ -798,7 +798,7 @@
     /// replaced by the commit, not by a write that runs after it.
     #[test]
     fn ctrl_s_publishes_the_projection_in_the_recipes_generation() {
-        let src = std::path::Path::new("D:/library/_gui_ctrl_s_projection.ARW"); // never touched
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/_gui_ctrl_s_projection.ARW", std::process::id())); // never touched
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev);
         std::fs::create_dir_all(&dev).unwrap();

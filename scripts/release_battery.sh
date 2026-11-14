@@ -15,7 +15,7 @@
 # the calibration lane straight out of it.
 #
 #   scripts/release_battery.sh                       # all three lanes
-#   scripts/release_battery.sh --out /tmp/b.txt      # transcript elsewhere
+#   scripts/release_battery.sh --out target/b.txt      # transcript elsewhere
 #   scripts/release_battery.sh --save-baseline       # re-pin the name list
 #   scripts/release_battery.sh --baseline names.txt  # diff against that list
 #
@@ -238,7 +238,8 @@ elif [ -f "$BASELINE" ]; then
     # version of this script, or copied from the harness's own `--list`, still
     # carries the `: test` suffix; strip it here so both sides compare by name.
     BASE_NAMES="$WORK/baseline-names.txt"
-    sed 's/: test$//' "$BASELINE" | tr -d '' | sort > "$BASE_NAMES"
+    sed 's/: test$//' "$BASELINE" | tr -d '
+' | sort > "$BASE_NAMES"
     ADDED=$(comm -13 "$BASE_NAMES" "$NAMES" | wc -l | tr -d ' ')
     REMOVED=$(comm -23 "$BASE_NAMES" "$NAMES" | wc -l | tr -d ' ')
     {

@@ -745,7 +745,7 @@ mod tests {
     /// runs give which stage owns it.
     ///
     /// ```text
-    /// set AUTOSHADE_PEAK_PROBE_RAW=C:\…\a-61MP.ARW
+    /// set AUTOSHADE_PEAK_PROBE_RAW=<folder>\a-61MP.ARW
     /// set AUTOSHADE_PEAK_PROBE_STAGE=render
     /// cargo test --release --lib -- --ignored --nocapture --test-threads=1 \
     ///     jobs::tests::probe_per_photo_peak_commit

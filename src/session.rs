@@ -188,17 +188,24 @@ mod session_tests {
     use super::*;
     use serde_json::json;
 
+    fn commit_fixture() -> (String, String) {
+        let dev = std::env::temp_dir().join(format!("autoshade-store-{}/dev", std::process::id()));
+        let xmp = dev.join("x.xmp");
+        (dev.display().to_string(), xmp.display().to_string())
+    }
+
     fn transcript() -> Value {
+        let (develop, xmp) = commit_fixture();
         json!({
             "session": "analyze-1",
             "photo": "DSC00001.ARW",
-            "photo_path": "E:/photos/DSC00001.ARW",
+            "photo_path": "library/DSC00001.ARW",
             "model": "deepseek/deepseek-flash",
             "verdicts": [
                 { "decision": "revise", "score": 80 },
                 { "decision": "accept", "score": 84 }
             ],
-            "commit": { "develop": "D:/store/dev", "xmp": "D:/store/dev/x.xmp", "note": "n" },
+            "commit": { "develop": develop, "xmp": xmp, "note": "n" },
             "messages": [
                 { "role": "system", "content": "sys" },
                 { "role": "user", "content": "go" },
@@ -245,10 +252,8 @@ mod session_tests {
     #[test]
     fn commit_accepts_object_and_legacy_string_forms() {
         let t = transcript();
-        assert_eq!(
-            commit_paths(&t),
-            ("D:/store/dev".into(), "D:/store/dev/x.xmp".into(), "n".into())
-        );
+        let (develop, xmp) = commit_fixture();
+        assert_eq!(commit_paths(&t), (develop, xmp, "n".into()));
         let legacy = json!({ "commit": "{\"develop\":\"d\",\"xmp\":\"x\",\"note\":\"\"}" });
         assert_eq!(commit_paths(&legacy), ("d".into(), "x".into(), String::new()));
         assert_eq!(

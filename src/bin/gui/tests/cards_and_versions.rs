@@ -215,7 +215,7 @@
         // Positive control first: with NO transient up, R arms the crop —
         // proving this harness actually reaches the tool tier.
         let mut app = AutoShadeApp {
-            src_path: Some(std::path::PathBuf::from("D:/library/x.arw")),
+            src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/x.arw", std::process::id()))),
             ..Default::default()
         };
         let mut input = egui::RawInput::default();
@@ -225,7 +225,7 @@
 
         // The negative: a transient (Settings) swallows the tool tier…
         let mut app = AutoShadeApp {
-            src_path: Some(std::path::PathBuf::from("D:/library/x.arw")),
+            src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/x.arw", std::process::id()))),
             show_settings: true,
             ..Default::default()
         };
@@ -679,7 +679,7 @@
             )),
             ..Default::default()
         };
-        let photo = PathBuf::from("D:/library/_strip_affordances.ARW");
+        let photo = std::env::temp_dir().join(format!("autoshade-library-{}/_strip_affordances.ARW", std::process::id()));
         for (kind, expect_enabled) in
             [(VariantKind::Fitted, true), (VariantKind::Generated, false)]
         {
@@ -744,7 +744,7 @@
             origin: None,
             thumb: None,
         };
-        let photo = PathBuf::from("D:/library/_rename_card.ARW");
+        let photo = std::env::temp_dir().join(format!("autoshade-library-{}/_rename_card.ARW", std::process::id()));
         let mut app = AutoShadeApp {
             src_path: Some(photo.clone()),
             variants: vec![

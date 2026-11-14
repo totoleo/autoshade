@@ -196,12 +196,13 @@ pub(crate) fn source_text() -> String {
 #[cfg(test)]
 #[test]
 fn the_stem_fold_never_invents_a_name_ntfs_cannot_resolve() {
-    let (upper, lower) = (Path::new("D:/p/DSC001.ARW"), Path::new("D:/p/dsc001.arw"));
+    let base = std::env::temp_dir().join(format!("autoshade-p-{}", std::process::id()));
+    let (upper, lower) = (base.join("DSC001.ARW"), base.join("dsc001.arw"));
     // ASCII case folds (the reason the fold exists): on a case-insensitive
     // volume these two spellings open ONE file, so they owe one develop dir.
     assert_eq!(
-        key_from_spelling_folded(upper, true),
-        key_from_spelling_folded(lower, true),
+        key_from_spelling_folded(&upper, true),
+        key_from_spelling_folded(&lower, true),
         "a folding host owes one key for two spellings of one file"
     );
     // And where paths are case-SENSITIVE the same two spellings are two
@@ -209,25 +210,25 @@ fn the_stem_fold_never_invents_a_name_ntfs_cannot_resolve() {
     // one develop lock, so each save would overwrite the other's recipe —
     // distinct keys is the correct answer there, not a missing feature.
     assert_ne!(
-        key_from_spelling_folded(upper, false),
-        key_from_spelling_folded(lower, false),
+        key_from_spelling_folded(&upper, false),
+        key_from_spelling_folded(&lower, false),
         "a case-sensitive host must not merge two photos into one develop"
     );
     // The wiring: `photo_key` folds exactly where the platform guarantees
     // case-insensitive paths for every local volume, and NOT per volume — see
     // its doc comment for why a key may not depend on a probe that can fail.
     if cfg!(windows) {
-        assert_eq!(photo_key(upper), photo_key(lower), "NTFS: one file, one key");
+        assert_eq!(photo_key(&upper), photo_key(&lower), "NTFS: one file, one key");
     } else {
-        assert_ne!(photo_key(upper), photo_key(lower), "case-sensitive host: two files, two keys");
+        assert_ne!(photo_key(&upper), photo_key(&lower), "case-sensitive host: two files, two keys");
     }
     // Non-ASCII stems are left ALONE even on the folding branch: Rust's full
     // lowercase maps these to names NTFS does not consider equal to the
     // original, so folding them would point at a directory that does not
     // exist. Driven through `folded = true` so the check runs everywhere.
     for stem in ["\u{130}MG_001", "\u{3a3}\u{391}\u{3a3}", "\u{1e9e}"] {
-        let p = format!("D:/p/{stem}.ARW");
-        let key = key_from_spelling_folded(Path::new(&p), true);
+        let p = base.join(format!("{stem}.ARW"));
+        let key = key_from_spelling_folded(&p, true);
         let folded = key.rsplit_once('-').expect("key is <stem>-<hash>").0;
         // Each fixture is a case where Rust's full lowercase and NTFS's own
         // folding disagree — that is what makes it a fixture at all.

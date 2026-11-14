@@ -259,55 +259,21 @@ pub(crate) fn paste_payload(src: EditRecipe, paste_geometry: bool) -> PastePaylo
         own.crop = None;
         own.straighten_deg = 0.0;
     }
-    let mut foreign = own.clone();
-    // Bitmap masks reference per-photo rasters keyed to the SOURCE stem —
-    // pasted onto ANOTHER photo they point at the wrong file (and classic XMP
-    // cannot carry them, so recipe.json and .xmp would disagree).
-    //
-    // The reverse-fit's sky/land ZONES travel no better, and they are AI masks
-    // now (`recipe::MaskGeometry::select_sky`), so the variant test alone would
-    // have carried a stale raster onto a photo it was never segmented for. The
-    // distinction is `MaskRole::is_zone`: an IMPORTED Lightroom AI mask carries
-    // only intent, and `segment::resolve_ai_masks` re-derives it against
-    // whatever photo it lands on, so that one still pastes.
-    // Four-gradient tiles carry their complete geometry and can travel; a
-    // refined Bitmap anywhere in the composition still belongs to its photo.
-    let photo_keyed = |m: &autoshade::recipe::LocalAdjustment| {
-        std::iter::once(&m.mask).chain(m.components.iter().map(|c| &c.geometry))
-            .any(|g| matches!(g, autoshade::recipe::MaskGeometry::Bitmap { .. })
-                || (m.role.is_zone() && autoshade::render::geometry_raster_path(g).is_some()))
-    };
-    let unpastable_masks = foreign.masks.iter().filter(|m| photo_keyed(m)).count();
-    foreign.masks.retain(|m| !photo_keyed(m));
-    // The R25 B4 PASS-THROUGH map is PER-DOCUMENT state, not a setting (R25
-    // P8). Nothing in this app can author it — it is filled by reading one
-    // photo's sidecar and by nothing else — so carrying it to another photo
-    // copies the SOURCE's Upright solution and camera profile name into a
-    // develop that would write them into the TARGET's file beside a RAW they
-    // were never solved for, and the read-only Transform / camera-profile
-    // section would show the wrong photo's values on the canvas the moment the
-    // paste landed. Silent by design, unlike the bitmap masks above: an empty
-    // map
-    // STRIPS nothing (`xmp::merge_strip_keys`), so every target's own block
-    // survives untouched in its own sidecar and there is no loss to report.
-    foreign.passthrough.clear();
-    // R33 §G. A colour field is PER-PHOTO in the strongest sense a control in
-    // this recipe can be: its twelve-by-eight spatial cells are normalised to
-    // the frame it was solved on, so cell (3, 1) means "this scene's left-of-
-    // centre sky" and nothing at all on another photograph. Pasted across, it
-    // would land a measured correction on whatever content happened to sit at
-    // the same coordinates. Counted rather than silently dropped, like the
-    // bitmap masks above: the two losses are the same kind of loss.
-    let colour_field = foreign.colour_field.take().is_some();
-    // A fill layer is the source frame's own pixels at the source frame's
-    // coordinates — on another photograph it would paste that scene's patch
-    // over whatever sits there. Counted, like the two losses above.
-    let layers = std::mem::take(&mut foreign.pixel_layers).len();
-    // A lens blur's depth map is the source scene's distances — on another
-    // photograph it would blur whatever sat where the source's background
-    // was. Counted, like the losses above.
-    let lens_blur = foreign.lens_blur.take().is_some();
-    PastePayload { own, foreign, unpastable_masks, colour_field, layers, lens_blur }
+    // The foreign arm's rule lives in `recipe_library::portable` — the library
+    // saves entries through the same function, so a paste and a library entry
+    // carry exactly what the other would (the bitmap masks and the reverse-fit
+    // zones whose rasters belong to one photo, the pass-through map, the
+    // per-photo colour field, the source frame's fill layers, and the lens
+    // blur whose depth map measures the source scene).
+    let (foreign, losses) = autoshade::recipe_library::portable(&own, paste_geometry);
+    PastePayload {
+        own,
+        foreign,
+        unpastable_masks: losses.masks,
+        colour_field: losses.colour_field,
+        layers: losses.layers,
+        lens_blur: losses.lens_blur,
+    }
 }
 
 impl AutoShadeApp {
@@ -321,7 +287,7 @@ impl AutoShadeApp {
     }
 
     /// One-line echo of the current delivery settings for the Export hover —
-    /// e.g. "JPEG · 2560 px · q95 · sRGB (universal) · → D:\deliver" — so the
+    /// e.g. "JPEG · 2560 px · q95 · sRGB (universal) · → <delivery>" — so the
     /// state stays glanceable now that the settings live in the Export section
     /// instead of a toolbar row. The DESTINATION is the last segment (R22-7):
     /// it is the one delivery setting whose wrong value sends a file somewhere
@@ -444,12 +410,12 @@ impl AutoShadeApp {
             return false;
         }
         let lang = self.lang;
-        // Same library-read-only gate every CLI export runs: without it, the
-        // export dialog's chosen path was the one door that could drop a
-        // developed.tif beside the source RAW. Guard BOTH anchors: `path` is
-        // the render source, which for a Generated variant is the ./out PNG —
-        // guarding only that would leave the ORIGINAL photo's library folder
-        // unprotected exactly when a generated variant is active.
+        // The same guard every CLI export runs: it refuses a destination that
+        // would REPLACE an existing photo (a new name anywhere is writable,
+        // including beside the source). Guard BOTH anchors: `path` is the
+        // render source, which for a Generated variant is the ./out PNG —
+        // guarding only that would leave the ORIGINAL photo unprotected
+        // exactly when a generated variant is active.
         let mut anchors = vec![path.clone()];
         if let Some(orig) = self.src_path.clone()
             && orig != path
@@ -464,7 +430,7 @@ impl AutoShadeApp {
                 if name != OutName::Guarded && e.is::<autoshade::pipeline::OverwriteRefused>() {
                     continue;
                 }
-                let t = self.plain_refusal(lang, &e).unwrap_or_else(|| e.to_string());
+                let t = e.to_string();
                 self.status = t.clone();
                 self.toast(ToastKind::Error, t);
                 return false;
@@ -727,7 +693,6 @@ impl AutoShadeApp {
                 let res = {
                     let total = targets.len();
                     let (mut okn, mut errs) = (0usize, Vec::<String>::new());
-                    let mut refused = 0usize;
                     // A selection can hold two same-stem photos (different
                     // folders). Batch-scope claims keep their deliverables
                     // apart; the summary disloses which photo took which
@@ -911,9 +876,6 @@ impl AutoShadeApp {
                                     release_empty_claim(c);
                                 }
                                 // Typed, before the text is all that is left.
-                                if e.chain().any(|c| c.is::<autoshade::pipeline::SourceFolderRefused>()) {
-                                    refused += 1;
-                                }
                                 errs.push(format!("{}: {e}", autoshade::pipeline::stem(p)));
                             }
                         }
@@ -942,7 +904,6 @@ impl AutoShadeApp {
                         // re-derived at the landing (the Destination combo
                         // stays reachable while a batch runs).
                         dest: dest_fact,
-                        refused,
                     })
                 };
                 Msg::Exported(res)

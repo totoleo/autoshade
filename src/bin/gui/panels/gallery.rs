@@ -83,6 +83,16 @@ impl AutoShadeApp {
                 .on_hover_text(tr(lang, "Off by default — composition rarely transfers between photos"));
         }
         ui.separator();
+        if action_row(ui, true, tr(lang, "Recipe library…"))
+            .on_hover_text(tr(
+                lang,
+                "Save this photo's look under a name, apply it to any photo, rename or delete it",
+            ))
+            .clicked()
+        {
+            self.open_recipe_library();
+        }
+        ui.separator();
         if self.gallery.is_empty() {
             // Two different situations, two different messages: "no folder"
             // invites opening one; "empty folder" says the folder itself has

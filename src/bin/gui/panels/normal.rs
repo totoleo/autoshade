@@ -510,20 +510,8 @@ impl AutoShadeApp {
             }
             // Every failure was the refusal to save into the photos' own
             // folder (counted by type in the worker): the plain sentence.
-            ExportOutcome::Batch { errs, refused, .. } if *refused == errs.len() => {
-                Some(tr(lang, "AutoShade never saves into the folder your photos are in. Pick another folder.").to_string())
-            }
             ExportOutcome::Batch { .. } => None,
         }
-    }
-
-    /// Normal's words for `pipeline::SourceFolderRefused` — the refusal
-    /// Normal's numbered saves can still meet — matched by type (anywhere in
-    /// the chain), never by its English; `None` for any other error.
-    pub(crate) fn plain_refusal(&self, lang: Lang, e: &anyhow::Error) -> Option<String> {
-        e.chain()
-            .any(|c| c.is::<autoshade::pipeline::SourceFolderRefused>())
-            .then(|| tr(lang, "AutoShade never saves into the folder your photos are in. Pick another folder.").to_string())
     }
 
     /// Is the noise switch on: the card on screen is a ◈ card, or the
@@ -877,9 +865,10 @@ impl AutoShadeApp {
                     }
                 });
         });
-        // Never beside the photo (the library is read-only): the app's output
-        // folder from Settings, or the folder last saved to, or a dialog —
-        // the one destination setting the workspace's Export reads.
+        // The app's output folder from Settings, or the folder last saved to,
+        // or a dialog — the one destination setting the workspace's Export
+        // reads. (A folder inside the photo library is a valid destination; a
+        // save only refuses to REPLACE an existing photo.)
         let place = match (self.exp_dest, self.export_dest_dir()) {
             (_, None) => tr(lang, "Asks where to save each time").to_string(),
             (ExportDest::LastUsed, Some(d)) => {

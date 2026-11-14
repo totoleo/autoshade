@@ -614,41 +614,6 @@
         assert!(!xmp_loss_interrupts(&[], &[]));
     }
 
-    /// R24 round-end LOW-3: choosing a delivery root inside the photo library
-    /// silently retires that folder's read-only protection —
-    /// `pipeline::guard_readonly` allows anything under the delivery root
-    /// BEFORE it refuses the source RAW's own folder. `Trust::Destination`
-    /// stops a PLANTED root from doing this; the user picking one in Settings
-    /// had nothing on screen saying what it costs. This pins the dynamic arm
-    /// (the one that knows which photo is open) — lexical, filesystem-free,
-    /// and symmetric: containment either way is the same loss.
-    #[test]
-    fn a_delivery_root_that_overlaps_the_open_photos_folder_is_warned_about() {
-        // Constructed paths only — the predicate must never touch the disk.
-        let lib = std::env::temp_dir().join(format!("autoshade-lowr3-library-{}", std::process::id()));
-        let trip = lib.join("TripA");
-        let photo = trip.join("DSC1.ARW");
-        let p = Some(photo.as_path());
-
-        assert!(delivery_root_shadows_photo(&trip, p), "the photo's own folder");
-        assert!(delivery_root_shadows_photo(&lib, p), "an ancestor: the whole library");
-        assert!(
-            delivery_root_shadows_photo(&trip.join("exports"), p),
-            "nested inside the photo's folder: that subtree stops being protected"
-        );
-        assert!(
-            delivery_root_shadows_photo(&lib.join("TripB").join("..").join("TripA"), p),
-            "`..` is folded lexically — the same rule guard_readonly applies"
-        );
-
-        assert!(!delivery_root_shadows_photo(&lib.join("TripB"), p), "a sibling folder is fine");
-        assert!(
-            !delivery_root_shadows_photo(&std::env::temp_dir().join(format!("autoshade-lowr3-out-{}", std::process::id())), p),
-            "a folder outside the library is the normal case and must stay quiet"
-        );
-        assert!(!delivery_root_shadows_photo(&trip, None), "no photo open, nothing to say");
-    }
-
     /// **Inclusion law, GUI half** (R24-5 M0): every develop control this
     /// window can MUTATE must be one the engine renders — or an agreed
     /// `CarriedOnly` (`catalogue::CARRIED_ONLY_{GLOBAL,LOCAL}`).

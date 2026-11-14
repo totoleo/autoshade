@@ -475,20 +475,9 @@ impl AutoShadeApp {
                         .desired_width(FIELD_W_MAX.min(ui.available_width() - 90.0).max(80.0))
                         .hint_text(autoshade::config::DEFAULT_DELIVERY_ROOT),
                 )
-                .on_hover_text(format!(
-                    "{}\n\n{}",
-                    tr(
-                        lang,
-                        "Where finished files land: exports and the extracted style prompt — for this window, the CLI, the web surface and batch renders alike. Blank = the default ./out beside the working directory. Saved develops and the pixel masters cards are built on are NOT here (see 「Develop store」 above), so cleaning this folder never breaks a card.",
-                    ),
-                    // R24 round-end LOW-3: choosing a folder inside the photo
-                    // library RETIRES that folder's read-only protection
-                    // (`guard_readonly` allows the delivery root before it
-                    // refuses the RAW's own folder), and nothing said so.
-                    tr(
-                        lang,
-                        "Pointing it inside your photo library removes that folder's read-only protection: AutoShade refuses to write beside your originals, but never into its own delivery folder.",
-                    ),
+                .on_hover_text(tr(
+                    lang,
+                    "Where finished files land: exports and the extracted style prompt — for this window, the CLI, the web surface and batch renders alike. Blank = the default ./out beside the working directory. Saved develops and the pixel masters cards are built on are NOT here (see 「Develop store」 above), so cleaning this folder never breaks a card.",
                 ));
                 if action(ui, true, tr(lang, "Browse…"))
                     .on_hover_text(tr(lang, "Pick the delivery folder"))
@@ -505,23 +494,6 @@ impl AutoShadeApp {
         // out in full. Reflects the SAVED value, so it only moves after
         // 「Save settings」.
         ui.label(egui::RichText::new(abs_display(&resolved)).small().weak());
-        // The DYNAMIC half of the warning above: this window knows which photo
-        // is open, so it can say that THIS root and THAT photo's folder
-        // overlap rather than leaving the user to notice. Reads the typed
-        // field (the choice being made now); blank falls back to the saved
-        // resolution, which is what a blank field will resolve to.
-        let typed = self.settings.out_dir.trim();
-        let chosen = if typed.is_empty() { resolved } else { std::path::PathBuf::from(typed) };
-        if delivery_root_shadows_photo(&chosen, self.src_path.as_deref()) {
-            ui.label(
-                egui::RichText::new(tr(
-                    lang,
-                    "⚠ This folder and the open photo's folder are inside one another — the photo's folder is no longer protected as read-only, so a render can land beside your originals.",
-                ))
-                .small()
-                .weak(),
-            );
-        }
         // --- the PYTHON INTERPRETER (M1-3) -----------------------------------
         // WRITABLE here, unlike the sidecar path below, and that is not the
         // same ruling softened. `AUTOSHADE_PYTHON` stays `Trust::Destination`
@@ -533,10 +505,10 @@ impl AutoShadeApp {
         // shell's, so on macOS an env-only setting is one no user of the
         // shipped app can set at all.
         //
-        // The button probes FIXED ABSOLUTE candidates
-        // (`config::PYTHON_CANDIDATES`) — never a file dialog, never a `PATH`
-        // scan — so a value the user did not type by hand can still only be an
-        // installer-owned location.
+        // The button probes interpreter NAMES through `PATH`
+        // (`config::PYTHON_CANDIDATES`) — never a fixed machine path, never a
+        // file dialog — so a value the user did not type by hand is one the
+        // OS itself resolved.
         ui.separator();
         // ComfyUI (S5.11): the local generative backend's paths. Blank fields
         // derive the defaults (CLI from PATH, workspace/models from the Comfy
@@ -585,7 +557,7 @@ impl AutoShadeApp {
                 {
                     // `probe_python_bin` RUNS each candidate (`--version`)
                     // before offering it: on a Mac without developer tools
-                    // `/usr/bin/python3` exists and does not work, so an
+                    // the system `python3` exists and does not work, so an
                     // existence check alone would fill this field with a stub
                     // whose only behaviour is an install prompt.
                     match autoshade::config::probe_python_bin() {

@@ -1321,7 +1321,7 @@ GUI 与导出路径——原生另存对话框本体不可自动化，验收=对
   符号链接、canonical≠词法）而非先判的 ubuntu——带 job 名的日志纠正了按
   时间戳归属的错法；③dehaze 金样哈希系 libm 舍入（ubuntu x86_64 精确复现
   +60 哈希＝libc 数学非字长），金样门控 cfg(all(windows,x86_64))、7 条无
-  门控性质测试保跨平台覆盖；④guard 夹具 `D:/` 在 Unix 是相对路径＝回归
+  门控性质测试保跨平台覆盖；④guard 夹具 `<drive>/` 在 Unix 是相对路径＝回归
   场景从未搭起，每平台 ROOT 常量＋新增无门控 `normalize_lexical` 折叠断言）。
   test 步首执行又暴露新类 `7c222da`：ubuntu gui 131 中 1 败＝测试断**瞬态
   旗**与自家 `start_style_info` 工作线程赛跑（`poll_workers` 单次排空 64
@@ -1379,7 +1379,7 @@ GUI 与导出路径——原生另存对话框本体不可自动化，验收=对
   中转端点在跑（跑前抓获并根修一处险情：`.env` 直连 key 经 dotenv 优先级压过
   进程 env 会毒化基线——config.rs `resolve_env` Secret 名 .env 先于 live env，
   Destination 名相反；处置＝跑批期间移开 `.env`、try/finally 还原，key 零落盘）。
-  `.lcp` 可得性已核：本机 `C:\ProgramData\Adobe\CameraRaw\LensProfiles` 3576 档。
+  `.lcp` 可得性已核：本机 `<Adobe>/CameraRaw/LensProfiles` 3576 档。
 
 - **R28 v0.34.0 已发布（2026-08-20，全五批+发版链；托管夜间轮）** —— 批次范围
   `307211b..5059df0`（B1 X-Trans 根修 / B2 防御收口 / B3 帧身份 / B4 资源预算 /
@@ -3373,7 +3373,7 @@ GUI 与导出路径——原生另存对话框本体不可自动化，验收=对
     路由的是**带照片**的提案器——切供应商不构成能力扩张。
   - **L10-1 信任根**：`store_root` 的 per-user 目录过去在所有平台都取
     `%LOCALAPPDATA%`（Unix 不设该变量），故 Linux/macOS 一律落到
-    `/tmp/autoshop` 并把那里的设置文件当**中央可信**（含 key 与 base URL）。
+    `<temp>/autoshop` 并把那里的设置文件当**中央可信**（含 key 与 base URL）。
     改为分平台（`XDG_DATA_HOME`→`HOME/.local/share`；相对路径按 spec 忽略），
     并新增 `RootTrust::SharedFallback` 标签 + `SettingsOrigin::SharedRoot`，
     共享 tmp 根一律按环境态降权。
@@ -5001,7 +5001,7 @@ GUI 与导出路径——原生另存对话框本体不可自动化，验收=对
     off-by-one（tag-1000）修 + GUI 临时蒙版名加原子计数（pid 撞名）；
     main.rs process_one 改 render→XMP→recipe（完成标记真正最后落——
     render 失败不再被 resume 永久跳过）。
-  - **MEDIUM/LOW 实修**：guard_readonly 根部 `..` 折叠修（"D:/../图库"
+  - **MEDIUM/LOW 实修**：guard_readonly 根部 `..` 折叠修（"<library>"
     弹掉 RootDir 得盘相对路径绕过守卫——+测试）；recipe.clamp 亮度范围
     NaN 界会 panic f32::clamp 断言→非有限整体丢弃（+测试）；Chat SSE
     finish_reason≠stop 截断显式报错；find_sources 符号链接环 64 层深度
@@ -7245,7 +7245,7 @@ GUI 与导出路径——原生另存对话框本体不可自动化，验收=对
   C. 发布电池 fs 抖动：Codex 同 worktree 5×pipeline+5×store+build 并发压测未复现故未改；**主审在三 worktree 电池并行时第一方撞上**（`store::tests::a_zero_byte_live_claim_yields_to_the_surviving_bak` `Os error 5 拒绝访问` store.rs:6095）→ 根因＝测试夹具目录用固定名 `temp_dir().join("autoshop-…")`（无进程 id），跨进程互删互读；修前压测（同一测试二进制三进程各 12 趟）**29/36 失败**→ 一次性全类改名 78 站点（store 49 / pipeline 12 / gui tests 7 / decode 3 / render 3 / serve 2 / main 1 / retouch 1：名字加 `-{pid}`，扩展名前插入，各测试自己的建删仪式不动；拒绝两处类外：`store.rs:420` 生产回退、`pipeline.rs:4433` 不存在路径探针）+ 源断言 `fixture_dir_tests::test_fixture_dirs_are_process_unique` 递归扫 `src/**/*.rs` 钉零固定名 → 修后压测 **0/36 失败**（同三进程×12 趟），断言+store+pipeline 套件 142 绿。
   门（worktree 内 `CARGO_TARGET_DIR`）：默认 1036（1025+11i）/ 15 / 2+2，GUI 145，clippy 0+0，集差 +2/−0（`rationale::tests::sidecar_failure_disclosure_has_no_traceback_or_home_path`、`fixture_dir_tests::test_fixture_dirs_are_process_unique`），check_docs 23P/0F/4S；主审变异 M-17-A（基名保留整段路径）红、M-17-B（Traceback 分支旁路）补测后红、M-17-C（永不追加 exit）红、M-17-D（重新引入一个固定夹具名）红（源断言指出 store.rs:6083）；Codex 三变异红。
   主审揪一处文档改史：ARCHITECTURE 电池计数句被改成「B3 批 1017→1035」→ 还原为追加式（cleanup 1034→1035 +1/−0 对 662b688；B3 1017→1034 保留）。
-  暂存扫描：`_?DSC[0-9]{4,5}` 0、密钥 0、用户目录路径 0（`src/rationale.rs` 测试里的 `C:\Users\alice` 为合成夹具，非本机路径）。
+  暂存扫描：`_?DSC[0-9]{4,5}` 0、密钥 0、用户目录路径 0（`src/rationale.rs` 测试里的 `合成夹具` 为合成夹具，非本机路径）。
   合并复核（main+cleanup-17 合并树，target/merge-c17）：1057=1046 pass+11 ignored/16/146/2+2 双特性、集差对 F1 302efb1 转录 +2/−0 逐名、clippy 0+0、i18n 0、字体 847/847、check_docs --gates 26P/0F/1S；三处文档计数冲突按追加式解。
 - **🎚 步11 F1 自由度轴已提交 `302efb1`（2026-08-29，用户 2026-08-28 裁定强度轴支配反推诚实预算 + style 1.0 拉满；Codex 实现→七路 Codex 只读复审 42 发现主审亲核→修复批三（根因归并 F-A…F-H）→主审亲核再修六处收口）**：
   `FitBudget::for_strength` 三点线性插值（0.00 / 0.65 默认 / 1.00）：EV ±0.5/±1/±2.5、饱和 ±15/±30/±60、WB 增益 [0.90,1.12]/[0.80,1.25]/[0.50,2.00]、增益比 1.20/1.40/3.0、曲线斜率 [0.7,1.3]/[0.5,1.5]/[0.25,3.0]、Full 色偏比 1.5/2.0/3.0、置信帽 0.50/0.50/0.35（0.85 处 0.414）、WB 旋转份额默认以下 0.05、之上线性开到 1.0（0.85 处 0.593）；≥0.85 否决改披露（`FIT_NOTE_VETO_DISCLOSED` + 置信封顶）。

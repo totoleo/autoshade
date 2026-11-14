@@ -1114,7 +1114,7 @@ fn layered_disabled_is_byte_identical_to_current_zoned_fit() {
     let range_path = fixture_mask_path("layered-head-range");
     let range_seg = SegmentOpts {
         python_bin: cfg.python_bin.clone(),
-        script: "D:/no-such-dir/none.py".into(),
+        script: std::env::temp_dir().join(format!("autoshade-no-such-dir-{}/none.py", std::process::id())),
         target: "sky".into(),
         reference_point: None,
         prompt_points: None,
@@ -1220,7 +1220,7 @@ fn export_layered_head_equivalence_artifacts() {
     let range_path = fixture_mask_path("layered-head-export-range");
     let range_seg = SegmentOpts {
         python_bin: cfg.python_bin.clone(),
-        script: "D:/no-such-dir/none.py".into(),
+        script: std::env::temp_dir().join(format!("autoshade-no-such-dir-{}/none.py", std::process::id())),
         target: "sky".into(),
         reference_point: None,
         prompt_points: None,

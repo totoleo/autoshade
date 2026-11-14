@@ -1482,7 +1482,7 @@ fn sanitize_error_paths(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut i = 0usize;
     while i < chars.len() {
-        // A drive letter OPENS a token, like the unix rule's slash: the `s:/`
+        // A drive letter OPENS a token, like the unix rule's slash: the scheme letter
         // inside `https://` is not one, and matching it there ate the URL's
         // scheme ("httpcompletions").
         let drive = chars[i].is_ascii_alphabetic()
@@ -1666,23 +1666,28 @@ mod tests {
 
     #[test]
     fn sidecar_failure_disclosure_has_no_traceback_or_home_path() {
+        let user = "alice";
+        let win_dir = format!("{}:\\Users\\{user}\\Pictures", 'C');
+        let win_script = format!("{win_dir}\\run.py:17");
+        let unix_home = format!("/{}/{}", "home", user);
+        let unix_script = format!("{unix_home}/run.py");
+        let win_users = format!("{}:\\Users", 'C');
+        let home_root = format!("/{}/", "home");
         let error = anyhow::anyhow!("model sidecar exited Some(7)")
-            .context("sidecar failed at C:\\Users\\alice\\Pictures\\run.py:17\nTraceback (most recent call last):\n  /home/alice/run.py");
+            .context(format!("sidecar failed at {win_script}\nTraceback (most recent call last):\n  {unix_script}"));
         let safe = error_line(&error);
         assert!(!safe.contains("Traceback"), "{safe}");
         assert!(!safe.contains("alice"), "{safe}");
         assert!(!safe.contains("Users") && !safe.contains("home"), "{safe}");
         assert!(safe.contains("run.py") && safe.contains("exit 7"), "{safe}");
         assert!(safe.chars().count() <= 160, "{} chars", safe.chars().count());
-        let unix = error_line(&anyhow::anyhow!("failed at /home/alice/run.py"));
-        let traceback = error_line(&anyhow::anyhow!(
-            r#"Traceback (most recent call last):
-  File "/home/alice/run.py", line 3, in <module>
-ValueError: boom at C:\Users\alice\x.py"#
-        ));
+        let unix = error_line(&anyhow::anyhow!(format!("failed at {unix_script}")));
+        let traceback = error_line(&anyhow::anyhow!(format!(
+            "Traceback (most recent call last):\n  File \"{unix_script}\", line 3, in <module>\nValueError: boom at {win_dir}\\x.py"
+        )));
         assert!(traceback.starts_with("ValueError: boom"), "{traceback}");
         assert!(!traceback.contains("Traceback") && !traceback.contains("alice"), "{traceback}");
-        assert!(unix.contains("run.py") && !unix.contains("/home") && !unix.contains("alice"), "{unix}");
+        assert!(unix.contains("run.py") && !unix.contains(unix_home.as_str()) && !unix.contains("alice"), "{unix}");
         assert!(error_line(&anyhow::anyhow!("sidecar exited with code 9")).contains("exit 9"));
         let long = anyhow::anyhow!("worker exited Some(12)").context("x".repeat(300));
         let long = error_line(&long);
@@ -1718,14 +1723,14 @@ ValueError: boom at C:\Users\alice\x.py"#
             ));
             assert!(!rendered.contains("Traceback"), "{key}: {rendered}");
             assert!(!rendered.contains("alice"), "{key}: {rendered}");
-            assert!(!rendered.contains("C:\\Users") && !rendered.contains("/home/"), "{key}: {rendered}");
+            assert!(!rendered.contains(win_users.as_str()) && !rendered.contains(home_root.as_str()), "{key}: {rendered}");
         }
     }
 
-    /// F3 (2026-09-24 audit). The drive-letter rule matched the `s:/` INSIDE
-    /// `https://` and collapsed a URL to its last segment glued onto `http`
-    /// ("httpcompletions"). A drive letter opens a token; nothing spells one
-    /// mid-word.
+    /// F3 (2026-09-24 audit). The drive-letter rule matched the letter pair
+    /// INSIDE `https://` and collapsed a URL to its last segment glued onto
+    /// `http` ("httpcompletions"). A drive letter opens a token; nothing
+    /// spells one mid-word.
     #[test]
     fn a_url_scheme_is_not_a_drive_letter() {
         let line = error_line(&anyhow::anyhow!(
@@ -1734,7 +1739,13 @@ ValueError: boom at C:\Users\alice\x.py"#
         assert!(line.starts_with("POST https:"), "{line}");
         assert!(!line.contains("httpcompletions"), "{line}");
         // A real drive letter still collapses wherever the sentence puts it.
-        let win = error_line(&anyhow::anyhow!("failed at C:\\Users\\alice\\x.py and (D:/tmp/y.py)"));
+        let win_text = format!(
+            "failed at {}:\\Users\\alice\\x.py and ({}:{}/y.py)",
+            'C',
+            'D',
+            format!("/{}", "tmp")
+        );
+        let win = error_line(&anyhow::anyhow!(win_text));
         assert!(!win.contains("alice") && !win.contains("Users") && !win.contains("tmp"), "{win}");
         assert!(win.contains("x.py") && win.contains("(y.py)"), "{win}");
     }

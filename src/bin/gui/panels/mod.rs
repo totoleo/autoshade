@@ -8,5 +8,6 @@ pub(crate) mod histogram;
 pub(crate) mod lens_blur;
 pub(crate) mod normal;
 pub(crate) mod portrait;
+pub(crate) mod recipes;
 pub(crate) mod retouch;
 pub(crate) mod settings;

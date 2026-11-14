@@ -1541,7 +1541,7 @@ fn analyze_cmd(
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| s.to_string());
-        println!("  (the library is read-only — copy {s}.xmp next to {photo} to open it in Lightroom)");
+        println!("  (the XMP projection lives in the develop store — copy {s}.xmp next to {photo} to open it in Lightroom)");
     } else {
         println!("  (baked source — recipe JSON only; XMP applies to RAW in Lightroom)");
     }

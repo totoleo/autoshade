@@ -114,6 +114,7 @@ rfd = { version = "0.15", optional = true }
 # Same version egui pulls in — used to pre-validate a CJK font before handing it
 # to egui (egui panics on an unparseable font), so font loading degrades safely.
 ab_glyph = { version = "0.2", optional = true }
+fontdb = "0.24.0"
 
 # Sidecar kill-groups (L11#7): a timeout must reap the sidecar's WHOLE
 # process tree, not just the direct child — a launcher's python or a

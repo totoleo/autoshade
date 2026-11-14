@@ -4253,7 +4253,7 @@ mod tests {
         use std::sync::atomic::AtomicU64;
         let state = AppState {
             dir: RwLock::new(PathBuf::new()),
-            raws: RwLock::new(vec![PathBuf::from("D:/x/a.arw")]),
+            raws: RwLock::new(vec![std::env::temp_dir().join(format!("autoshade-x-{}/a.arw", std::process::id()))]),
             cfg: RwLock::new(Config::load()),
             dir_gen: AtomicU64::new(9), // a scan in flight has CLAIMED 9…
             installed_gen: AtomicU64::new(3), // …but the listing still says 3
@@ -4493,7 +4493,7 @@ mod tests {
         // The whole point: whatever goes into a header value is pure ASCII, so
         // `Header::from_bytes` can never reject it (that rejection + `.unwrap()`
         // is what killed Download / Fill / Heal on non-ASCII photo names).
-        for s in ["P52.developed.tif", "测试照片.developed.tif", "a b%c.jpg", "D:\\照片\\x.png"] {
+        for s in ["P52.developed.tif", "测试照片.developed.tif", "a b%c.jpg", "photos\\x.png"] {
             let enc = percent_encode(s);
             assert!(enc.is_ascii(), "{enc} is not ASCII");
             assert_eq!(percent_decode(&enc), s, "round trip failed for {s}");

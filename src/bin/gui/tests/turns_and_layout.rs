@@ -348,7 +348,7 @@
     fn gui_prefs_round_trip_the_library_and_adherence_keys() {
         let prefs = Prefs {
             style_embed: true,
-            style_src_dir: Some(std::path::PathBuf::from("D:/looks")),
+            style_src_dir: Some(std::env::temp_dir().join(format!("autoshade-looks-{}", std::process::id()))),
             direction_adherence: 0.91,
             ..Prefs::default()
         };
@@ -358,7 +358,7 @@
         assert_eq!(decoded.style_src_dir, prefs.style_src_dir);
         // A prefs file from before the redesign still loads: its retired keys
         // are ignored, not refused.
-        let older = json.replacen('{', r#"{"style_xmp_dir":"D:/x","looks_src_dir":"D:/y","use_looks":false,"#, 1);
+        let older = json.replacen('{', r#"{"style_xmp_dir":"looks-x","looks_src_dir":"looks-y","use_looks":false,"#, 1);
         assert!(serde_json::from_str::<Prefs>(&older).is_ok(), "{older}");
         assert!((decoded.direction_adherence - 0.91).abs() < 1e-6);
     }
@@ -442,11 +442,11 @@
         };
         let mut app = AutoShadeApp {
             lang,
-            src_path: Some(PathBuf::from("D:/library/_buttons.ARW")),
+            src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/_buttons.ARW", std::process::id()))),
             variants: vec![mk(VariantKind::Original), mk(VariantKind::Generated)],
             active: 1,
             versions: vec![1],
-            fit_ref: Some(PathBuf::from("D:/library/_buttons-reference.png")),
+            fit_ref: Some(std::env::temp_dir().join(format!("autoshade-library-{}/_buttons-reference.png", std::process::id()))),
             multi_sel: [0usize].into_iter().collect(),
             ..Default::default()
         };
@@ -728,7 +728,7 @@
     /// sees NoopOnly again.
     #[test]
     fn an_unreadable_central_xmp_is_reported_not_folded_into_noop() {
-        let src = std::path::Path::new("D:/library/_xmp_unreadable_test.ARW"); // never touched
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/_xmp_unreadable_test.ARW", std::process::id())); // never touched
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev); // a crashed earlier run may have left files
         std::fs::create_dir_all(&dev).unwrap();

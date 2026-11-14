@@ -486,6 +486,7 @@ pub(crate) fn undrawable_scripts(
 /// Read one system font under a byte budget — stat BEFORE read, so a
 /// mis-pointed path cannot balloon the heap; past-budget is disclosed and
 /// skipped, never truncated (a truncated font is a parse error at best).
+#[cfg(test)]
 pub(crate) fn read_font_capped(p: &str, cap: u64) -> Option<Vec<u8>> {
     let len = std::fs::metadata(p).ok()?.len();
     if len > cap {
@@ -497,99 +498,80 @@ pub(crate) fn read_font_capped(p: &str, cap: u64) -> Option<Vec<u8>> {
 
 /// Build the GUI font chain: egui defaults → embedded symbol subsets → system
 /// CJK → per-script system faces (L12#3). The embedded subsets are
-/// compile-time constants; every runtime face is read under a byte budget
+/// compile-time constants; every runtime face is handed over by the OS font
+/// database under a byte budget
 /// and pre-validated with `ab_glyph` (egui's own backend) before handing it
 /// over — egui PANICS on a font it can't parse, so a missing/odd font must
 /// be skipped, not registered. Everything is appended as FALLBACKS, and the
 /// embedded subsets stay AHEAD of every runtime face, so Latin text keeps
 /// egui's default look and the symbol glyphs stay machine-independent.
 pub(crate) fn install_fonts(ctx: &egui::Context) {
-    // Single-face TTFs first (always parse); TTC collections (face 0) last.
-    // System font directories per OS (not user-specific paths); a miss just
-    // falls through to the next candidate, so distro variance is harmless.
-    #[cfg(target_os = "windows")]
-    const CJK_CANDIDATES: &[&str] = &[
-        r"C:\Windows\Fonts\Deng.ttf",   // DengXian — clean modern UI face
-        r"C:\Windows\Fonts\simhei.ttf", // SimHei
-        r"C:\Windows\Fonts\msyh.ttc",   // Microsoft YaHei (collection, face 0)
-        r"C:\Windows\Fonts\simsun.ttc", // SimSun (collection, face 0)
-    ];
-    #[cfg(target_os = "macos")]
-    const CJK_CANDIDATES: &[&str] = &[
-        "/System/Library/Fonts/PingFang.ttc", // PingFang SC — macOS system CJK
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-    ];
-    #[cfg(all(unix, not(target_os = "macos")))]
-    const CJK_CANDIDATES: &[&str] = &[
-        // Noto Sans CJK across the major distro layouts, then WenQuanYi.
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", // Debian/Ubuntu
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",      // Arch
-        "/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJK-Regular.ttc", // Fedora
-        "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        "/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc",
-    ];
-    // Non-CJK scripts a user's own FILE NAMES can carry (L12#3): the CJK
-    // face covers none of Arabic/Thai/Hebrew/Hangul/Indic (probed with
-    // fontTools on this host, 2026-08-09 scan). Windows faces verified on
-    // this machine: micross (Arabic+Thai+Hebrew), Nirmala.ttc face 0
-    // (Devanagari+Bengali+Tamil), malgunsl (Hangul). macOS/Linux tables
-    // stay EMPTY on purpose — no path ships unverified into a const; the
-    // tofu disclosure covers those hosts honestly instead.
-    #[cfg(target_os = "windows")]
-    const SCRIPT_FALLBACKS: &[(&str, &[&str])] = &[
-        ("arabic", &[r"C:\Windows\Fonts\micross.ttf", r"C:\Windows\Fonts\tahoma.ttf"]),
-        ("hebrew", &[r"C:\Windows\Fonts\micross.ttf", r"C:\Windows\Fonts\tahoma.ttf"]),
-        ("thai", &[r"C:\Windows\Fonts\micross.ttf", r"C:\Windows\Fonts\LeelawUI.ttf"]),
-        ("hangul", &[r"C:\Windows\Fonts\malgunsl.ttf", r"C:\Windows\Fonts\malgun.ttf"]),
-        ("devanagari", &[r"C:\Windows\Fonts\Nirmala.ttc"]),
-        ("bengali", &[r"C:\Windows\Fonts\Nirmala.ttc"]),
-        ("tamil", &[r"C:\Windows\Fonts\Nirmala.ttc"]),
-    ];
-    #[cfg(not(target_os = "windows"))]
-    const SCRIPT_FALLBACKS: &[(&str, &[&str])] = &[];
-
+    // The OS font database answers "which file is this family" — DirectWrite
+    // on Windows, CoreText on macOS, fontconfig on Linux (fontdb). Nothing here
+    // names a directory or a file, so a face installed anywhere the OS knows
+    // about is found, per-user installs included.
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
     let mut total: u64 = 0;
     let mut refused: Vec<String> = Vec::new();
-    let mut load = |p: &str| -> Option<Vec<u8>> {
-        let Some(b) = read_font_capped(p, MAX_FALLBACK_FONT_BYTES) else {
-            // Tell "over budget" from "not installed": one extra stat per
-            // candidate, once, at startup. Only a face that EXISTS and was
-            // turned away is worth telling the user about.
-            if let Ok(m) = std::fs::metadata(p)
-                && m.len() > MAX_FALLBACK_FONT_BYTES
-            {
-                refused.push(format!(
-                    "{p} ({} MB — past this build's {} MB per-face budget)",
-                    m.len() / (1024 * 1024),
-                    MAX_FALLBACK_FONT_BYTES / (1024 * 1024)
-                ));
-            }
+    let mut face = |family: &str| -> Option<Vec<u8>> {
+        let id = db.query(&fontdb::Query {
+            families: &[fontdb::Family::Name(family)],
+            weight: fontdb::Weight::NORMAL,
+            stretch: fontdb::Stretch::Normal,
+            style: fontdb::Style::Normal,
+        })?;
+        let data = db.with_face_data(id, |bytes, _| bytes.to_vec())?;
+        if data.len() as u64 > MAX_FALLBACK_FONT_BYTES {
+            refused.push(format!(
+                "{family} ({} MB — past this build's {} MB per-face budget)",
+                data.len() / (1024 * 1024),
+                MAX_FALLBACK_FONT_BYTES / (1024 * 1024)
+            ));
             return None;
-        };
-        if total + b.len() as u64 > MAX_FALLBACK_TOTAL_BYTES {
-            eprintln!("⚠ system font {p} would exceed the total runtime-font budget, skipped");
+        }
+        if total + data.len() as u64 > MAX_FALLBACK_TOTAL_BYTES {
+            eprintln!("⚠ system font {family} would exceed the total runtime-font budget, skipped");
             return None;
         }
         // Only accept it if egui's backend can actually parse face 0 (no panic).
-        ab_glyph::FontVec::try_from_vec_and_index(b.clone(), 0).ok()?;
-        total += b.len() as u64;
-        Some(b)
+        ab_glyph::FontVec::try_from_vec_and_index(data.clone(), 0).ok()?;
+        total += data.len() as u64;
+        Some(data)
     };
-    let cjk = CJK_CANDIDATES.iter().find_map(|p| load(p));
-    // One face can serve several scripts (micross, Nirmala) — key the font
-    // data by PATH so shared bytes are inserted once.
+    const CJK_FAMILIES: &[&str] = &[
+        "Microsoft YaHei",
+        "DengXian",
+        "SimHei",
+        "SimSun",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Noto Sans CJK SC",
+        "Source Han Sans SC",
+        "WenQuanYi Micro Hei",
+    ];
+    let cjk = CJK_FAMILIES.iter().find_map(|f| face(f));
+    // One face can serve several scripts — key by FAMILY so shared bytes are
+    // inserted once.
+    const SCRIPT_FAMILIES: &[(&str, &[&str])] = &[
+        ("arabic", &["Segoe UI", "Tahoma", "Geeza Pro", "Noto Sans Arabic"]),
+        ("hebrew", &["Segoe UI", "Tahoma", "Arial Hebrew", "Noto Sans Hebrew"]),
+        ("thai", &["Leelawadee UI", "Tahoma", "Thonburi", "Noto Sans Thai"]),
+        ("hangul", &["Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR"]),
+        ("devanagari", &["Nirmala UI", "Devanagari Sangam MN", "Noto Sans Devanagari"]),
+        ("bengali", &["Nirmala UI", "Bangla Sangam MN", "Noto Sans Bengali"]),
+        ("tamil", &["Nirmala UI", "Tamil Sangam MN", "Noto Sans Tamil"]),
+    ];
     let mut script_faces: Vec<(String, Vec<u8>)> = Vec::new();
     let mut installed: Vec<&'static str> = Vec::new();
-    for (script, candidates) in SCRIPT_FALLBACKS {
-        for p in *candidates {
-            if script_faces.iter().any(|(path, _)| path == p) {
+    for (script, families) in SCRIPT_FAMILIES {
+        for f in *families {
+            if script_faces.iter().any(|(name, _)| name == f) {
                 installed.push(script);
                 break;
             }
-            if let Some(b) = load(p) {
-                script_faces.push(((*p).to_string(), b));
+            if let Some(b) = face(f) {
+                script_faces.push(((*f).to_string(), b));
                 installed.push(script);
                 break;
             }

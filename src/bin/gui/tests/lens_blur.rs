@@ -9,9 +9,10 @@
     #[test]
     fn a_depth_estimate_lands_a_blur_and_arms_the_focus_pick() {
         let mut app = AutoShadeApp { wb_picking: true, busy: true, ..Default::default() };
-        app.on_depth_estimated(Ok(PathBuf::from("D:/store/depth.png")));
+        let depth = std::env::temp_dir().join(format!("autoshade-lens-{}/depth.png", std::process::id()));
+        app.on_depth_estimated(Ok(depth.clone()));
         let lb = app.recipe.lens_blur.clone().expect("the first estimate lands a blur");
-        assert_eq!(lb.depth_map, "D:/store/depth.png");
+        assert_eq!(lb.depth_map, depth.display().to_string());
         assert!(app.lens_focus_picking, "a first estimate arms the focus pick");
         assert!(!app.wb_picking, "one canvas tool at a time");
         assert!(!app.busy && app.dirty);
@@ -19,9 +20,10 @@
         let chosen = autoshade::render::LensBlur { focus: [0.2, 0.8], amount: 70.0, range: 30.0, ..lb };
         app.recipe.lens_blur = Some(chosen.clone());
         app.lens_focus_picking = false;
-        app.on_depth_estimated(Ok(PathBuf::from("D:/store/depth-2.png")));
+        let depth2 = std::env::temp_dir().join(format!("autoshade-lens-{}/depth-2.png", std::process::id()));
+        app.on_depth_estimated(Ok(depth2.clone()));
         let again = app.recipe.lens_blur.clone().unwrap();
-        assert_eq!(again.depth_map, "D:/store/depth-2.png");
+        assert_eq!(again.depth_map, depth2.display().to_string());
         assert_eq!((again.focus, again.amount, again.range), (chosen.focus, chosen.amount, chosen.range));
         assert!(!app.lens_focus_picking, "a re-estimate does not re-arm the pick");
 
@@ -42,7 +44,7 @@
         assert_eq!(p.own.lens_blur.as_ref(), Some(&blur), "the source photo keeps it");
 
         let mut app = AutoShadeApp {
-            src_path: Some(PathBuf::from("D:/library/turn.ARW")),
+            src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/turn.ARW", std::process::id()))),
             base_preview: Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(6, 4))),
             ..Default::default()
         };

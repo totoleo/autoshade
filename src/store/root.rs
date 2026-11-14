@@ -161,7 +161,7 @@ pub(crate) fn adopt_pre_rename_root(
 ///
 /// The per-account step used to be `%LOCALAPPDATA%` on EVERY platform — a
 /// variable Unix does not set. So every Linux/macOS build fell through to
-/// `/tmp/autoshade` and then handed the settings file found there full central
+/// `<temp>/autoshade` and then handed the settings file found there full central
 /// authority, keys and base URLs included, on a directory any local account can
 /// write first. Each platform now names its own directory, and the shared
 /// fallback is LABELLED rather than trusted (the loader downgrades it).

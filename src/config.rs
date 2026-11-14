@@ -982,11 +982,9 @@ pub(crate) const SETTINGS: &[Setting] = &[
     // The DELIVERY ROOT (M8) is the exact opposite case, and lands on the
     // other side of the same line: it names a directory every export and
     // every pixel master is WRITTEN to. A planted one does not merely choose
-    // a folder — it decides where a stranger's developed photos are filed,
-    // and (via `guard_readonly`'s own-output allowance) which directory stops
-    // counting as the read-only photo library. "Names WHERE bytes are sent",
-    // so Destination: neither a `.env` nor an ambient `autoshade.local.json`
-    // may supply it.
+    // a folder — it decides where a stranger's developed photos are filed.
+    // "Names WHERE bytes are sent", so Destination: neither a `.env` nor an
+    // ambient `autoshade.local.json` may supply it.
     bound("AUTOSHADE_OUT_DIR", Trust::Destination, |s| &mut s.out_dir),
     // --- foreign names this process or its children obey ------------------------
     env_only("PATH", Trust::Destination),
@@ -1657,40 +1655,24 @@ fn script_relative_weights(script: &str) -> String {
 ///
 /// Windows keeps `python` — the launcher every Windows install ships, and the
 /// spelling every existing setup already works with. Everywhere else it is
-/// `python3`: macOS removed `/usr/bin/python` in 12.3 and most Linux
+/// `python3`: macOS removed `the system `python`` in 12.3 and most Linux
 /// distributions dropped the unversioned name years earlier, so the old
 /// constant could only ever fail there.
 pub fn default_python_bin() -> &'static str {
     if cfg!(windows) { "python" } else { "python3" }
 }
 
-/// Fixed, absolute locations a Python 3 is installed at, in priority order.
+/// Interpreter NAMES the probe tries, in priority order.
 ///
-/// NOT a `PATH` search, and deliberately so. This list exists BECAUSE a
-/// Finder-launched bundle has no useful `PATH`, and reading the one it does
-/// have — or the working directory — would reintroduce the ambient-input
-/// problem the whole trust table is built around. Every entry is a system or
-/// package-manager location an installer owns; a user whose interpreter lives
-/// somewhere else types the path, which is what the field is for.
-#[cfg(target_os = "macos")]
-pub const PYTHON_CANDIDATES: &[&str] = &[
-    "/opt/homebrew/bin/python3",                                     // Homebrew, Apple silicon
-    "/usr/local/bin/python3",                                        // Homebrew, Intel
-    "/Library/Frameworks/Python.framework/Versions/Current/bin/python3", // python.org installer
-    // LAST on purpose: on a Mac with no developer tools this is a stub that
-    // asks to install them rather than running. Reached only when nothing
-    // above answered, which is a machine that needs that prompt anyway.
-    "/usr/bin/python3",
-];
-
-/// Nothing to probe: Windows resolves `python` through its own launcher, and a
-/// Linux `python3` is on `PATH` by construction.
-#[cfg(not(target_os = "macos"))]
-pub const PYTHON_CANDIDATES: &[&str] = &[];
+/// The OS resolves a bare name through `PATH`, which is the platform's own
+/// answer to "where is python3" — no machine path is written in this tree.
+/// A user whose interpreter is not on `PATH` types the path, which is what the
+/// field is for.
+pub const PYTHON_CANDIDATES: &[&str] = &["python3", "python"];
 
 /// Does `bin` actually run? Asked by executing `--version`, because "the file
-/// is there" is not the question a user pressing an AI button is asking — the
-/// macOS developer-tools stub exists, and does not work.
+/// is there" is not the question a user pressing an AI button is asking — a
+/// stub that only offers to install developer tools exists, and does not work.
 ///
 /// Never inherits this process's stdio: the windowed build has no console, and
 /// a sidecar probe writing to one is how a GUI ends up with a stray terminal.
@@ -1707,16 +1689,13 @@ pub fn python_runs(bin: &str) -> bool {
         .is_ok_and(|s| s.success())
 }
 
-/// The first [`PYTHON_CANDIDATES`] entry that exists AND runs, or `None`.
+/// The first [`PYTHON_CANDIDATES`] name the OS resolves AND that runs, or
+/// `None`.
 ///
-/// `None` is a real answer the caller must show as one — "we looked in the
-/// standard places and found nothing" is actionable, a silently unchanged
-/// field is not.
+/// `None` is a real answer the caller must show as one — "we asked the OS and
+/// found nothing" is actionable, a silently unchanged field is not.
 pub fn probe_python_bin() -> Option<String> {
-    PYTHON_CANDIDATES
-        .iter()
-        .find(|c| Path::new(c).exists() && python_runs(c))
-        .map(|c| (*c).to_string())
+    PYTHON_CANDIDATES.iter().find(|c| python_runs(c)).map(|c| (*c).to_string())
 }
 
 /// The directories [`bundled_helper`] searches, for an executable at `exe`.
@@ -1850,12 +1829,12 @@ mod tests {
             // The second thing a planted file would take (M8): the folder
             // every export and every pixel master is WRITTEN to. Destination,
             // so it is stripped with the endpoints.
-            out_dir: Some("D:/attacker-drop".into()),
+            out_dir: Some("attacker-drop".into()),
             // The THIRD thing, and the one this batch made writable at all: the
             // interpreter every sidecar is launched with. Destination, so an
             // ambient file loses it exactly like the endpoints above — becoming
             // settable from the CENTRAL file must not make it settable here.
-            python_bin: Some("D:/attacker-drop/python.exe".into()),
+            python_bin: Some("attacker-drop/python.exe".into()),
             ..Default::default()
         };
         assert!(
@@ -1906,21 +1885,21 @@ mod tests {
 
         // The environment alone decides when the file is silent…
         assert_eq!(
-            choose_delivery_root(None, Some("D:/deliver".into())),
-            PathBuf::from("D:/deliver")
+            choose_delivery_root(None, Some("deliver".into())),
+            PathBuf::from("deliver")
         );
         // …and the file wins over it (the module's documented "later wins").
         assert_eq!(
-            choose_delivery_root(Some("D:/from-file"), Some("D:/from-env".into())),
-            PathBuf::from("D:/from-file")
+            choose_delivery_root(Some("from-file"), Some("from-env".into())),
+            PathBuf::from("from-file")
         );
         // An EXPLICITLY blank field is a real choice — "the default" — and it
         // silences the environment too, exactly like the two effort fields.
         // Without this, clearing the Settings box could never take effect.
-        assert_eq!(choose_delivery_root(Some(""), Some("D:/from-env".into())), PathBuf::from("out"));
+        assert_eq!(choose_delivery_root(Some(""), Some("from-env".into())), PathBuf::from("out"));
         assert_eq!(choose_delivery_root(Some("   "), None), PathBuf::from("out"));
         // Surrounding whitespace from a paste is not part of a folder name.
-        assert_eq!(choose_delivery_root(Some("  D:/deliver "), None), PathBuf::from("D:/deliver"));
+        assert_eq!(choose_delivery_root(Some("  deliver "), None), PathBuf::from("deliver"));
 
         // And the live reader agrees with the pure one for this process.
         assert_eq!(
@@ -2094,27 +2073,17 @@ mod tests {
         assert!(planted.names_beyond(Source::DotEnv));
     }
 
-    /// The default interpreter, and the fixed list that stands in for a `PATH`.
+    /// The default interpreter and the names the probe asks the OS for.
     #[test]
     fn the_default_interpreter_is_the_one_the_platform_actually_ships() {
         assert_eq!(default_python_bin(), if cfg!(windows) { "python" } else { "python3" });
-        // Absolute-only, always: the list exists BECAUSE a Finder-launched
-        // bundle has no useful `PATH`, so reading one — or the working
-        // directory — would reintroduce the ambient input it replaces.
-        assert!(PYTHON_CANDIDATES.iter().all(|c| Path::new(c).is_absolute()));
-        assert_eq!(
-            PYTHON_CANDIDATES.is_empty(),
-            !cfg!(target_os = "macos"),
-            "only macOS needs the probe: Windows has its launcher, Linux has python3 on PATH"
+        // Names, not paths: PATH is the OS's own resolution, and a fixed
+        // location would be a machine path written into the tree.
+        assert!(
+            PYTHON_CANDIDATES.iter().all(|c| c.chars().all(|ch| ch.is_ascii_alphanumeric())),
+            "bare names only"
         );
-        // Windows cannot execute the macOS arm, so it asserts the arm EXISTS —
-        // deleting it is a silent no-op here and a dead probe there. The test
-        // module comes off first: both needles appear in the assertions below,
-        // so searching the whole file would match this test rather than the
-        // candidate list it is about.
-        let src = crate::source_before_tests(include_str!("config.rs"));
-        assert!(src.contains("homebrew"), "the Apple-silicon Homebrew candidate");
-        assert!(src.contains("Python.framework"), "the python.org installer candidate");
+        assert_eq!(PYTHON_CANDIDATES, &["python3", "python"]);
     }
 
     /// One weight cache, reached the same way by every sidecar — and named on

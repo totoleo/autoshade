@@ -1154,37 +1154,6 @@ pub(crate) fn api_family_picker(ui: &mut egui::Ui, value: &mut String, lang: Lan
         ));
 }
 
-/// Does a delivery root and the OPEN photo's folder sit inside one another —
-/// in either direction (R24 round-end LOW-3)?
-///
-/// Why it matters: `pipeline::guard_readonly` refuses to write into the source
-/// RAW's folder ("the photo library is read-only") — but it allows anything
-/// under the delivery root FIRST. Pointing the root into the library therefore
-/// SILENTLY retires that protection for the overlap: an ancestor root retires
-/// it for the whole photo folder, a root nested inside the photo's folder for
-/// that subtree. A planted root cannot do this (`AUTOSHADE_OUT_DIR` is
-/// `Trust::Destination`, so neither a `.env` nor an ambient settings file may
-/// supply it) — but the user choosing it in Settings had nothing on screen
-/// saying what it costs.
-///
-/// LEXICAL and filesystem-free (it runs per frame in a Settings panel):
-/// `std::path::absolute` + `pipeline::normalize_lexical`, no `canonicalize`.
-/// So it is an ADVISORY warning — it will not see a junction or a case-flipped
-/// alias, both of which the guard's own canonical comparison does. A warning
-/// that misses an exotic spelling is worth having; a per-frame `canonicalize`
-/// on a network path is not.
-pub(crate) fn delivery_root_shadows_photo(
-    root: &std::path::Path,
-    photo: Option<&std::path::Path>,
-) -> bool {
-    let Some(dir) = photo.and_then(std::path::Path::parent) else { return false };
-    let lexical = |p: &std::path::Path| {
-        std::path::absolute(p).ok().map(|a| autoshade::pipeline::normalize_lexical(&a))
-    };
-    let (Some(root), Some(dir)) = (lexical(root), lexical(dir)) else { return false };
-    root.starts_with(&dir) || dir.starts_with(&root)
-}
-
 /// A [`StashEntry`]'s strip as a persistable record — the quit dialog's
 /// Save-all writes one per stashed photo so background variants survive the
 /// quit (before v0.22 they were "unsavable" and pinned the dialog forever).

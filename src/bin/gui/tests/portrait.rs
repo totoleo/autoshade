@@ -267,7 +267,7 @@
         assert_eq!(failed.recipe.masks.len(), before);
         // Another photo is open now: the landing is dropped.
         let mut moved = portrait_app(Lang::En, false);
-        moved.src_path = Some(PathBuf::from("D:/library/_another.ARW"));
+        moved.src_path = Some(std::env::temp_dir().join(format!("autoshade-library-{}/_another.ARW", std::process::id())));
         moved.on_portrait_found(Lang::En, find("d", 1));
         assert_eq!(moved.recipe.masks.len(), before);
     }

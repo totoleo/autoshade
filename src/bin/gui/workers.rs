@@ -648,7 +648,7 @@ impl AutoShadeApp {
                                 None => self.done(line),
                             }
                         }
-                        ExportOutcome::Batch { ok, errs, renamed, relooked, warns, dest, refused: _ } => {
+                        ExportOutcome::Batch { ok, errs, renamed, relooked, warns, dest } => {
                             // Where the batch actually DELIVERED becomes the
                             // remembered destination — here, not at the dialog
                             // (R22 M1): a folder inside the photo library is

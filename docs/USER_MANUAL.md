@@ -86,11 +86,35 @@ saved develop, and `Ctrl+S` clears it; a jpg save is not the develop save.
 A save never replaces a photo saved earlier under a name the app
 made: when the folder already holds a jpg of that name, the new one gets a
 number — `name-2.jpg`, then `name-3.jpg` — and the line says which file was
-written. A name you pick yourself in the save window is yours to replace. The app never saves into the folder the photo itself
-is in; if you pick that folder, it says so and you pick another.
+written. A name you pick yourself in the save window is yours to replace. A
+save never replaces an existing photo: a new name lands wherever you point it,
+including the photo's own folder or a subfolder of it, while a destination that
+would overwrite an image file is refused and says which file.
 **Apply this look to every photo in the folder** first settles that folder
 (if you cancel, nothing changes), then gives every photo of the folder open
 in the library the same look and saves each one there as a jpg.
+
+**Recipe library.** The Library panel's **Recipe library…** button opens a
+window that keeps named looks outside any one photo. **Save current develop**
+stores the open photo's look under the name you type (blank uses the photo's
+name); **Import file…** adds a `recipe.json` or a Lightroom / Camera Raw
+`.xmp` sidecar. A row names one recipe and its save date, and the filter
+narrows the list. Selecting a row develops that recipe on the open photo in
+the preview pane (the line under it names the photo) and lists the settings
+it changes — only the ones away from neutral, with the engine's own numbers.
+**Apply to this photo** puts the recipe on the canvas — unsaved, so `Ctrl+Z`
+undoes it and `Ctrl+S` saves it; the recipe's numbers are then edited with the
+workspace's own controls, and **Write back to this recipe** stores what is on
+the canvas into the entry under its name. **Apply to selected (n)** writes it
+into the develop store of the `Ctrl`/`⌘`-clicked photos exactly like
+**Paste to selected**, rendering nothing. **Rename** renames it (the file moves
+with it), and **Delete** asks for a second click before removing the file.
+What belongs to the photo an entry was saved from is left out of the entry,
+and the line says what: crop and straighten, bitmap masks and reverse-fit
+zones whose rasters are the source photo's, the colour field, fill layers, and
+the lens blur's depth map. The entries are plain recipe files in `recipes/`
+under the app's data folder (**Show library folder** opens it), so
+`autoshade apply` reads one unchanged.
 
 The toolbar keeps **Open photo…**, **Reset**, undo and redo, the two turns,
 **Compare** and **⬛ Single**, **Export**, **Save develop** and Settings; the
@@ -162,8 +186,8 @@ cannot carry it.
 ## 1. Open and inspect a photo
 
 Use **Open photo…** (`Ctrl+O`), drag and drop, or **Open folder…**. The library
-is read-only: AutoShade stores develop state separately and never rewrites the
-source RAW. The viewer applies the photo's orientation before crop and mask
+is never rewritten: AutoShade stores develop state separately and never touches
+the source RAW — nor does it replace any photo file on export. The viewer applies the photo's orientation before crop and mask
 geometry, so every tool works in the displayed frame — and when a Lightroom
 sidecar sits beside the RAW, the rotation Lightroom holds for that photo is the
 one AutoShade opens it in, not the camera's original. A turn made here is
@@ -1243,16 +1267,11 @@ fact sits under the managed row in Settings.
 
 **Python interpreter.** The AI sidecars run under a Python 3 that AutoShade
 does not bundle. Settings carries a **Python interpreter** field with a
-**Detect** button beside it; Detect looks in the standard install locations and
-fills the field with the first one that actually RUNS — it executes
-`--version` rather than trusting that a file exists, because a Mac without
-developer tools has a `/usr/bin/python3` whose only behaviour is to offer to
-install them. The macOS candidates, in order, are `/opt/homebrew/bin/python3`
-(Apple-silicon Homebrew), `/usr/local/bin/python3` (Intel Homebrew), the
-python.org framework at
-`/Library/Frameworks/Python.framework/Versions/Current/bin/python3`, and
-`/usr/bin/python3` last; you can also type a full path instead of pressing
-Detect. Finding none is reported as such rather than leaving the field
+**Detect** button beside it; Detect asks the OS for `python3` and `python`
+through `PATH` and fills the field with the first that actually RUNS — it
+executes `--version` rather than trusting that a file exists, because a Mac
+without developer tools ships a stub whose only behaviour is to offer to install
+them. You can also type a full path instead of pressing Detect. Finding none is reported as such rather than leaving the field
 silently unchanged. Blank means the platform default — the managed
 environment when it is prepared, otherwise `python` on Windows and `python3`
 elsewhere.
@@ -1407,14 +1426,12 @@ configured provider. The verifier receives recipe, EXIF, histogram, clipping,
 and rationale data—not pixels—and Responses request bodies set `store:false`.
 The local web UI binds to loopback only, checks Host/Origin and cross-site
 requests, requires a fresh per-run session token for state changes, disables API
-caching, and denies framing. By default, AutoShade keeps the source library
-read-only. If the configured Delivery folder is inside or above a photo's
-folder, that delivery subtree is intentionally writable; Settings warns when
-this removes the folder's protection. A relative Delivery folder such as the
-default `./out` is not: run from inside a photo's folder, `./out` lands inside
-the photos and the write is refused, so run AutoShade from another folder or
-pass `-o` with a folder outside the photos. "Export .xmp beside the photo" is
-the separate, confirmed per-photo sidecar exception.
+caching, and denies framing. AutoShade never overwrites a photo: a destination
+that would replace an existing image file is refused, and everything else is
+yours to choose — a new name in the photo's own folder, a subfolder inside the
+library such as `exports`, or the Delivery folder, which is the
+default. "Export .xmp beside the photo" is the separate, confirmed per-photo
+sidecar exception.
 
 The Delivery folder holds exports only. The full-resolution images AI denoise,
 stacking, heal, clone, fill and AI edits produce — the masters their cards are
@@ -1465,7 +1482,7 @@ when you delete them.
 
 ```text
 AutoShade-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-AutoShade-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="<apps>\AutoShade" /TASKS="addtopath"
+AutoShade-Setup-<version>.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="<install folder>" /TASKS="addtopath"
 ```
 
 The first form upgrades an existing install in place; `/DIR=` and `/TASKS=` only

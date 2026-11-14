@@ -747,13 +747,14 @@ fn a_missing_component_raster_makes_the_whole_adjustment_inert() {
     // would WIDEN the effect area, so the whole adjustment must go inert
     // (apply_masks / mask_coverage) and the strict raster snapshot must
     // refuse the deliverable, exactly like a lost BASE raster.
+    let missing = std::env::temp_dir().join(format!("autoshade-definitely-missing-{}/raster.png", std::process::id())).display().to_string();
     let m = LocalAdjustment {
         exposure_ev: 1.0, // engine-active, so the export gate cares
         mask: MaskGeometry::Linear { zero_x: 0.0, zero_y: 0.5, full_x: 1.0, full_y: 0.5 },
         components: vec![MaskComponent {
             inverted: false,
             geometry: MaskGeometry::Bitmap {
-                path: "Z:/__autoshade_definitely_missing__/raster.png".into(),
+                path: missing.clone(),
             },
             mode: MaskCombine::Subtract,
         }],
@@ -783,13 +784,13 @@ fn dead_bitmap_rasters_reports_only_unloadable_geometries() {
     std::fs::create_dir_all(&dir).unwrap();
     let good = dir.join("good-raster.png");
     image::GrayImage::from_pixel(4, 4, image::Luma([200])).save(&good).unwrap();
-    let missing = "Z:/__autoshade_definitely_missing__/raster.png";
+    let missing = std::env::temp_dir().join(format!("autoshade-definitely-missing-{}/raster.png", std::process::id())).display().to_string();
     let m = LocalAdjustment {
         exposure_ev: 1.0,
         mask: MaskGeometry::Bitmap { path: good.to_string_lossy().into_owned() },
         components: vec![MaskComponent {
             inverted: false,
-            geometry: MaskGeometry::Bitmap { path: missing.into() },
+            geometry: MaskGeometry::Bitmap { path: missing.clone() },
             mode: MaskCombine::Subtract,
         }],
         name: "badge".into(),

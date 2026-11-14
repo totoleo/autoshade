@@ -1676,6 +1676,9 @@ readers, never by the silent probes.
   reconciliation rule, raster placement, the zone-role name fallback.
 - `src/pipeline.rs` — sidecar read/merge/save/export orchestration.
 - `src/store.rs` — per-user develop store and saved merge bases.
+- `src/recipe_library.rs` — named recipe library under `<store>/recipes/`: the
+  portable shaping a saved develop gets before it can travel, CRUD over the
+  files, and the `.json` / `.xmp` import the GUI's library window uses.
 - `docs/ARCHITECTURE.md`, `docs/V2_PLAN.md`, `docs/ROADMAP.md` and
   `docs/ROADMAP-archive.md` — sidecar measurement and storage-semantics ledger.
 
@@ -2164,8 +2167,9 @@ than the pre-call state; model weights remain outside the repository.
   1996 MiB / 10.247 s at 0.71: +231 MiB and +5.116 s for luminance return.
   This excludes the Python/model process. Batch rendering does not request
   AI denoise, so its ordinary 1800 MB planning constant is unchanged.
-- The current battery is **1837 library (1822 pass + 15 `#[ignore]`d forensic
-  probes) / 26 CLI / 297 GUI / 2+2 contract** tests — the v1.17.1 battery; v1.6.0
+- The current battery is **1790 library (1775 pass + 15 `#[ignore]`d forensic
+  probes) / 28 CLI / 302 GUI / 2+2 contract** tests; v1.17.1 shipped with 1837
+  library and 297 GUI, and v1.6.0
   shipped with 1683 library and 215 GUI, and the names added and retired since
   (the style index's retired with it in v1.9.0) are listed in ARCHITECTURE. Environment-gated
   Lightroom-payload, brush-table, and RAW-zoo suites are additional and are not

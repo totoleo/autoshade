@@ -40,6 +40,7 @@ pub mod pipeline;
 pub mod python_env;
 pub mod rationale;
 pub mod recipe;
+pub mod recipe_library;
 pub mod render;
 pub mod retouch;
 pub mod segment;

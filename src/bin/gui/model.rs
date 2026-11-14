@@ -600,10 +600,6 @@ pub(crate) enum ExportOutcome {
         relooked: usize,
         warns: Vec<String>,
         dest: PathBuf,
-        /// How many of `errs` are `pipeline::SourceFolderRefused` — counted
-        /// by type in the worker, since `errs` carries text only (Normal's
-        /// numbered run never meets `OverwriteRefused`).
-        refused: usize,
     },
 }
 

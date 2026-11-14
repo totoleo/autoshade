@@ -175,13 +175,13 @@ pub(super) fn sweep_stale_sidecar_stages(to: &Path, grace: std::time::Duration) 
 /// `<develop dir>/<stem>.xmp` to the photo's OWN folder as `<name>.xmp`, which
 /// is the only place Lightroom / Camera Raw look for a sidecar.
 ///
-/// **This is the one deliberate write into the photo's folder.** Everything
-/// else refuses (`pipeline::guard_readonly`, "the photo library is read-only")
-/// and that guard is intentionally NOT consulted here — it exists to stop
-/// RENDERED deliverables and `-o` mistakes from landing in a library, whereas
-/// an XMP sidecar is metadata that Lightroom itself writes there by convention,
-/// the destination is fixed (never user-typed), and the caller is one explicit
-/// per-photo click. It is never reachable from a batch, a paste or the CLI.
+/// **A deliberate write into the photo's folder, kept out of the generic
+/// guard.** `pipeline::guard_readonly` protects photo files (it refuses to
+/// replace an existing image, nothing else); this path does not consult it
+/// because the destination is fixed rather than user-typed — `<name>.xmp`
+/// beside the photo is where Lightroom itself looks — and the caller is one
+/// explicit per-photo click. It is never reachable from a batch, a paste or
+/// the CLI.
 ///
 /// `overwrite = false` refuses an existing sidecar with
 /// [`std::io::ErrorKind::AlreadyExists`] — Lightroom's own file may be sitting

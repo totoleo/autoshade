@@ -67,7 +67,7 @@ cp dist/autoshade dist/autoshade-gui "$macos/"
 # never written here at all; see `config::default_weights_dir`), no bytecode,
 # no sidecar tests.
 mkdir -p "$resources/python"
-/usr/bin/rsync -a \
+rsync -a \
   --exclude 'weights/' --exclude '__pycache__/' \
   --exclude 'test_*.py' --exclude '*.pyc' \
   python/ "$resources/python/"

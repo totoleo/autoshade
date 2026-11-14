@@ -827,12 +827,13 @@
             state,
             major,
         };
+        let tmp_bin = |rel: &str| std::env::temp_dir().join(rel).display().to_string();
         for lang in [Lang::En, Lang::Zh] {
-            let managed = check("C:/data/python-env/Scripts/python.exe", PythonState::Managed("x".into()), Some(3));
+            let managed = check(&tmp_bin("python-env/Scripts/python.exe"), PythonState::Managed("x".into()), Some(3));
             assert!(crate::panels::settings::python_startup_words(lang, &managed).is_none());
-            let named = check("C:/tools/python3.exe", PythonState::Interpreter, Some(3));
+            let named = check(&tmp_bin("tools/python3.exe"), PythonState::Interpreter, Some(3));
             assert!(crate::panels::settings::python_startup_words(lang, &named).is_none());
-            let bad = check("C:\\Python27\\python.exe", PythonState::Unusable, Some(2));
+            let bad = check(&tmp_bin("Python27/python.exe"), PythonState::Unusable, Some(2));
             let words = crate::panels::settings::python_startup_words(lang, &bad).expect("a wrong interpreter is said");
             assert!(words.contains("Python27"), "{lang:?}: {words}");
             let unprepared = check("python", PythonState::UnpreparedDefault, Some(3));

@@ -110,7 +110,11 @@
             // bundle lays the Chinese labels narrower than the app draws them,
             // which is how the default-width pins missed this row.
             crate::theme::install_fonts(&ctx);
-            let mut app = AutoShadeApp { lang, style_raw_dir: Some("D:/raw".into()), ..Default::default() };
+            let mut app = AutoShadeApp {
+                lang,
+                style_raw_dir: Some(std::env::temp_dir().join(format!("autoshade-raw-{}", std::process::id()))),
+                ..Default::default()
+            };
             let mut panel = egui::Rect::NOTHING;
             for _ in 0..3 {
                 DRAWN.with_borrow_mut(Vec::clear);
@@ -251,8 +255,7 @@
     /// folder is re-created by the render rather than turning into a dialog).
     #[test]
     fn the_destination_setting_resolves_to_one_delivery_folder() {
-        use std::path::Path;
-        let last = Path::new("D:/deliver/tripA");
+        let last = std::env::temp_dir().join(format!("autoshade-deliver-{}/tripA", std::process::id()));
         // R24-5 M8: this arm resolves to the DELIVERY ROOT setting, not to a
         // literal `./out` — the same one `pipeline::default_out` claims names
         // under, so this window, the CLI, the web download route and a batch
@@ -270,13 +273,13 @@
             "the default is the CLI's and the batch renderer's own root"
         );
         assert_eq!(
-            crate::export::export_dest_dir(ExportDest::OutFolder, Some(last)),
+            crate::export::export_dest_dir(ExportDest::OutFolder, Some(last.as_path())),
             Some(root),
             "…and a remembered folder does not override an explicit delivery root"
         );
         assert_eq!(
-            crate::export::export_dest_dir(ExportDest::LastUsed, Some(last)),
-            Some(last.to_path_buf()),
+            crate::export::export_dest_dir(ExportDest::LastUsed, Some(last.as_path())),
+            Some(last.clone()),
             "the remembered folder is used verbatim, not joined onto ./out"
         );
         assert_eq!(
@@ -284,7 +287,7 @@
             None,
             "nothing remembered yet ⇒ ask once and let the answer seed the memory"
         );
-        assert_eq!(crate::export::export_dest_dir(ExportDest::Ask, Some(last)), None);
+        assert_eq!(crate::export::export_dest_dir(ExportDest::Ask, Some(last.as_path())), None);
         // Every code is round-trippable, and an unknown one degrades to ./out
         // rather than to a dialog (a prefs file from a newer build must not turn
         // every export into a prompt).
@@ -303,15 +306,14 @@
     /// ask into a silent ./out delivery.
     #[test]
     fn the_ask_destination_routes_to_the_dialog_instead_of_writing() {
-        use std::path::PathBuf;
-        let src = PathBuf::from("D:/library/DSC00042.ARW");
+        let src = std::env::temp_dir().join(format!("autoshade-library-{}/DSC00042.ARW", std::process::id()));
         let asking = AutoShadeApp {
             src_path: Some(src.clone()),
             exp_dest: ExportDest::Ask,
             exp_format: ExportFormat::Jpeg,
             // A remembered folder is present ON PURPOSE: "ask every time" must
             // outrank it, or the setting silently becomes "last used".
-            last_export_dir: Some(PathBuf::from("D:/deliver/tripA")),
+            last_export_dir: Some(std::env::temp_dir().join(format!("autoshade-deliver-{}/tripA", std::process::id()))),
             ..Default::default()
         };
         assert_eq!(asking.export_route(), ExportRoute::Ask);
@@ -370,10 +372,9 @@
     /// then aimed at a destination that could only ever refuse, permanently.
     #[test]
     fn a_batch_that_delivered_nothing_does_not_become_the_remembered_destination() {
-        use std::path::PathBuf;
         let ctx = egui::Context::default();
-        let kept = PathBuf::from("D:/deliver/tripA");
-        let refused = PathBuf::from("D:/library/2026-08");
+        let kept = std::env::temp_dir().join(format!("autoshade-deliver-{}/tripA", std::process::id()));
+        let refused = std::env::temp_dir().join(format!("autoshade-library-{}/2026-08", std::process::id()));
         let mut app = AutoShadeApp {
             busy: true,
             last_export_dir: Some(kept.clone()),
@@ -382,12 +383,14 @@
         app.tx
             .send(Msg::Exported(Ok(ExportOutcome::Batch {
                 ok: 0,
-                errs: vec!["the photo library is read-only: D:/library/2026-08".into()],
+                errs: vec![format!(
+                    "refusing to overwrite the existing photo {}/a.jpg",
+                    refused.display()
+                )],
                 renamed: Vec::new(),
                 relooked: 0,
                 warns: Vec::new(),
                 dest: refused.clone(),
-                refused: 0,
             })))
             .unwrap();
         app.poll_workers(&ctx);
@@ -399,7 +402,7 @@
 
         // The other half, or the assertion above would pass on a build that
         // never remembers anything: a batch that DID deliver seeds the memory.
-        let landed = PathBuf::from("D:/deliver/tripB");
+        let landed = std::env::temp_dir().join(format!("autoshade-deliver-{}/tripB", std::process::id()));
         let mut ok_app = AutoShadeApp { busy: true, ..Default::default() };
         ok_app
             .tx
@@ -410,7 +413,6 @@
                 relooked: 0,
                 warns: Vec::new(),
                 dest: landed.clone(),
-                refused: 0,
             })))
             .unwrap();
         ok_app.poll_workers(&ctx);

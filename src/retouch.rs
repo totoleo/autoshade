@@ -1338,23 +1338,26 @@ mod tests {
         assert_ne!(*img.get_pixel(32, 32), Rgb([0, 0, 0]), "the small spot really was healed");
     }
 
-    /// L09-9: clone_stamp carries heal's pre-decode preflight — an output
-    /// that lands in the photo's own library folder refuses before any base
-    /// work (the fixture photo does not even exist, so reaching the decode
-    /// would error differently).
+    /// The pre-pay preflight refuses what the guard protects: an output that
+    /// IS an existing photo (2026-11-14: files, not folders — a NEW name
+    /// inside the library is a destination). The fixture photo itself does not
+    /// even exist, so reaching the decode would error differently.
     #[test]
-    fn clone_stamp_refuses_a_library_output_before_any_work() {
+    fn clone_stamp_refuses_an_output_that_would_replace_a_photo() {
         let dir = std::env::temp_dir()
             .join(format!("autoshade-clonestamp-preflight-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let lib = dir.join("library");
         std::fs::create_dir_all(&lib).unwrap();
         let src = lib.join("photo.arw");
-        let e = match clone_stamp(&src, &crate::render::BasePart::default(), &lib.join("mask.png"), (0.5, 0.5), false, &lib.join("photo.arw")) {
-            Ok(_) => panic!("a library output must refuse"),
+        let victim = lib.join("victim.png");
+        std::fs::write(&src, b"raw").unwrap();
+        std::fs::write(&victim, b"png").unwrap();
+        let e = match clone_stamp(&src, &crate::render::BasePart::default(), &lib.join("mask.png"), (0.5, 0.5), false, &victim) {
+            Ok(_) => panic!("an existing photo must refuse"),
             Err(e) => e.to_string(),
         };
-        assert!(e.contains("read-only"), "the library guard fires first: {e}");
+        assert!(e.contains("refusing to overwrite"), "the guard fires first: {e}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1379,7 +1382,8 @@ mod tests {
     #[test]
     fn heal_keeps_bit_depth_and_alpha_and_stages_the_master() {
         // src lives in its own subdir: heal's pre-pay preflight (Codex AL
-        // F2) runs guard_readonly, which refuses an out beside the source.
+        // F2) runs guard_readonly, which refuses an out that would REPLACE an
+        // existing photo.
         let root = std::env::temp_dir().join(format!("autoshade-retouch-depth-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let dir = root.join("library");

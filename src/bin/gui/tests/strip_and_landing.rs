@@ -374,7 +374,7 @@
         // ("b") could relocate a real user's legacy sidecars into an
         // unreachable key.
         app.src_path =
-            Some(PathBuf::from("D:/__autoshade_keepfact__/__autoshade_keepfact__.ARW"));
+            Some(std::env::temp_dir().join(format!("autoshade-keepfact-{}/__autoshade_keepfact__.ARW", std::process::id())));
         app.keep_recipe = true;
         app.open_same_path = false; // stale request, cross-photo fact
         let base = Arc::new(image::DynamicImage::new_rgb8(8, 6));
@@ -445,7 +445,7 @@
         // apply_step gate repairs phase 1's install and fails its assert.
         let mut app = AutoShadeApp::default();
         let ctx = egui::Context::default();
-        let p = PathBuf::from("D:/__autoshade_histgate__/__autoshade_histgate__.ARW");
+        let p = std::env::temp_dir().join(format!("autoshade-histgate-{}/__autoshade_histgate__.ARW", std::process::id()));
         // Pre-era fingerprint: version 1, interior x >= 0.5, darkens > 0.05.
         let washy = vec![[0.0, 0.0], [0.6, 0.4], [1.0, 1.0]];
         let primed = vec![[0.0, 0.0], [0.5, 0.62], [1.0, 1.0]];
@@ -513,8 +513,8 @@
         // old-edge canvas). Three outcomes, three asserts.
         let ctx = egui::Context::default();
         let armed = |base: Option<Arc<image::DynamicImage>>, origin: Option<PathBuf>| AutoShadeApp {
-            src_path: Some(PathBuf::from(
-                "D:/__autoshade_edgeflight__/__autoshade_edgeflight__.ARW",
+            src_path: Some(std::env::temp_dir().join(
+                "autoshade-edgeflight/__autoshade_edgeflight__.ARW",
             )),
             variants: vec![Variant {
                 id: String::new(),
@@ -643,7 +643,7 @@
         let original_recipe = EditRecipe { exposure_ev: 0.4, ..Default::default() };
         let fitted_recipe = EditRecipe { contrast: 18.0, ..Default::default() };
         AutoShadeApp {
-            src_path: Some(PathBuf::from("D:/library/__variant-baseline__.ARW")),
+            src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/__variant-baseline__.ARW", std::process::id()))),
             recipe: original_recipe.clone(),
             saved_recipe: original_recipe.clone(),
             pixels_on_disk: None,
@@ -710,7 +710,7 @@
         );
 
         let old = app.src_path.clone().unwrap();
-        app.open_path(PathBuf::from("D:/library/__variant-baseline-next__.ARW"));
+        app.open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__variant-baseline-next__.ARW", std::process::id())));
         assert!(
             !app.nav_stash.contains_key(&old),
             "the production navigation call site must not stash a clean card switch"
@@ -752,7 +752,7 @@
             name: None,
             recipe: EditRecipe::default(),
             base: None,
-            origin: Some(PathBuf::from("D:/masters/new.png")),
+            origin: Some(std::env::temp_dir().join(format!("autoshade-masters-{}/new.png", std::process::id()))),
             thumb: None,
         });
         pushed.active = 2;
@@ -818,8 +818,8 @@
     #[test]
     fn switched_generated_card_uses_its_own_persisted_pixel_origin() {
         let mut app = persisted_two_card_fixture();
-        let original_origin = PathBuf::from("D:/masters/original-heal.png");
-        let generated_origin = PathBuf::from("D:/masters/generated.png");
+        let original_origin = std::env::temp_dir().join(format!("autoshade-masters-{}/original-heal.png", std::process::id()));
+        let generated_origin = std::env::temp_dir().join(format!("autoshade-masters-{}/generated.png", std::process::id()));
         app.variants[0].origin = Some(original_origin.clone());
         app.pixels_on_disk = Some(original_origin);
         app.variants[1].kind = VariantKind::Generated;
@@ -836,7 +836,7 @@
         assert!(!app.nav_stash_gate_dirty(), "the nav pixel half uses Y's entry");
         assert!(!app.pending_save_gate_dirty(), "PendingSave uses Y's entry");
 
-        app.variants[1].origin = Some(PathBuf::from("D:/masters/generated-edited.png"));
+        app.variants[1].origin = Some(std::env::temp_dir().join(format!("autoshade-masters-{}/generated-edited.png", std::process::id())));
         assert!(app.unsaved_marker_dirty(), "changing Y's origin re-arms the marker");
         assert!(app.quit_guard_open_dirty(), "changing Y's origin re-arms close");
         assert!(app.nav_stash_gate_dirty(), "changing Y's origin re-arms navigation");
@@ -869,7 +869,7 @@
         // armed on the way out, its restore re-lit the ● on the way back, and
         // the quit dialog listed a photo with nothing to save.
         // Unique stem + full scrub: this writes into the real central store.
-        let src = std::path::Path::new("D:/library/__autoshade_masterid__.ARW");
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_masterid__.ARW", std::process::id()));
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev);
         std::fs::create_dir_all("out").unwrap();
@@ -926,7 +926,7 @@
         // this half of the test pins the PIXELS spelling comparison in the
         // stash gate, not strip dirtiness.
         app.saved_strip = None;
-        app.open_path(PathBuf::from("D:/library/__autoshade_masterid_next__.ARW"));
+        app.open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_masterid_next__.ARW", std::process::id())));
         assert!(
             !app.nav_stash.contains_key(src),
             "a saved retouch must not stash as unsaved just because the store spells its master absolutely"
@@ -940,7 +940,7 @@
         // came back from navigation as 「▣ 原片」. The three-valued kind must
         // round-trip through the stash write verbatim.
         let (mut app, _scrub) = app_with_masked_photo("stashkind");
-        let src = PathBuf::from("D:/library/__autoshade_stashkind__.ARW");
+        let src = std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_stashkind__.ARW", std::process::id()));
         app.src_path = Some(src.clone());
         app.variants.push(Variant {
             id: String::new(),
@@ -953,7 +953,7 @@
         });
         app.active = 1;
         app.recipe = EditRecipe { contrast: 21.0, ..Default::default() };
-        app.open_path(PathBuf::from("D:/library/__autoshade_stashkind_next__.ARW"));
+        app.open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_stashkind_next__.ARW", std::process::id())));
         let st = app.nav_stash.get(&src).expect("a dirty strip stashes on nav-away");
         assert_eq!(
             st.kind,
@@ -972,7 +972,7 @@
         // mirror, and persisting the strip is what Ctrl+S / Save-all now do —
         // after it, the guard's `inactive_dirty_variants() > 0` term is 0 and
         // the close goes through.
-        let src = std::path::Path::new("D:/library/__autoshade_striprec__.ARW");
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_striprec__.ARW", std::process::id()));
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev);
         std::fs::create_dir_all(&dev).unwrap();

@@ -193,7 +193,7 @@ jobs:
       # would let a broken slice ship as a tested one.
       - name: Smoke test — Intel slice, if Rosetta is present
         run: |
-          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+          if arch -x86_64 true 2>/dev/null; then
             arch -x86_64 ./dist/autoshade --version
           else
             echo "INTEL SLICE BUILT BUT NOT EXECUTED — no Rosetta on this runner"
@@ -246,7 +246,7 @@ jobs:
           stage="cli-stage/AutoShade-${{ steps.ver.outputs.version }}-macos-cli"
           rm -rf cli-stage && mkdir -p "$stage/python"
           cp dist/autoshade "$stage/"
-          /usr/bin/rsync -a \
+          rsync -a \
             --exclude 'weights/' --exclude '__pycache__/' \
             --exclude 'test_*.py' --exclude '*.pyc' \
             python/ "$stage/python/"

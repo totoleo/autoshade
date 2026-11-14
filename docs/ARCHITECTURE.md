@@ -247,10 +247,10 @@
 > `scripts/roundtrip_gate.py` is an optional developer instrument (Photoshop
 > with Camera Raw, driven through `scripts/acr_render.ps1`), not part of the
 > release battery.
-> 1837 library + 26 CLI + 297 GUI + 2+2 contract tests are enumerated in the GUI
-> build; the library result is 1822 pass + 15 `#[ignore]`d forensic probes and
-> the GUI result is 293 pass + four ignored (an explicit scratch-recipe export
-> probe and the offline panel, window and mode-workspace screenshots) in the ordinary battery. The one CLI name added for v1.6.2 is the `--negative`
+> 1790 library + 28 CLI + 302 GUI + 2+2 contract tests are enumerated in the GUI
+> build; the library result is 1775 pass + 15 `#[ignore]`d forensic probes and
+> the GUI result is 297 pass + four ignored (an explicit scratch-recipe export
+> probe and the offline panel and window screenshots) in the ordinary battery. The one CLI name added for v1.6.2 is the `--negative`
 > refusal pair (a RAW source, a baked negative); the library and GUI lists are
 > v1.6.1's. For v1.6.3, four library names (decode: the 16-bit profile lattice
 > hands an identity transform its pixels back, a file tagged with the engine's
@@ -975,7 +975,7 @@
 >   which `dotenvy` searches for from the working directory upward, and the
 >   STORE ROOT itself (v0.23.2): the per-user directory used to be
 >   `%LOCALAPPDATA%` on every platform, a variable Unix does not set, so every
->   Linux/macOS build fell through to `/tmp/autoshade` and granted the settings
+>   Linux/macOS build fell through to `<tmp>/autoshade` and granted the settings
 >   file found there full central authority. Each platform now names its own
 >   per-account directory (`$XDG_DATA_HOME`, `$HOME/.local/share`), and a
 >   shared-temp fallback is LABELLED (`store::RootTrust::SharedFallback`) so
@@ -3249,6 +3249,16 @@ primitives, no-clobber publishing), `migrate.rs` (migrating legacy stores) and
 `tests.rs` (the module's own tests). The split moved code and did not edit it:
 beyond visibility and the lines of the tests that read the file as text, every
 non-blank line of the old file lands once in the new ones.
+
+The recipe library (`src/recipe_library.rs`) sits beside that store and is not
+a second one: `<store>/recipes/<name>.json` holds NAMED develops that belong to
+no photo, one plain file per entry in the same shape `recipe.json` has, so
+`autoshade apply` reads an entry unchanged and the GUI and the CLI share a
+single format. `recipe_library::portable` is the one rule for what may leave a
+photo — the bitmap rasters, reverse-fit zones, pass-through map, colour field,
+fill layers and lens blur whose pixels, cells or depth belong to the source
+frame are dropped and counted for disclosure — and the GUI's clipboard paste
+computes its foreign payload through that same function.
 
 The strip record's ACTIVE half (`active_kind` / `active_pos` / `active_id` /
 `active_name`) describes the card whose develop `recipe.json` mirrors, so
@@ -7254,9 +7264,8 @@ surface and a batch render name one place.
 
 It is `Trust::Destination` in `config::SETTINGS`, unlike the read-only
 `AUTOSHADE_LEGACY_OUT` beside it: a planted value does not merely choose a
-folder, it decides where a stranger's developed photos are filed and (via
-`guard_readonly`'s own-output allowance) which directory stops counting as the
-read-only photo library. Neither a `.env` nor an ambient working-directory
+folder, it decides where a stranger's developed photos are filed.
+Neither a `.env` nor an ambient working-directory
 `autoshade.local.json` may supply it.
 
 Three things deliberately did NOT move with it, because they only ever shared
@@ -7266,10 +7275,13 @@ deliverable), and `store::legacy_out_roots` / `AUTOSHADE_LEGACY_OUT` (a read-onl
 archaeology path pinned to where pre-v0.13 builds actually wrote, which a new
 setting cannot retroactively change). `guard_readonly` keeps the literal `./out`
 as an output area alongside the configured root, so repointing the root does not
-make a `match` on an older export suddenly refused — but a cwd-relative area
-that resolves INSIDE the photo's own folder grants nothing (2026-10-26): a CLI
-run from inside the library used to write `out\` into it. A photo that itself
-lives in that `./out` may still be written beside.
+make a `match` on an older export suddenly refused. The guard protects photo
+FILES, not folders (user ruling 2026-11-14): a new name anywhere — beside the
+originals, inside a library subfolder, or in a cwd-relative `out\` when the CLI
+runs from inside the library — is a destination, and only replacing an existing
+photo is refused. A relative delivery folder that happens to BE the photo's
+folder still grants nothing beyond that: it cannot turn "replace a photo" into
+"write to ./out".
 
 Since v1.12 the pixel masters left it too (user report 2026-10-18). A delivery
 folder is the user's to clean, and cleaning it deleted the files cards are built
@@ -7485,9 +7497,12 @@ comments are the source of these one-liners.
 **Native GUI**, behind the `gui` feature so a plain `cargo build` / `cargo test`
 never pulls in winit and the GL stack: `eframe` + `egui` **0.29** (the desktop
 app, with `eframe/persistence` remembering window geometry and our own prefs),
-`rfd` 0.15 (native file/folder dialogs), and `ab_glyph` 0.2 — the same version
+`rfd` 0.15 (native file/folder dialogs), `ab_glyph` 0.2 — the same version
 egui pulls — used to pre-validate a CJK font before handing it to egui, which
-panics on an unparseable one, so font loading degrades safely.
+panics on an unparseable one, so font loading degrades safely, and
+`fontdb` 0.24, the OS font database (DirectWrite on Windows, CoreText on macOS,
+fontconfig on Linux) the runtime fallbacks are asked by FAMILY NAME — no font
+directory or file is named in this tree.
 
 **The GUI's one workspace.** The desktop app opens straight into the
 workspace: there is no mode page and no `Mode`/`Shell` table. Every shared
@@ -7533,8 +7548,8 @@ history — `take_look_history` / `carry_look_history` keep every step's recipe
 on the card now on screen, where `load_active` would reset it;
 `after_normal_denoise` records the card after `Msg::Retouched`);
 Save is `start_render_with` (a jpg at a quality step, into the one export
-destination — never beside the photo, which `pipeline::guard_readonly`
-forbids — and `OutName::Numbered` for a name the app made: `pipeline::claim_numbered`
+destination — a new name anywhere is a destination, and only replacing an
+existing photo is refused by `pipeline::guard_readonly` — and `OutName::Numbered` for a name the app made: `pipeline::claim_numbered`
 claims the bare name or the first free `-2`, `-3`, … beside it by
 `create_new`, so a second save never replaces the first and is not refused; a
 file picked in the save window is `OutName::Chosen` and is replaced, as that
@@ -7545,12 +7560,10 @@ photo" settles that folder first, then runs `start_paste_to` and
 numbered name joins the batch's `renamed` disclosures). The status bar's
 unsaved marker is the workspace's develop marker (`unsaved_marker_dirty`):
 a jpg delivery has no second marker of its own.
-`guard_readonly`'s two refusals are
-typed (`pipeline::OverwriteRefused` and `pipeline::SourceFolderRefused`, same
-messages as before): Normal's numbered saves step past the first and meet only
-the second, which the batch worker counts per photo by type
-(`ExportOutcome::Batch::refused`) and both saving paths word plainly, never by
-matching its English.
+`guard_readonly`'s one refusal is typed (`pipeline::OverwriteRefused`, same
+message as before): Normal's numbered saves step past a file the app already
+wrote and meet it only when the chosen name is an existing photo, which both
+saving paths word plainly, never by matching its English.
 
 **The Portraits panel.** It is drawn first in the same sidebar, above Normal's
 groups and the shared panels

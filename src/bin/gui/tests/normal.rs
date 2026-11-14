@@ -764,38 +764,41 @@
         assert!(app.status.contains("refusing to overwrite"), "{}", app.status);
     }
 
-    /// The refusal a save into the photo's own folder meets — the library
-    /// guard keeps that folder read-only (`SourceFolderRefused`) — reads as
-    /// one plain sentence on every path, matched by type: the single save
-    /// (refused before it renders, no claim left behind), 「apply to every
-    /// photo」 (refused per photo inside the batch) and the workspace's own
-    /// render path.
+    /// The guard protects FILES, not folders (user ruling 2026-11-14): a save
+    /// into the photo's own folder lands under a fresh name, and only a path
+    /// that would REPLACE an existing photo is refused.
     ///
-    /// MUTATION THIS CATCHES: let a numbered save step past this refusal,
-    /// stop counting it by type in the batch worker, or stop mapping it on
-    /// the single path, and an assert below fails.
+    /// MUTATION THIS CATCHES: put the folder refusal back and the save never
+    /// renders; drop the overwrite refusal and the existing photo is replaced.
     #[test]
-    fn a_save_into_the_photos_own_folder_is_refused_plainly_in_normal() {
+    fn a_save_into_the_photos_own_folder_lands_and_replacing_a_photo_is_refused() {
         let (mut app, src, _scrub) = normal_photo("ownfolder");
         image::RgbImage::from_pixel(32, 24, image::Rgb([60, 90, 120])).save(&src).unwrap();
         let own = src.parent().unwrap().to_path_buf();
         app.exp_dest = ExportDest::LastUsed;
         app.last_export_dir = Some(own.clone());
         let ctx = egui::Context::default();
-        let plain = tr(Lang::En, "AutoShade never saves into the folder your photos are in. Pick another folder.");
         app.recipe.exposure_ev = 0.3;
         app.start_normal_save();
-        assert!(!app.busy);
-        assert_eq!(app.status, plain);
-        assert!(app.toasts.iter().any(|t| t.text == plain), "the toast says it too");
-        app.gallery = vec![src.clone()];
-        app.start_apply_to_folder();
         land_all(&mut app, &ctx);
-        assert_eq!(app.status, plain);
-        let files: Vec<_> = std::fs::read_dir(&own).unwrap().map(|e| e.unwrap().file_name()).collect();
-        assert_eq!(files, vec![src.file_name().unwrap().to_os_string()], "nothing written beside the photo");
-        app.start_render_to(own.join(app.export_file_name_as("jpg")));
-        assert_eq!(app.status, plain, "the workspace's render path words the same refusal plainly");
+        let landed: Vec<String> = std::fs::read_dir(&own)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".jpg"))
+            .collect();
+        assert!(
+            landed.iter().any(|n| n.starts_with("_gui_normal_ownfolder") && n.ends_with(".jpg")),
+            "the jpg landed beside the photo: {landed:?} / {}",
+            app.status
+        );
+        // The photo itself is never replaced: a render aimed at an existing
+        // image is refused, and that file keeps its bytes.
+        let victim = own.join("_gui_normal_ownfolder_existing.jpg");
+        image::RgbImage::from_pixel(32, 24, image::Rgb([10, 20, 30])).save(&victim).unwrap();
+        app.start_render_to(victim.clone());
+        assert!(app.status.contains("refusing to overwrite"), "{}", app.status);
+        let back = image::open(&victim).unwrap().to_rgb8();
+        assert_eq!(back.get_pixel(0, 0).0, [10, 20, 30], "the existing photo is untouched");
     }
 
     /// The mean brightness of a jpg the Save group wrote.

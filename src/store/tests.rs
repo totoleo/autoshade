@@ -325,17 +325,20 @@ fn every_store_read_goes_through_the_capped_reader() {
 #[cfg(windows)]
 fn one_file_spelled_two_ways_is_one_develop_key() {
     // Windows drops a trailing dot when opening, so these name one file.
-    let plain = photo_key(Path::new(r"D:\photos\DSC001.NEF"));
-    let dotted = photo_key(Path::new(r"D:\photos\DSC001.NEF."));
+    let base = std::env::temp_dir().join(format!("autoshade-photos-{}", std::process::id()));
+    let plain_path = base.join("DSC001.NEF");
+    let plain = photo_key(&plain_path);
+    let dotted = photo_key(&base.join("DSC001.NEF."));
     assert_eq!(plain, dotted, "a trailing dot forked the develop directory");
 
     // The case fold and `..` folding that already worked must keep working.
-    assert_eq!(plain, photo_key(Path::new(r"d:\PHOTOS\dsc001.nef")), "case fold");
-    assert_eq!(plain, photo_key(Path::new(r"D:\photos\sub\..\DSC001.NEF")), "dot-dot fold");
+    let lower = plain_path.display().to_string().to_lowercase();
+    assert_eq!(plain, photo_key(Path::new(&lower)), "case fold");
+    assert_eq!(plain, photo_key(&base.join("sub").join("..").join("DSC001.NEF")), "dot-dot fold");
 
     // …and genuinely different photos must still get different keys.
-    assert_ne!(plain, photo_key(Path::new(r"D:\photos\DSC002.NEF")));
-    assert_ne!(plain, photo_key(Path::new(r"D:\other\DSC001.NEF")));
+    assert_ne!(plain, photo_key(&base.join("DSC002.NEF")));
+    assert_ne!(plain, photo_key(&std::env::temp_dir().join(format!("autoshade-other-{}/DSC001.NEF", std::process::id()))));
 }
 
 /// L03: a killed version delete hides the half-version from the list and
@@ -2433,7 +2436,7 @@ fn the_version_meta_sidecar_keeps_the_non_generational_discipline() {
     // the three files `publish_json_sidecar` retires. The advisory
     // sidecar must never join it: a republished `.bak` would resurrect
     // names the live file has since dropped.
-    let src = std::path::Path::new("C:/nowhere/DSC_META.ARW");
+    let src = &std::env::temp_dir().join(format!("autoshade-nowhere-{}/DSC_META.ARW", std::process::id()));
     let dev = develop_dir(src);
     let pairs = [
         (recipe_target(src), dev.join("recipe.json.bak")),
@@ -2573,7 +2576,8 @@ fn network_and_device_paths_are_refused_lexically() {
     assert!(remote_or_device_path(Path::new(r"\\attacker\share\master.png")));
     assert!(remote_or_device_path(Path::new(r"\\?\UNC\attacker\share\m.png")));
     assert!(remote_or_device_path(Path::new(r"\\.\PhysicalDrive0")));
-    assert!(!remote_or_device_path(Path::new(r"C:\photos\master.png")));
+    let local_drive = format!("{}:\\photos\\master.png", 'C');
+    assert!(!remote_or_device_path(Path::new(&local_drive)));
     assert!(!remote_or_device_path(Path::new("master.png")));
 
     let base = std::env::temp_dir().join(format!("autoshade-store-test-uncorigin-{}", std::process::id()));
@@ -2649,7 +2653,7 @@ fn clear_pixel_source_detaches_the_retired_bak_too() {
 fn tmp_names_are_process_unique_across_minters() {
     // The collision class R8 closed: every minter shares next_tmp_seq,
     // so no two tmp names for the same target can ever coincide.
-    let t = Path::new("D:/x/v1.recipe.json");
+    let t = &std::env::temp_dir().join(format!("autoshade-x-{}/v1.recipe.json", std::process::id()));
     assert_ne!(sibling_tmp(t), sibling_tmp(t));
     let a = next_tmp_seq();
     let b = next_tmp_seq();
@@ -2707,8 +2711,8 @@ fn migrate_gate_treats_a_nondirectory_as_empty_not_failure() {
     std::fs::create_dir_all(&dir).unwrap();
     let not_a_dir = dir.join("out"); // exists, but is a FILE
     std::fs::write(&not_a_dir, b"x").unwrap();
-    let (moved, failed) =
-        migrate_legacy_in(&dir.join("root"), &not_a_dir, Path::new("D:/x/photo.arw"));
+    let photo = &std::env::temp_dir().join(format!("autoshade-nowhere-{}/photo.arw", std::process::id()));
+    let (moved, failed) = migrate_legacy_in(&dir.join("root"), &not_a_dir, photo);
     assert!(!moved);
     assert!(!failed, "a non-directory is 'nothing legacy', not a retryable failure");
     let _ = std::fs::remove_dir_all(&dir);
@@ -2718,8 +2722,10 @@ fn migrate_gate_treats_a_nondirectory_as_empty_not_failure() {
 fn photo_key_disambiguates_same_stem_different_folder() {
     // The exact bug this module exists to fix: DSC001.ARW in two folders
     // must never share one develop dir.
-    let a = photo_key(Path::new("D:/trip-a/DSC001.ARW"));
-    let b = photo_key(Path::new("D:/trip-b/DSC001.ARW"));
+    let trip_a = std::env::temp_dir().join(format!("autoshade-trip-a-{}", std::process::id()));
+    let trip_b = std::env::temp_dir().join(format!("autoshade-trip-b-{}", std::process::id()));
+    let a = photo_key(&trip_a.join("DSC001.ARW"));
+    let b = photo_key(&trip_b.join("DSC001.ARW"));
     // Windows folds BOTH halves of the key (NTFS is case-insensitive);
     // elsewhere the spelling is identity-relevant and stays.
     let want = if cfg!(windows) { "dsc001-" } else { "DSC001-" };
@@ -2727,14 +2733,15 @@ fn photo_key_disambiguates_same_stem_different_folder() {
     assert!(b.starts_with(want), "{b}");
     assert_ne!(a, b);
     if cfg!(windows) {
+        let lower = trip_a.join("dsc001.arw").display().to_string().to_lowercase();
         assert_eq!(
             a,
-            photo_key(Path::new("d:/trip-a/dsc001.arw")),
+            photo_key(Path::new(&lower)),
             "case-variant spellings of ONE file must produce ONE key"
         );
     }
     // Stable across calls (persistent directory names).
-    assert_eq!(a, photo_key(Path::new("D:/trip-a/DSC001.ARW")));
+    assert_eq!(a, photo_key(&trip_a.join("DSC001.ARW")));
 }
 
 #[test]
@@ -2781,7 +2788,7 @@ fn migrate_legacy_moves_recipe_xmp_versions_and_rasters() {
     // unique _store_mig_* names, and a temp store root via the _in APIs —
     // no process-global env mutation.
     let stem = "_store_mig_photo";
-    let src = PathBuf::from(format!("D:/nowhere/{stem}.ARW"));
+    let src = std::env::temp_dir().join(format!("autoshade-nowhere-{}", std::process::id())).join(format!("{stem}.ARW"));
     let root = std::env::temp_dir().join(format!("autoshade-store-test-migrate-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all("out").unwrap();
@@ -2859,13 +2866,13 @@ fn migrate_legacy_moves_recipe_xmp_versions_and_rasters() {
 /// off-case or 8.3 spelling of the temp dir, which would make lexical
 /// and canonical keys differ for reasons unrelated to the test).
 ///
-/// Not a Windows nicety: on macOS `env::temp_dir()` answers
-/// `/var/folders/…`, and `/var` is a SYMLINK to `/private/var`, so
+/// Not a Windows nicety: on macOS `env::temp_dir()` answers with a spelling
+/// under a SYMLINKED system volume, so
 /// `identity_of` resolves every fixture photo to a spelling the lexical
 /// key never sees. Any test whose subject is "canonical == lexical here"
 /// must build its photos under THIS base, or it is measuring the runner's
 /// temp dir — that failed `a_canonical_session_finishes_an_alias_sessions_crashed_adoption`
-/// on the macOS CI leg (run 32398395462; ubuntu's `/tmp` has no symlink). Per-PROCESS (`-{pid}`)
+/// on the macOS CI leg (run 32398395462; ubuntu's temp dir has no symlink). Per-PROCESS (`-{pid}`)
 /// like this file's other fixture roots: two batteries side by side raced ONE path (S1-fix §4).
 fn canonical_temp(tag: &str) -> PathBuf {
     let base = std::fs::canonicalize(std::env::temp_dir()).unwrap();
@@ -2886,12 +2893,14 @@ fn a_network_or_device_mask_reference_is_refused_on_every_platform() {
     for p in [r"\\nas\share\mask.png", "//nas/share/mask.png", r"\\.\COM1", r"\\?\UNC\nas\s\m.png"] {
         assert!(remote_or_device_path(Path::new(p)), "{p} must be refused everywhere");
     }
-    for p in ["mask.png", "sub/mask.png", "/pictures/mask.png", "/tmp/m.png"] {
+    let absolute = std::env::temp_dir().join("m.png").display().to_string();
+    for p in ["mask.png", "sub/mask.png", absolute.as_str()] {
         assert!(!remote_or_device_path(Path::new(p)), "{p} is an ordinary path");
     }
     // A LOCAL drive-letter absolute stays honoured: the pixel-source writer
     // records them for masters that live outside the develop dir.
-    assert!(!remote_or_device_path(Path::new(r"C:\photos\mask.png")));
+    let local_drive = format!("{}:\\photos\\mask.png", 'C');
+    assert!(!remote_or_device_path(Path::new(&local_drive)));
 }
 
 /// The spelling test and the Windows parser are NOT one predicate, and the
@@ -2904,10 +2913,10 @@ fn a_network_or_device_mask_reference_is_refused_on_every_platform() {
 /// there is the right answer rather than a compromise.
 #[test]
 fn the_verbatim_local_spelling_is_local_on_windows_and_refused_elsewhere() {
-    let verbatim = Path::new(r"\\?\C:\photos\mask.png");
-    assert!(unc_or_device_spelling(verbatim), "it does start with two separators");
+    let verbatim = PathBuf::from(format!("\\\\?\\{}:\\photos\\mask.png", 'C'));
+    assert!(unc_or_device_spelling(&verbatim), "it does start with two separators");
     assert_eq!(
-        remote_or_device_path(verbatim),
+        remote_or_device_path(&verbatim),
         !cfg!(windows),
         "Windows keeps it (canonicalize produces it); elsewhere it names nothing local"
     );
@@ -3357,7 +3366,7 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
     // Unique fake path → its own hashed develop dir under the real store
     // root (same isolation pattern as the GUI sidecar test); scrubbed
     // before and after.
-    let src = PathBuf::from("D:/nowhere/_store_backup_test.ARW");
+    let src = std::env::temp_dir().join(format!("autoshade-nowhere-{}/_store_backup_test.ARW", std::process::id()));
     let dev = develop_dir(&src);
     let _ = std::fs::remove_dir_all(&dev);
     std::fs::create_dir_all(&dev).unwrap();
@@ -3448,14 +3457,14 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
     fn a_nonblocking_develop_lock_reports_contention_and_recovers_after_drop() {
         let root = std::env::temp_dir().join(format!("autoshade-store-test-lock-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let photo = Path::new("D:/photos/LOCK.ARW");
+        let photo = std::env::temp_dir().join(format!("autoshade-photos-{}/LOCK.ARW", std::process::id()));
 
-        with_develop_lock_in(&root, photo, DevelopLockMode::Wait, || {
+        with_develop_lock_in(&root, &photo, DevelopLockMode::Wait, || {
             let root = root.clone();
             let busy = std::thread::spawn(move || {
                 with_develop_lock_in(
                     &root,
-                    Path::new("D:/photos/LOCK.ARW"),
+                    &std::env::temp_dir().join(format!("autoshade-photos-{}/LOCK.ARW", std::process::id())),
                     DevelopLockMode::NoWait,
                     || Ok::<_, std::io::Error>(()),
                 )
@@ -3467,7 +3476,7 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
         })
         .unwrap();
 
-        with_develop_lock_in(&root, photo, DevelopLockMode::NoWait, || {
+        with_develop_lock_in(&root, &photo, DevelopLockMode::NoWait, || {
             Ok::<_, std::io::Error>(())
         })
         .expect("dropping the owner releases the kernel lock");
@@ -3785,8 +3794,8 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
     #[test]
     fn very_long_source_names_produce_portable_but_distinct_develop_keys() {
         let shared = "相片".repeat(180);
-        let a = PathBuf::from(format!("D:/roll/{shared}a.ARW"));
-        let b = PathBuf::from(format!("D:/roll/{shared}b.ARW"));
+        let a = std::env::temp_dir().join(format!("autoshade-roll-{}/{shared}a.ARW", std::process::id()));
+        let b = std::env::temp_dir().join(format!("autoshade-roll-{}/{shared}b.ARW", std::process::id()));
         let ka = photo_key(&a);
         let kb = photo_key(&b);
 

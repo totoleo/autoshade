@@ -392,7 +392,7 @@ impl SegmentReport {
     /// (`python/segment.py`'s `main`):
     ///
     /// ```text
-    /// segment.py: subject mask [BiRefNet e2bf8e4460fc] -> C:\…\mask.png
+    /// segment.py: subject mask [BiRefNet e2bf8e4460fc] -> <folder>\mask.png
     /// segment.py: subject backend deps [ok]
     /// ```
     ///
@@ -1415,6 +1415,10 @@ fn staging_path(src: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
+    fn roll(rel: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("autoshade-rolls-{}", std::process::id())).join(rel)
+    }
+
     fn manifest_fixture(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
         let dir = std::env::temp_dir().join(format!("autoshade-multi-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -1664,10 +1668,12 @@ mod tests {
     /// last case and would silently re-derive every cached alpha.
     #[test]
     fn the_backend_label_survives_the_sidecar_line() {
-        let primary = SegmentReport::parse(
-            "segment.py: subject mask [BiRefNet e2bf8e4460fc] -> C:\\x\\mask.png\n\
+        let mask_path = std::env::temp_dir().join(format!("autoshade-masks-{}/mask.png", std::process::id()));
+        let primary = SegmentReport::parse(&format!(
+            "segment.py: subject mask [BiRefNet e2bf8e4460fc] -> {}\n\
              segment.py: subject backend deps [ok]\n",
-        );
+            mask_path.display()
+        ));
         assert_eq!(primary.backend, "BiRefNet e2bf8e4460fc");
         assert_eq!(primary.birefnet_deps, Some(true));
         assert!(!primary.is_fallback(), "the pinned model is not a fallback");
@@ -1681,9 +1687,11 @@ mod tests {
 
         // A path containing a bracket must not eat the label — the label ends
         // at the FIRST `]`, and the path is right of the ` -> `.
-        let bracketed = SegmentReport::parse(
-            "segment.py: sky mask [OneFormer ADE20K Swin-L 4a5bac8e64f8] -> D:\\a[1]\\m.png\n",
-        );
+        let bracketed_path = std::env::temp_dir().join("a[1]").join("m.png");
+        let bracketed = SegmentReport::parse(&format!(
+            "segment.py: sky mask [OneFormer ADE20K Swin-L 4a5bac8e64f8] -> {}\n",
+            bracketed_path.display()
+        ));
         assert_eq!(bracketed.backend, "OneFormer ADE20K Swin-L 4a5bac8e64f8");
         assert_eq!(bracketed.birefnet_deps, None, "sky has no fallback tier to report");
 
@@ -2101,10 +2109,11 @@ mod tests {
         };
         *gesture = super::tests::gesture("d inf 0.5");
         let mut recipe = ai_recipe(geometry);
+        let raw = roll("DSC0001.ARW");
         let got = resolve_ai_masks(
             &Config::load(),
-            Path::new("D:/rolls/2024/DSC0001.ARW"),
-            Path::new("D:/rolls/2024/DSC0001.ARW"),
+            &raw,
+            &raw,
             &mut recipe,
         );
         assert_eq!(got.resolved, 0);
@@ -2155,17 +2164,17 @@ mod tests {
 
     #[test]
     fn scoped_gesture_cache_identity_tracks_only_exact_sent_points_and_gp_version() {
-        let raw = Path::new("D:/rolls/2024/DSC0001.ARW");
+        let raw = roll("DSC0001.ARW");
         let a = [[0.5, 0.5], [0.1, 0.2], [0.3, 0.4]];
         let reordered = [[0.5, 0.5], [0.3, 0.4], [0.1, 0.2]];
         let duplicated = [[0.5, 0.5], [0.1, 0.2], [0.1, 0.2], [0.3, 0.4]];
         let moved = [[0.5, 0.5], [0.1, 0.21], [0.3, 0.4]];
-        let key = ai_cache_key_with_prompt(raw, 0, 0.5, 0.5, 0, Some(&a));
+        let key = ai_cache_key_with_prompt(&raw, 0, 0.5, 0.5, 0, Some(&a));
         for points in [&reordered[..], &duplicated[..], &moved[..]] {
-            assert_ne!(key, ai_cache_key_with_prompt(raw, 0, 0.5, 0.5, 0, Some(points)));
+            assert_ne!(key, ai_cache_key_with_prompt(&raw, 0, 0.5, 0.5, 0, Some(points)));
         }
         let old_version =
-            ai_cache_key_gen_scoped(raw, 0, 0.5, 0.5, 0, 2, Some((&a, "gp0")));
+            ai_cache_key_gen_scoped(&raw, 0, 0.5, 0.5, 0, 2, Some((&a, "gp0")));
         assert_ne!(key, old_version, "the gp mapping version participates in identity");
         let component = gesture_prompt_cache_component(&a, GESTURE_PROMPT_MAPPING_VERSION);
         assert!(component.starts_with("|gp1:"), "{component}");
@@ -2183,16 +2192,16 @@ mod tests {
         let p2 = gesture_prompt_points(0, 0.5, 0.5, &ignored_edits).unwrap().unwrap();
         assert_eq!(p1, p2, "ignored brush state cannot change the sent values");
         assert_eq!(
-            ai_cache_key_with_prompt(raw, 0, 0.5, 0.5, 0, Some(&p1)),
-            ai_cache_key_with_prompt(raw, 0, 0.5, 0.5, 0, Some(&p2))
+            ai_cache_key_with_prompt(&raw, 0, 0.5, 0.5, 0, Some(&p1)),
+            ai_cache_key_with_prompt(&raw, 0, 0.5, 0.5, 0, Some(&p2))
         );
     }
 
     #[test]
     fn unaffected_ai_cache_keys_remain_exact_generation_two_bytes() {
-        let raw = Path::new("D:/rolls/2024/DSC0001.ARW");
-        let legacy = ai_cache_key(raw, 0, 0.5, 0.5, 0);
-        assert_eq!(ai_cache_key_with_prompt(raw, 0, 0.5, 0.5, 0, None), legacy);
+        let raw = roll("DSC0001.ARW");
+        let legacy = ai_cache_key(&raw, 0, 0.5, 0.5, 0);
+        assert_eq!(ai_cache_key_with_prompt(&raw, 0, 0.5, 0.5, 0, None), legacy);
         assert_eq!(
             ai_cache_key_from_photo_key("photo-key", 0, 0.5, 0.5, 0, 2, None),
             "ai-mask-a253729c2afcc1cf",
@@ -2201,8 +2210,8 @@ mod tests {
         assert_eq!(AI_BACKEND_GENERATION, 2);
         for subtype in 0..=2 {
             assert_eq!(
-                ai_cache_key_with_prompt(raw, subtype, 0.5, 0.5, 0, None),
-                ai_cache_key(raw, subtype, 0.5, 0.5, 0),
+                ai_cache_key_with_prompt(&raw, subtype, 0.5, 0.5, 0, None),
+                ai_cache_key(&raw, subtype, 0.5, 0.5, 0),
                 "subtype {subtype} without sent gesture points stays generation-2 exact"
             );
         }
@@ -2350,14 +2359,14 @@ mod tests {
     /// alpha, so the second one silently renders the first one's selection.
     #[test]
     fn the_ai_cache_key_covers_the_photo_the_subtype_and_the_click() {
-        let a = Path::new("D:/rolls/2024/DSC0001.ARW");
-        let b = Path::new("D:/rolls/2024/DSC0002.ARW");
-        let base = ai_cache_key(a, 2, 0.5, 0.5, 0);
-        assert_eq!(base, ai_cache_key(a, 2, 0.5, 0.5, 0), "the key is stable across calls");
-        assert_ne!(base, ai_cache_key(b, 2, 0.5, 0.5, 0), "a different photo, a different alpha");
-        assert_ne!(base, ai_cache_key(a, 0, 0.5, 0.5, 0), "a different backend, a different alpha");
-        assert_ne!(base, ai_cache_key(a, 2, 0.9, 0.5, 0), "a moved click, a different alpha");
-        assert_ne!(base, ai_cache_key(a, 2, 0.5, 0.9, 0), "…in either axis");
+        let a = roll("DSC0001.ARW");
+        let b = roll("DSC0002.ARW");
+        let base = ai_cache_key(&a, 2, 0.5, 0.5, 0);
+        assert_eq!(base, ai_cache_key(&a, 2, 0.5, 0.5, 0), "the key is stable across calls");
+        assert_ne!(base, ai_cache_key(&b, 2, 0.5, 0.5, 0), "a different photo, a different alpha");
+        assert_ne!(base, ai_cache_key(&a, 0, 0.5, 0.5, 0), "a different backend, a different alpha");
+        assert_ne!(base, ai_cache_key(&a, 2, 0.9, 0.5, 0), "a moved click, a different alpha");
+        assert_ne!(base, ai_cache_key(&a, 2, 0.5, 0.9, 0), "…in either axis");
         // A plain file name, safe to hand `store::raster_target`.
         assert!(
             base.starts_with("ai-mask-")
@@ -2382,14 +2391,14 @@ mod tests {
     /// one.
     #[test]
     fn the_ai_cache_key_separates_the_frames_even_at_the_rotation_fixed_point() {
-        let a = Path::new("D:/rolls/2024/DSC0001.ARW");
+        let a = roll("DSC0001.ARW");
         // The fixed point of every quarter turn — verified against the
         // coordinate map rather than asserted from memory.
         for t in 1u8..4 {
             let o = crate::render::quarter_turn_orientation(t);
             assert_eq!(crate::render::orient_point(o, 0.5, 0.5), (0.5, 0.5), "{o:?}");
         }
-        let keys: Vec<String> = (0u8..4).map(|t| ai_cache_key(a, 2, 0.5, 0.5, t)).collect();
+        let keys: Vec<String> = (0u8..4).map(|t| ai_cache_key(&a, 2, 0.5, 0.5, t)).collect();
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
                 assert_ne!(
@@ -2400,7 +2409,7 @@ mod tests {
         }
         // …and the fold matches the render's own `% 4`, so a hand-edited
         // `quarter_turns: 5` cannot mint a second cache entry for one frame.
-        assert_eq!(keys[1], ai_cache_key(a, 2, 0.5, 0.5, 5));
+        assert_eq!(keys[1], ai_cache_key(&a, 2, 0.5, 0.5, 5));
     }
 
     /// R29 B4 — the backend generation is IN the key, and it is 2.
@@ -2422,12 +2431,12 @@ mod tests {
             AI_BACKEND_GENERATION, 2,
             "R29 B4 re-pinned the subject model (BiRefNet), so the generation must be 2"
         );
-        let a = Path::new("D:/rolls/2024/DSC0001.ARW");
-        let g1 = ai_cache_key_gen(a, 1, 0.5, 0.5, 0, 1);
-        let g2 = ai_cache_key_gen(a, 1, 0.5, 0.5, 0, 2);
+        let a = roll("DSC0001.ARW");
+        let g1 = ai_cache_key_gen(&a, 1, 0.5, 0.5, 0, 1);
+        let g2 = ai_cache_key_gen(&a, 1, 0.5, 0.5, 0, 2);
         assert_ne!(g1, g2, "a re-pinned segmenter must not be served yesterday's alpha");
         // …and the production key IS the generation-2 key, not some third thing.
-        assert_eq!(g2, ai_cache_key(a, 1, 0.5, 0.5, 0));
+        assert_eq!(g2, ai_cache_key(&a, 1, 0.5, 0.5, 0));
     }
 
     /// R28 Batch-3 (adjudication F1-D) — two staged frames never share a name.
@@ -2441,8 +2450,8 @@ mod tests {
     /// paths below become the same file.
     #[test]
     fn two_staged_source_frames_never_share_a_name() {
-        let p = Path::new("D:/rolls/2024/DSC0001.ARW");
-        let (a, b) = (staging_path(p), staging_path(p));
+        let p = roll("DSC0001.ARW");
+        let (a, b) = (staging_path(&p), staging_path(&p));
         assert_ne!(a, b, "same process, same stem — the names must still differ");
         // Both still name THIS process and THIS photo: the sequence is an
         // addition to the identity, not a replacement for it.
@@ -2468,8 +2477,8 @@ mod tests {
         // launched, so this test never depends on the machine's interpreter.
         cfg.segment_script = "no-such-segment-script-for-this-test.py".into();
         let mut r = ai_recipe(ai_geometry(2, 0.5, 0.5));
-        let raw = Path::new("D:/rolls/2024/DSC0001.ARW");
-        let got = resolve_ai_masks(&cfg, raw, raw, &mut r);
+        let raw = roll("DSC0001.ARW");
+        let got = resolve_ai_masks(&cfg, &raw, &raw, &mut r);
         assert_eq!(got.resolved, 0);
         assert_eq!(got.unresolved.len(), 1, "{got:?}");
         assert_eq!(got.unresolved[0].0, "Mask 1", "the sentence names WHICH mask");
@@ -2507,8 +2516,8 @@ mod tests {
         };
         // The path does not exist: if anything tried to decode it, this would
         // print a warning and still answer "nothing to do".
-        let nope = Path::new("D:/nope/nothing-here.ARW");
-        let got = resolve_ai_masks(&cfg, nope, nope, &mut r);
+        let nope = roll("nothing-here.ARW");
+        let got = resolve_ai_masks(&cfg, &nope, &nope, &mut r);
         assert_eq!(got, AiMaskResolution::default(), "{got:?}");
         assert!(got.describe().is_none(), "nothing happened, so nothing is claimed");
     }
@@ -2548,8 +2557,8 @@ mod tests {
         // A path that does not exist: anything that tried to stage a frame for
         // the segmenter would warn, and the assertion below would catch the
         // raster being replaced or cleared.
-        let nope = Path::new("D:/nope/nothing-here.ARW");
-        let got = resolve_ai_masks(&cfg, nope, nope, &mut r);
+        let nope = roll("nothing-here.ARW");
+        let got = resolve_ai_masks(&cfg, &nope, &nope, &mut r);
         assert_eq!(got, AiMaskResolution::default(), "nothing was re-derived: {got:?}");
         assert!(got.describe().is_none(), "…so nothing is claimed to the photographer");
         let crate::recipe::MaskGeometry::AiMask { raster, .. } = &r.masks[0].mask else {
@@ -2569,7 +2578,7 @@ mod tests {
             unreachable!()
         };
         *raster = None;
-        let got = resolve_ai_masks(&cfg, nope, nope, &mut r);
+        let got = resolve_ai_masks(&cfg, &nope, &nope, &mut r);
         assert_ne!(got, AiMaskResolution::default(), "an alpha-less zone still asks: {got:?}");
     }
 
@@ -2794,9 +2803,9 @@ mod tests {
     /// baked source is its own pixels, turned.
     #[test]
     fn a_raw_sources_mask_frame_is_its_sensor_develop_never_the_embedded_preview() {
-        let raw = Path::new("D:/nowhere/_seg_frame_43_body.ARW");
-        let frame = mask_source_frame_with(raw, 1, 2048, |p, turns, edge| {
-            assert_eq!((p, turns, edge), (raw, 1, 2048), "the develop is asked for the recipe's frame");
+        let raw = roll("_seg_frame_43_body.ARW");
+        let frame = mask_source_frame_with(&raw, 1, 2048, |p, turns, edge| {
+            assert_eq!((p, turns, edge), (raw.as_path(), 1, 2048), "the develop is asked for the recipe's frame");
             Ok(image::DynamicImage::new_rgb8(300, 200))
         })
         .expect("the sensor develop answers");
@@ -2819,8 +2828,15 @@ mod tests {
     /// byte-identical.
     #[test]
     fn a_raw_sources_ai_cache_key_names_the_sensor_develop_frame() {
-        let key = ai_cache_key(Path::new("D:/rolls/2024/roll-0001.ARW"), 2, 0.5, 0.5, 0);
-        assert_ne!(frame_scoped_key(key.clone(), Path::new("D:/rolls/2024/roll-0001.ARW")), key);
-        assert_eq!(frame_scoped_key(key.clone(), Path::new("D:/masters/roll-0001.heal.png")), key);
+        let frame_path = roll("roll-0001.ARW");
+        let key = ai_cache_key(&frame_path, 2, 0.5, 0.5, 0);
+        assert_ne!(frame_scoped_key(key.clone(), &frame_path), key);
+        assert_eq!(
+            frame_scoped_key(
+                key.clone(),
+                &std::env::temp_dir().join(format!("autoshade-masters-{}/roll-0001.heal.png", std::process::id())),
+            ),
+            key
+        );
     }
 }

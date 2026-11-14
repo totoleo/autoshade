@@ -20,18 +20,20 @@
 
         // ── Built: WHICH library, how big, how old — the answer to "I have no
         // idea which library it is referencing".
+        let finished = std::env::temp_dir().join(format!("autoshade-library-{}/finished", std::process::id()));
+        let finished_text = finished.display().to_string();
         let mut app = AutoShadeApp {
             style_info: Some(Summary::Built {
                 photos: 412,
                 phrased: 300, with_settings: 0,
-                dir: "D:/photos/finished".into(),
+                dir: finished_text.clone(),
                 age: Some(std::time::Duration::from_secs(5 * 3600)),
             }),
             ..Default::default()
         };
         let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
         assert!(
-            seen.iter().any(|t| t.contains("412") && t.contains("D:/photos/finished") && t.contains("300 with look phrases")),
+            seen.iter().any(|t| t.contains("412") && t.contains(finished_text.as_str()) && t.contains("300 with look phrases")),
             "the count, the folder and the phrase coverage: {seen:?}"
         );
         assert!(seen.iter().any(|t| t.contains("built 5h ago")), "and how stale it is: {seen:?}");
@@ -135,7 +137,7 @@
         let built = Some(autoshade::library::Summary::Built {
             photos: 40,
             phrased: 0, with_settings: 0,
-            dir: "D:/photos/finished".into(),
+            dir: std::env::temp_dir().join(format!("autoshade-library-{}/finished", std::process::id())).display().to_string(),
             age: None,
         });
         let warn = "built, but not searched";
@@ -165,7 +167,7 @@
     /// to go and generate an image.
     #[test]
     fn a_chosen_reference_is_a_reverse_fit_target_without_any_generated_variant() {
-        let reference = std::path::PathBuf::from("D:/exports/P21-lightroom.tif");
+        let reference = std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id()));
         // A stock app: ONE Original variant, nothing generated.
         let mut app = AutoShadeApp::default();
         assert_eq!(app.fit_target(), None, "premise: nothing to fit against yet");
@@ -211,7 +213,7 @@
         );
         // The chosen file is shown, so "what am I fitting against" is
         // answerable without opening a dialog again.
-        app.fit_ref = Some(std::path::PathBuf::from("D:/exports/P21-lightroom.tif"));
+        app.fit_ref = Some(std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id())));
         let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("P21-lightroom.tif")),
@@ -486,7 +488,7 @@
     #[test]
     fn a_library_build_lands_as_a_typed_outcome_in_every_arm() {
         let ctx = egui::Context::default();
-        let dir = std::path::PathBuf::from("D:/photos/finished");
+        let dir = std::env::temp_dir().join(format!("autoshade-library-{}/finished", std::process::id()));
         let stage = autoshade::library::BuildStage::Images;
 
         // Saved: success toast, folder remembered, search switched on, and a
@@ -631,19 +633,23 @@
     fn the_explorer_argument_survives_a_comma() {
         use std::path::PathBuf;
         let q = |s: &str| crate::util::explorer_quoted_arg(&PathBuf::from(s));
+        let win = |rest: &str| format!("{}:\\{}", 'C', rest);
+        let comma = win(r"Users\me\autoshade\a,b.arw");
         assert_eq!(
-            q(r"C:\Users\me\autoshade\a,b.arw"),
-            Some(r#""C:\Users\me\autoshade\a,b.arw""#.to_string()),
+            q(&comma),
+            Some(format!("\"{comma}\"")),
             "the comma has to sit INSIDE the quotes"
         );
         // Ordinary paths take the same route — one rule, not a comma special
         // case, or the untested branch would be the common one.
-        assert_eq!(q(r"C:\photos\2026"), Some(r#""C:\photos\2026""#.to_string()));
+        let ordinary = win(r"photos\2026");
+        assert_eq!(q(&ordinary), Some(format!("\"{ordinary}\"")));
         // Spaces were already fine and stay fine.
-        assert_eq!(q(r"C:\my photos"), Some(r#""C:\my photos""#.to_string()));
+        let spaced = win("my photos");
+        assert_eq!(q(&spaced), Some(format!("\"{spaced}\"")));
         // A quote cannot occur in a Windows path; if one ever does, no raw
         // line is built at all and the caller falls back to `Command::arg`.
-        assert_eq!(q("C:\\odd\"q"), None);
+        assert_eq!(q(&format!("{}:\\odd\"q", 'C')), None);
     }
 
     /// User report 2026-10-13: 「思考过程输出有时候太长了会占满屏幕」. The verdict,

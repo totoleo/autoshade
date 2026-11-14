@@ -139,7 +139,7 @@ body:
         no decoder are three different failures), and the exact wording says
         which one you hit.
       placeholder: |
-        autoshade auto "D:\photos\photo.ARW" --guidance "warm, lift shadows"
+        autoshade auto "photo.ARW" --guidance "warm, lift shadows"
 
         ...and the highlights came out clipped flat, where the recipe says
         Highlights -38.

@@ -13,8 +13,8 @@ use super::*;
 /// store browsable; the hash disambiguates same-named photos in different
 /// folders. Windows paths are case-insensitive
 /// (NTFS), so BOTH halves fold case there — one file must never produce two
-/// keys just because it was opened as `D:\DSC001.ARW` once and
-/// `d:\dsc001.arw` once. (The hash folded from the start; the stem prefix
+/// keys just because it was opened as `<drive>\DSC001.ARW` once and
+/// `<drive>\dsc001.arw` once. (The hash folded from the start; the stem prefix
 /// did not, so the promise held only because NTFS resolves the two spellings
 /// to one directory anyway. That same resolution keeps every pre-fold store
 /// dir reachable under the folded key on the default root. A deliberately

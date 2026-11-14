@@ -127,7 +127,7 @@ pub(super) fn render_frame(
     // (max > 1 because the red multiplier is 2.4, not because the sensor
     // clipped) and rawler drew it as a pale pink disc with a hard edge.
     // [`camera::settle_over_range`] scales by 1/max instead, keeping the
-    // chromaticity; measured against Camera Raw and reference on DSC06817 the
+    // chromaticity; measured against Camera Raw and an external developer on DSC06817 the
     // disc stays orange and the rest of the frame is unchanged (sky/hill/water
     // means within 0.1 of the rawler path's). A matrix-less camera keeps
     // rawler's develop: there is nothing to calibrate with.

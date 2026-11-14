@@ -619,7 +619,7 @@ fn photo_rel(dir: &Path, raw: &Path) -> String {
 /// derived from the two things that decide the work list — the folder and
 /// `--limit` — so re-running the same command finds its own file and no other
 /// run's. Windows spellings fold case, the rule `store::photo_key` already
-/// follows, so `d:\pics` and `D:\Pics` are one run.
+/// follows, so `<drive>\pics` and `<drive>\Pics` are one run.
 fn default_state_path(dir: &Path, limit: usize) -> PathBuf {
     let abs = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
     let spelling = abs.to_string_lossy().into_owned();
@@ -2290,18 +2290,19 @@ mod tests {
     /// is keyed by the two things that decide the work list.
     #[test]
     fn the_default_progress_file_is_in_the_store_and_keyed_by_the_run() {
-        let lib = if cfg!(windows) { "D:/pics" } else { "/pics" };
-        let a = default_state_path(Path::new(lib), 147);
-        assert_ne!(a, default_state_path(Path::new(lib), 10), "--limit picks the work list");
-        let other = if cfg!(windows) { "D:/other" } else { "/other" };
-        assert_ne!(a, default_state_path(Path::new(other), 147), "another folder, another run");
+        let lib = std::env::temp_dir().join(format!("autoshade-pics-{}", std::process::id())).display().to_string();
+        let a = default_state_path(Path::new(lib.as_str()), 147);
+        assert_ne!(a, default_state_path(Path::new(lib.as_str()), 10), "--limit picks the work list");
+        let other = std::env::temp_dir().join(format!("autoshade-other-{}", std::process::id())).display().to_string();
+        assert_ne!(a, default_state_path(Path::new(other.as_str()), 147), "another folder, another run");
         assert!(a.starts_with(crate::store::store_root()), "{}", a.display());
-        assert!(!a.starts_with(lib), "never inside the library: {}", a.display());
+        assert!(!a.starts_with(lib.as_str()), "never inside the library: {}", a.display());
         assert_eq!(a.extension().and_then(|e| e.to_str()), Some("jsonl"));
         if cfg!(windows) {
             // The store's own case-fold rule: one folder is one run however it
             // was typed.
-            assert_eq!(a, default_state_path(Path::new("d:/PICS"), 147));
+            let typed = lib.to_uppercase();
+            assert_eq!(a, default_state_path(Path::new(typed.as_str()), 147));
         }
     }
 

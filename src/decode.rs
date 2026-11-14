@@ -4117,7 +4117,7 @@ mod tests {
     /// and that failure becomes a dead end again.
     #[test]
     fn an_unreadable_camera_is_told_apart_from_an_unreadable_maker() {
-        let p = Path::new("D:/photos/DSC0001.cr3");
+        let p = std::env::temp_dir().join(format!("autoshade-photos-{}/DSC0001.cr3", std::process::id()));
         let unsupported = |what: &str, make: &str, model: &str| rawler::RawlerError::Unsupported {
             what: what.to_string(),
             make: make.to_string(),
@@ -4127,7 +4127,7 @@ mod tests {
 
         let model = format!(
             "{:#}",
-            describe_decoder_failure(p, &unsupported("Unknown camera", "Canon", "EOS R9"))
+            describe_decoder_failure(&p, &unsupported("Unknown camera", "Canon", "EOS R9"))
         );
         assert!(
             model.contains("Canon EOS R9") && model.contains("no calibration for that exact model"),
@@ -4137,7 +4137,7 @@ mod tests {
         let make = format!(
             "{:#}",
             describe_decoder_failure(
-                p,
+                &p,
                 &unsupported("Couldn't find a decoder for make \"Zorki\"", "Zorki", "")
             )
         );
@@ -4147,7 +4147,7 @@ mod tests {
         );
 
         let none =
-            format!("{:#}", describe_decoder_failure(p, &unsupported("No decoder found", "", "")));
+            format!("{:#}", describe_decoder_failure(&p, &unsupported("No decoder found", "", "")));
         assert!(
             none.contains("does not read as any RAW format"),
             "the no-decoder case does not invent a camera: {none}"
@@ -4163,7 +4163,7 @@ mod tests {
         let corrupt = format!(
             "{:#}",
             describe_decoder_failure(
-                p,
+                &p,
                 &rawler::RawlerError::DecoderFailed("truncated strip".into())
             )
         );

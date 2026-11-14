@@ -99,8 +99,8 @@ def main() -> None:
     # Same registered raster is consumed by both fits.  Deliberately disable
     # semantic and correspondence sidecars: this is the shipped deterministic
     # range/tile fallback, and avoids importing a model into the phase-1 probe.
-    os.environ["AUTOSHADE_SEGMENT_SCRIPT"] = "D:/no-such-dir/none.py"
-    os.environ["AUTOSHADE_CORRESPOND_SCRIPT"] = "D:/no-such-dir/none.py"
+    os.environ["AUTOSHADE_SEGMENT_SCRIPT"] = "__no_such_sidecar__.py"
+    os.environ["AUTOSHADE_CORRESPOND_SCRIPT"] = "__no_such_sidecar__.py"
 
     for index, (raw, target) in enumerate(discover_pairs(corpus)):
         label = f"pair-{index}"

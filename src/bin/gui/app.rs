@@ -2,6 +2,15 @@
 
 use super::*;
 
+/// The selected library recipe, developed on the open photo for the recipe
+/// window's preview pane. `key` is everything the image depends on — the
+/// entry's name and file stamp, the photo, and the base pixels' allocation —
+/// so a changed selection, a re-saved entry or a different photo rebuilds it.
+pub(crate) struct RecipePreview {
+    pub(crate) key: String,
+    pub(crate) texture: egui::TextureHandle,
+}
+
 pub(crate) struct AutoShadeApp {
     pub(crate) src_path: Option<PathBuf>,
     // The ACTIVE variant's base pixels — shared with the preview worker by Arc,
@@ -515,6 +524,18 @@ pub(crate) struct AutoShadeApp {
     // gets them stripped.
     pub(crate) copied_from: Option<PathBuf>,
     pub(crate) paste_geometry: bool,                  // keep crop/straighten when pasting
+    // --- recipe library (named develops, this file's siblings under <store>/recipes) ---
+    pub(crate) show_recipes: bool,
+    pub(crate) recipes: Vec<autoshade::recipe_library::Stored>,
+    pub(crate) recipes_loaded: bool,                  // the list has been read at least once
+    pub(crate) recipes_filter: String,
+    pub(crate) recipe_sel: Option<String>,            // the selected row's name
+    pub(crate) recipe_name_buf: String,               // the name field of 「Save current develop」
+    pub(crate) recipe_rename: Option<(String, String)>, // (original name, buffer) while renaming inline
+    pub(crate) recipe_delete_armed: Option<String>,   // the row whose 🗑 asked for a second click
+    /// The selected library recipe developed on the open photo (the window's
+    /// preview pane); rebuilt when the selection, the photo or the file changes.
+    pub(crate) recipe_preview: Option<RecipePreview>,
     // --- WB eyedropper ---
     pub(crate) wb_picking: bool,                      // next image click samples a neutral point
     // --- colour-range sample (Range Mask) ---
@@ -1590,8 +1611,9 @@ impl AutoShadeApp {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    fn upd_sheets(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_sheets(&mut self, ctx: &egui::Context) {
         self.analysis_full_window(ctx);
+        self.recipe_library_window(ctx);
         // Settings window (provider / model / API keys). A local `open` avoids a
         // double &mut self borrow (Window::open vs the closure that reads self).
         if self.show_settings {
@@ -1932,6 +1954,15 @@ impl Default for AutoShadeApp {
             copied: None,
             copied_from: None,
             paste_geometry: false,
+            show_recipes: false,
+            recipes: Vec::new(),
+            recipes_loaded: false,
+            recipes_filter: String::new(),
+            recipe_sel: None,
+            recipe_name_buf: String::new(),
+            recipe_rename: None,
+            recipe_delete_armed: None,
+            recipe_preview: None,
             wb_picking: false,
             range_picking: None,
             point_color_picking: false,

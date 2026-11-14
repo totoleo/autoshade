@@ -25,7 +25,7 @@
         // unreadable) is not cured by saving — saving re-records the same
         // broken link and the refusal repeats forever. The two causes must
         // get different words.
-        let src = std::path::Path::new("D:/library/__autoshade_gonemaster__.ARW");
+        let src = &std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_gonemaster__.ARW", std::process::id()));
         let dev = autoshade::store::develop_dir(src);
         let _ = std::fs::remove_dir_all(&dev);
         std::fs::create_dir_all(&dev).unwrap();
@@ -381,7 +381,7 @@
         // lost: open_path stashed it before the flight.)
         let mut app = AutoShadeApp::default();
         let ctx = egui::Context::default();
-        app.src_path = Some(PathBuf::from("D:/__autoshade_deadopen__/__autoshade_deadopen__.ARW"));
+        app.src_path = Some(std::env::temp_dir().join(format!("autoshade-deadopen-{}/__autoshade_deadopen__.ARW", std::process::id())));
         app.variants = vec![Variant {
             id: String::new(),
             name: None,
@@ -426,7 +426,7 @@
             vignette_on: true,
             ..Default::default()
         };
-        let p = std::path::Path::new("D:/__autoshade_nonexistent__/x.ARW");
+        let p = &std::env::temp_dir().join(format!("autoshade-nonexistent-{}/x.ARW", std::process::id()));
         // The entry's edge (2560) deliberately DIFFERS from app.preview_edge
         // (1280): the key must come from the worker's pre-read ident riding
         // OpenedBase — a body that re-derives the EDGE from app state files
@@ -458,7 +458,7 @@
         );
         // Filling past the cap evicts the least-recently-used entry.
         let others: Vec<std::path::PathBuf> = (0..BASE_CACHE_CAP)
-            .map(|i| std::path::PathBuf::from(format!("D:/__autoshade_nonexistent__/{i}.ARW")))
+            .map(|i| std::env::temp_dir().join(format!("autoshade-nonexistent-{}/{i}.ARW", std::process::id())))
             .collect();
         for o in &others {
             app.remember_base(
@@ -479,7 +479,7 @@
     fn cold_master_lru_hits_by_key_and_evicts_least_recent() {
         let mut app = AutoShadeApp::default();
         let master = Arc::new(image::DynamicImage::new_rgb8(6, 4));
-        let p = std::path::Path::new("D:/__autoshade_nonexistent__/master.tif");
+        let p = &std::env::temp_dir().join(format!("autoshade-nonexistent-{}/master.tif", std::process::id()));
         app.remember_master(p, 1280, file_stamp(p), master.clone());
         let hit = app.cached_master(p, 1280).expect("same path + edge hits");
         assert_eq!(hit.dimensions(), (6, 4), "the decoded pixels ride the entry");
@@ -491,7 +491,7 @@
         app.remember_master(p, 1280, file_stamp(p), master.clone());
         assert_eq!(app.master_cache.len(), 1, "same key replaces its entry");
         let others: Vec<std::path::PathBuf> = (0..MASTER_CACHE_CAP)
-            .map(|i| std::path::PathBuf::from(format!("D:/__autoshade_nonexistent__/m{i}.tif")))
+            .map(|i| std::env::temp_dir().join(format!("autoshade-nonexistent-{}/m{i}.tif", std::process::id())))
             .collect();
         for o in &others {
             app.remember_master(o, 1280, file_stamp(o), master.clone());

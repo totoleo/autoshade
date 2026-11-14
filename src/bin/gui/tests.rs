@@ -23,6 +23,7 @@
     include!("tests/screenshot.rs");
     include!("tests/lens_blur.rs");
     include!("tests/normal.rs");
+    include!("tests/recipes.rs");
     include!("tests/portrait.rs");
     include!("tests/fit_prompt.rs");
 

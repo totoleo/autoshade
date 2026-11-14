@@ -133,7 +133,7 @@ Six techniques you will not find in another RAW developer. Each is written up in
 
 - **One engine, three front ends** — desktop app, CLI and loopback web UI share one Rust library and one per-user develop store.
 - **Local first** — eight Python sidecars (masks, two denoisers, correspondence, descriptions, embeddings, depth for the lens blur, faces) run on your machine; pixels leave it only for an AI operation you ask for.
-- **Non-destructive** — your photo library stays read-only; generated pixels always land on their own labelled card.
+- **Non-destructive** — AutoShade never overwrites a photo; generated pixels always land on their own labelled card.
 
 <sub>Diagram generated from [autoshade.architecture.json](docs/architecture/autoshade.architecture.json) · [zoom it online](https://autoshade.dev/architecture.html) · full design in [ARCHITECTURE.md](docs/ARCHITECTURE.md)</sub>
 
@@ -141,7 +141,7 @@ Six techniques you will not find in another RAW developer. Each is written up in
 
 | What | Measured |
 |---|---|
-| Automated test battery | 1837 library / 26 CLI / 297 GUI / 2+2 contract tests |
+| Automated test battery | 1790 library / 28 CLI / 302 GUI / 2+2 contract tests |
 | RAW coverage | 24 extensions · 725 camera bodies · nine-camera zoo 9/9 |
 | Reverse-fit, stone viaduct | look error 0.161 → 0.023 at confidence 0.63 |
 | Reverse-fit, desert canyon | look error 0.129 → 0.048 · sky ΔE 3.8 |
@@ -269,7 +269,7 @@ preview:** 12 of the 24 formats store none. They are `orf`, `srw`, `nrw`, `mef`,
 **Rust** (rustc/cargo 1.94, edition 2024) · rawler · image · qcms · rayon · egui/eframe · tiny_http — **Python** sidecars on PyTorch.
 
 RAW decode, 24 formats, 725 bodies · deterministic f32 develop engine · hand-rolled XMP layer (no XML crate) for byte-exact Lightroom merges.
-The current battery is **1837 library (1822 pass + 15 `#[ignore]`d forensic probes) / 26 CLI / 297 GUI / 2+2 contract** tests.
+The current battery is **1790 library (1775 pass + 15 `#[ignore]`d forensic probes) / 28 CLI / 302 GUI / 2+2 contract** tests.
 Per-subsystem notes: [In depth → Implementation](docs/DEEP_DIVE.md#implementation) · equations and provenance: [TECH_STACK.md](docs/TECH_STACK.md).
 
 ## Status and limitations
