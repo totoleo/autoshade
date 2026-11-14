@@ -711,7 +711,7 @@
             let mut app = AutoShadeApp::default();
             let tex = ctx.load_texture(
                 "r22_thumb",
-                egui::ColorImage::new([tw as usize, th as usize], egui::Color32::GRAY),
+                egui::ColorImage::filled([tw as usize, th as usize], egui::Color32::GRAY),
                 egui::TextureOptions::LINEAR,
             );
             // One row, its texture already resident: the loaded branch.

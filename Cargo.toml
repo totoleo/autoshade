@@ -108,8 +108,8 @@ tiny_http = "0.12.0"
 ureq = { version = "2", features = ["json"] }
 
 # --- native GUI (optional; enabled by the `gui` feature) -------------------
-eframe = { version = "0.29", optional = true }
-egui = { version = "0.29", optional = true }
+eframe = { version = "0.33", optional = true }
+egui = { version = "0.33", optional = true }
 rfd = { version = "0.15", optional = true }
 # Same version egui pulls in — used to pre-validate a CJK font before handing it
 # to egui (egui panics on an unparseable font), so font loading degrades safely.

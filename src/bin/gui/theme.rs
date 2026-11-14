@@ -591,15 +591,15 @@ pub(crate) fn install_fonts(ctx: &egui::Context) {
     for (name, bytes) in EMBEDDED_SYMBOL_FONTS {
         fonts
             .font_data
-            .insert((*name).to_owned(), egui::FontData::from_static(bytes));
+            .insert((*name).to_owned(), std::sync::Arc::new(egui::FontData::from_static(bytes)));
     }
     if let Some(bytes) = cjk.clone() {
-        fonts.font_data.insert("cjk".to_owned(), egui::FontData::from_owned(bytes));
+        fonts.font_data.insert("cjk".to_owned(), std::sync::Arc::new(egui::FontData::from_owned(bytes)));
     }
     for (path, bytes) in &script_faces {
         fonts
             .font_data
-            .insert(format!("script:{path}"), egui::FontData::from_owned(bytes.clone()));
+            .insert(format!("script:{path}"), std::sync::Arc::new(egui::FontData::from_owned(bytes.clone())));
     }
     for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
         let list = fonts.families.entry(fam).or_default();
@@ -784,7 +784,7 @@ pub(crate) fn install_theme(ctx: &egui::Context, theme: ThemePref) {
 /// are shared between themes; only colours differ. Idempotent — called at
 /// startup, after prefs restore, and on every picker change.
 pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: AccentPref) {
-    use egui::{FontFamily, FontId, Rounding, Stroke, TextStyle};
+    use egui::{CornerRadius, FontFamily, FontId, Stroke, TextStyle};
     let c = palette(theme, accent);
     CURRENT_THEME.set(theme);
     CURRENT_ACCENT.set(accent);
@@ -813,7 +813,7 @@ pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: Accent
     style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, c.selection_stroke);
     // Hairlines one step quieter than egui's stock grey (`Surfaces::hairline`).
     style.visuals.widgets.noninteractive.bg_stroke.color = c.hairline;
-    let rounding = Rounding::same(RADIUS_MD);
+    let rounding = CornerRadius::same(RADIUS_MD.round() as u8);
     for w in [
         &mut style.visuals.widgets.noninteractive,
         &mut style.visuals.widgets.inactive,
@@ -821,17 +821,17 @@ pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: Accent
         &mut style.visuals.widgets.active,
         &mut style.visuals.widgets.open,
     ] {
-        w.rounding = rounding;
+        w.corner_radius = rounding;
     }
-    style.visuals.window_rounding = Rounding::same(RADIUS_LG);
-    style.visuals.menu_rounding = Rounding::same(8.0);
+    style.visuals.window_corner_radius = CornerRadius::same(RADIUS_LG.round() as u8);
+    style.visuals.menu_corner_radius = CornerRadius::same(8);
     // Depth: floating chrome casts a soft DOWNWARD penumbra — the stock
     // diagonal (10,20) reads as a misregistered copy, a vertical one as
     // elevation. Black-on-dark barely registers, so dark carries more alpha.
     let elevation = |offset: f32, blur: f32| egui::epaint::Shadow {
-        offset: egui::vec2(0.0, offset),
-        blur,
-        spread: 0.0,
+        offset: [0, offset.round() as i8],
+        blur: blur.round() as u8,
+        spread: 0,
         color: egui::Color32::from_black_alpha(c.shadow_alpha),
     };
     style.visuals.window_shadow = elevation(6.0, 18.0);

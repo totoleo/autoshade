@@ -42,7 +42,7 @@ pub(crate) fn controls_side_panel<R>(
         Some(pointer) => pointer.x - rect.left(),
         None => stored.unwrap_or(CONTROLS_W_DEFAULT),
     };
-    let laid = laid.clamp(*range.start(), *range.end()).min(ctx.screen_rect().width());
+    let laid = laid.clamp(*range.start(), *range.end()).min(ctx.content_rect().width());
     if (rect.width() - laid).abs() > 0.5 {
         let rect = egui::Rect::from_min_size(rect.min, egui::vec2(laid, rect.height()));
         ctx.data_mut(|d| d.insert_persisted(id, egui::containers::panel::PanelState { rect }));

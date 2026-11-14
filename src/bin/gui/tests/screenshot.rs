@@ -25,7 +25,6 @@
                 let (w, h) = (d.image.width(), d.image.height());
                 let px: Vec<egui::Color32> = match &d.image {
                     egui::ImageData::Color(c) => c.pixels.clone(),
-                    egui::ImageData::Font(f) => f.srgba_pixels(None).collect(),
                 };
                 match d.pos {
                     None => {
@@ -180,8 +179,8 @@
             crate::theme::install_theme(&ctx, theme);
             let style = ctx.style();
             // The panel frame's own right margin, then the bar inside it.
-            let content_right = panel.right() - egui::Frame::side_top_panel(&style).inner_margin.right;
-            let bar_left = content_right - style.spacing.scroll.bar_width;
+            let content_right = panel.right() - f32::from(egui::Frame::side_top_panel(&style).inner_margin.right);
+            let bar_left = content_right - f32::from(style.spacing.scroll.bar_width);
             let mut past = Vec::new();
             for c in out.shapes.iter().filter(|c| c.clip_rect.right() <= panel.right() + 0.5) {
                 walk(&c.shape, c.clip_rect, bar_left, &mut past);
@@ -299,7 +298,7 @@
                 }
             })
             .collect();
-        let photo = egui::ColorImage { size: [w, h], pixels: px };
+        let photo = egui::ColorImage::new([w, h], px);
         app.after_tex = Some(ctx.load_texture("shot-photo", photo, egui::TextureOptions::LINEAR));
         let ppp = 1.5;
         let mut tex = ShotTextures::default();

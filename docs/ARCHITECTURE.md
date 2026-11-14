@@ -7495,7 +7495,7 @@ comments are the source of these one-liners.
 | `ureq` 2 (`json`) | the blocking HTTP client for every AI endpoint, including the SSE streaming arm |
 
 **Native GUI**, behind the `gui` feature so a plain `cargo build` / `cargo test`
-never pulls in winit and the GL stack: `eframe` + `egui` **0.29** (the desktop
+never pulls in winit and the GL stack: `eframe` + `egui` **0.33** (the desktop
 app, with `eframe/persistence` remembering window geometry and our own prefs),
 `rfd` 0.15 (native file/folder dialogs), `ab_glyph` 0.2 — the same version
 egui pulls — used to pre-validate a CJK font before handing it to egui, which

@@ -25,7 +25,7 @@
       "id": "desktop-gui",
       "type": "frontend",
       "label": "Desktop GUI",
-      "sublabel": "autoshade-gui · eframe 0.29"
+      "sublabel": "autoshade-gui · eframe 0.33"
     },
     {
       "id": "cli",

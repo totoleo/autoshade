@@ -97,12 +97,12 @@ fn window_buttons(ui: &mut egui::Ui, bar: egui::Rect, lang: Lang) {
                 // Restore: two offset squares.
                 let back = egui::Rect::from_center_size(c + egui::vec2(1.5, -1.5), egui::vec2(2.0 * s - 2.0, 2.0 * s - 2.0));
                 let front = egui::Rect::from_center_size(c + egui::vec2(-1.5, 1.5), egui::vec2(2.0 * s - 2.0, 2.0 * s - 2.0));
-                p.rect_stroke(back, 1.0, stroke);
+                p.rect_stroke(back, 1.0, stroke, egui::StrokeKind::Middle);
                 p.rect_filled(front, 1.0, fill);
-                p.rect_stroke(front, 1.0, stroke);
+                p.rect_stroke(front, 1.0, stroke, egui::StrokeKind::Middle);
             }
             "max" => {
-                p.rect_stroke(egui::Rect::from_center_size(c, egui::vec2(2.0 * s, 2.0 * s)), 1.0, stroke);
+                p.rect_stroke(egui::Rect::from_center_size(c, egui::vec2(2.0 * s, 2.0 * s)), 1.0, stroke, egui::StrokeKind::Middle);
             }
             _ => {
                 p.line_segment([c + egui::vec2(-s, -s), c + egui::vec2(s, s)], stroke);
@@ -135,7 +135,7 @@ pub(crate) fn edge_resize(ctx: &egui::Context) {
         return;
     }
     let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) else { return };
-    let r = ctx.screen_rect();
+    let r = ctx.content_rect();
     let (w, e, n, s) = (pos.x - r.left() < EDGE, r.right() - pos.x < EDGE, pos.y - r.top() < EDGE, r.bottom() - pos.y < EDGE);
     use egui::viewport::ResizeDirection as D;
     let dir = match (w, e, n, s) {
@@ -168,5 +168,5 @@ pub(crate) fn window_outline(ctx: &egui::Context) {
     }
     let stroke = ctx.style().visuals.widgets.noninteractive.bg_stroke;
     ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("window_outline")))
-        .rect_stroke(ctx.screen_rect().shrink(0.5), 0.0, stroke);
+        .rect_stroke(ctx.content_rect().shrink(0.5), 0.0, stroke, egui::StrokeKind::Middle);
 }

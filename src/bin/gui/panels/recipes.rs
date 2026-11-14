@@ -612,6 +612,7 @@ impl AutoShadeApp {
                             at.expand(1.0),
                             RADIUS_SM,
                             egui::Stroke::new(1.0, colors.hairline),
+                            egui::StrokeKind::Middle,
                         );
                         if let Some(stem) = &photo_stem {
                             ui.label(
@@ -894,7 +895,7 @@ fn paint_recipe_row(
 /// the galleys are cached, and a row name is a few dozen characters).
 fn truncate_to(ui: &egui::Ui, text: &str, font: egui::FontId, max_w: f32) -> String {
     let width = |s: &str| {
-        ui.fonts(|f| {
+        ui.fonts_mut(|f| {
             f.layout_no_wrap(s.to_owned(), font.clone(), egui::Color32::PLACEHOLDER).size().x
         })
     };

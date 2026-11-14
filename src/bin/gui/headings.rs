@@ -144,9 +144,9 @@ pub(crate) fn card_fold<R>(
         let c = theme_of(ui).colors();
         let row = egui::Rect::from_x_y_ranges(left - FOLD_CARD_PAD + 2.0..=right + FOLD_CARD_PAD - 2.0, h.rect.y_range()).expand2(egui::vec2(0.0, 2.0));
         let shadow = egui::epaint::Shadow {
-            offset: egui::vec2(0.0, 2.0 * rise),
-            blur: 8.0,
-            spread: 0.0,
+            offset: [0, (2.0 * rise).round() as i8],
+            blur: 8,
+            spread: 0,
             color: egui::Color32::from_black_alpha((f32::from(c.shadow_alpha) * rise) as u8),
         };
         ui.painter().set(
@@ -167,9 +167,10 @@ pub(crate) fn card_fold<R>(
             plate,
             egui::Shape::Rect(egui::epaint::RectShape::new(
                 rect,
-                RADIUS_MD,
+                egui::CornerRadius::same(RADIUS_MD.round() as u8),
                 c.card_fill,
                 egui::Stroke::new(1.0, c.card_stroke),
+                egui::StrokeKind::Inside,
             )),
         );
         ui.add_space(FOLD_CARD_PAD + SPACE_XS);

@@ -7,7 +7,13 @@ impl AutoShadeApp {
     /// are laid out (show_rows) and only their thumbnails are queued to decode.
     pub(crate) fn gallery_panel(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.horizontal(|ui| {
+        // Title and its one verb share a line when the panel is wide enough
+        // and WRAP otherwise. A plain horizontal let the CJK title ("图库 ·
+        // Library") plus the verb outgrow the 240 px default by ~1 px, and a
+        // side panel sizes itself to its widest row — every row below then
+        // lost its right edge. Wrapping keeps the panel at its default
+        // whatever the font metrics do.
+        ui.horizontal_wrapped(|ui| {
             ui.heading(tr(lang, "Library"));
             if action(ui, true, tr(lang, "🗂 Open folder…")).clicked()
                 && let Some(dir) = rfd::FileDialog::new().pick_folder()
@@ -149,10 +155,10 @@ impl AutoShadeApp {
                     } else {
                         egui::Color32::TRANSPARENT
                     };
-                    let resp = egui::Frame::none()
+                    let resp = egui::Frame::NONE
                         .fill(fill)
-                        .rounding(RADIUS_SM) // selected-row fill follows the thumb radius
-                        .inner_margin(egui::Margin::same(3.0))
+                        .corner_radius(egui::CornerRadius::same(RADIUS_SM.round() as u8)) // selected-row fill follows the thumb radius
+                        .inner_margin(egui::Margin::same(3))
                         .show(ui, |ui| {
                             ui.set_min_width(ui.available_width());
                             ui.horizontal(|ui| {
@@ -185,16 +191,20 @@ impl AutoShadeApp {
                                     // shape (widgets/image.rs), inlined.
                                     ui.painter().add(egui::epaint::RectShape {
                                         rect,
-                                        rounding: RADIUS_SM.into(),
+                                        corner_radius: egui::CornerRadius::same(RADIUS_SM.round() as u8),
                                         fill: egui::Color32::WHITE, // tint: the texture unmodified
                                         stroke: egui::Stroke::NONE,
+                                        stroke_kind: egui::StrokeKind::Inside,
+                                        round_to_pixels: None,
                                         blur_width: 0.0,
-                                        fill_texture_id: t.id(),
-                                        uv: egui::Rect::from_min_max(
+                                        brush: None,
+                                    }.with_texture(
+                                        t.id(),
+                                        egui::Rect::from_min_max(
                                             egui::pos2(0.0, 0.0),
                                             egui::pos2(1.0, 1.0),
                                         ),
-                                    });
+                                    ));
                                     #[cfg(test)]
                                     {
                                         if thumb_geom.is_none() {

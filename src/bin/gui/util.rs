@@ -318,11 +318,17 @@ pub(crate) fn prompt_field(ui: &mut egui::Ui, buf: &mut String, hint: &str) -> e
     let id = ui.next_auto_id();
     let focused = ui.memory(|m| m.has_focus(id));
     let avail = ui.available_width();
-    let w = if focused { avail } else { avail.min(FIELD_W_MAX) };
+    // `TextEdit` allocates `desired_width` PLUS its own inner margin, so the
+    // width it draws is 2 × `TEXT_EDIT_MARGIN_X` wider than the number asked
+    // for. Ask for the text area only: the field as drawn is what the ceiling
+    // is about, and asking for the full width is what grew a 240 px side panel.
+    const TEXT_EDIT_MARGIN_X: f32 = 4.0;
+    let drawn = if focused { avail } else { avail.min(FIELD_W_MAX) };
+    let w = (drawn - 2.0 * TEXT_EDIT_MARGIN_X).max(FIELD_W_MIN);
     let mut resp = ui.add(
         egui::TextEdit::singleline(buf)
             .id(id)
-            .desired_width(w.max(FIELD_W_MIN))
+            .desired_width(w)
             .hint_text(hint),
     );
     // Allocate the tooltip string only while it is actually being shown (this

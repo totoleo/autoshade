@@ -815,7 +815,7 @@ impl AutoShadeApp {
                     // frame margin was left out of the reserve). The margin
                     // is therefore pinned HERE and handed to the widget, so
                     // the arithmetic and the widget can never disagree.
-                    const TE_MARGIN: egui::Margin = egui::Margin::symmetric(4.0, 2.0);
+                    const TE_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
                     let btn_label = tr(lang, "✨ Generate image");
                     let btn_w = ui
                         .painter()
@@ -841,11 +841,15 @@ impl AutoShadeApp {
                     // own `.max(80.0)`, now a named token (theme.rs). Both are
                     // consts with MIN < MAX, so `clamp` cannot hit its panicking
                     // case.
-                    let field_w = (ui.available_width()
+                    // The ceiling applies to the field AS DRAWN — the widget
+                    // allocates `desired_width` PLUS its own margin, so the
+                    // reserve above is subtracted from the drawn width, never
+                    // asked for on top of it.
+                    let field_drawn = (ui.available_width()
                         - btn_w
-                        - ui.spacing().item_spacing.x
-                        - TE_MARGIN.sum().x)
+                        - ui.spacing().item_spacing.x)
                         .clamp(FIELD_W_MIN, FIELD_W_MAX);
+                    let field_w = field_drawn - TE_MARGIN.sum().x;
                     let _field = ui.add(
                         egui::TextEdit::singleline(&mut self.reimagine_prompt)
                             .margin(TE_MARGIN)

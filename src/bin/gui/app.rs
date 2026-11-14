@@ -1127,7 +1127,7 @@ impl AutoShadeApp {
         window_chrome::edge_resize(ctx);
         window_chrome::window_outline(ctx);
         let frame = egui::Frame::side_top_panel(&ctx.style())
-            .inner_margin(egui::Margin::symmetric(8.0, SPACE_MD))
+            .inner_margin(egui::Margin::symmetric(8, SPACE_MD.round() as i8))
             .fill(self.theme.colors().bar_fill);
         egui::TopBottomPanel::top("top").frame(frame).show(ctx, |ui| {
             let lang = self.lang;
@@ -1310,7 +1310,7 @@ impl AutoShadeApp {
                                     .on_hover_text(tr(lang, "Pick a path for THIS export only — the Destination setting is left as it is"))
                                     .clicked()
                                 {
-                                    ui.close_menu();
+                                    ui.close();
                                     self.export_to_chosen_path();
                                 }
                             })
@@ -1428,8 +1428,8 @@ impl AutoShadeApp {
     pub(crate) fn controls_column(&mut self, ui: &mut egui::Ui) {
         let gutter = controls_gutter(ui.style());
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Frame::none()
-                .inner_margin(egui::Margin { right: gutter, ..Default::default() })
+            egui::Frame::NONE
+                .inner_margin(egui::Margin { right: gutter.round() as i8, ..Default::default() })
                 .show(ui, |ui| {
                     if self.src_path.is_some() {
                         // The one sidebar, top to bottom: the Portraits panel
@@ -1621,7 +1621,7 @@ impl AutoShadeApp {
             // Scroll inside the window, capped below the screen height: the
             // provider sections outgrow a small display, and without a scroll
             // area the 保存 button ends up unreachable off-screen.
-            let max_h = ctx.screen_rect().height() * 0.85;
+            let max_h = ctx.content_rect().height() * 0.85;
             egui::Window::new(tr(self.lang, "Settings"))
                 // Fixed id: the TITLE now varies with the language, and egui
                 // keys window state (position, size) off the id.
@@ -1696,7 +1696,7 @@ impl AutoShadeApp {
                     // Bounded + scrollable: the 30-row grid clipped its lower
                     // entries off short displays (the window is non-resizable
                     // and had no height limit, unlike the Settings window).
-                    let max_h = (ctx.screen_rect().height() * 0.7).max(200.0);
+                    let max_h = (ctx.content_rect().height() * 0.7).max(200.0);
                     egui::ScrollArea::vertical().max_height(max_h).show(ui, |ui| {
                         egui::Grid::new("shortcut_grid").num_columns(2).striped(true).show(
                             ui,
@@ -2177,7 +2177,7 @@ impl AutoShadeApp {
                 egui::Order::Foreground,
                 egui::Id::new("drop_overlay"),
             ));
-            let rect = ctx.screen_rect();
+            let rect = ctx.content_rect();
             // Chrome-side veil → the chrome accent's family (see the colour
             // rule at ACCENT), dimmed to 0.29 so the white line reads on it
             // in every theme.
@@ -2230,12 +2230,12 @@ impl AutoShadeApp {
                         // window); a settled toast keeps that gap, an
                         // arriving one starts with none — off to the right.
                         ui.add_space(arrive * MOTION_TOAST_SLIDE);
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(bg.gamma_multiply(fade))
                             .stroke(egui::Stroke::new(1.0, fg.gamma_multiply(0.35 * fade)))
                             .shadow(shadow)
-                            .rounding(RADIUS_MD)
-                            .inner_margin(egui::Margin::symmetric(10.0, 8.0))
+                            .corner_radius(egui::CornerRadius::same(RADIUS_MD.round() as u8))
+                            .inner_margin(egui::Margin::symmetric(10, 8))
                             .show(ui, |ui| {
                                 // Named token (#14a): this 420 is a WRAPPED
                                 // paragraph's measure, not the prompt-field

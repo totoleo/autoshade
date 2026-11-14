@@ -235,7 +235,7 @@ impl AutoShadeApp {
         // 「100」 that ran the panel 4 px wide every frame).
         let value_w = {
             let style = ui.style().drag_value_text_style.resolve(ui.style());
-            let widest = ui.fonts(|f| {
+            let widest = ui.fonts_mut(|f| {
                 [min, max]
                     .into_iter()
                     .map(|v| f.layout_no_wrap(format!("{v:.decimals$}"), style.clone(), egui::Color32::WHITE).size().x)
@@ -594,6 +594,7 @@ impl AutoShadeApp {
                                         rect,
                                         CARD_RADIUS,
                                         egui::Stroke::new(2.0, ring),
+                                        egui::StrokeKind::Middle,
                                     );
                                 }
                                 resp
@@ -2494,7 +2495,7 @@ impl AutoShadeApp {
                     let reserve = {
                         let sp = ui.spacing();
                         let redraw = if has_redraw {
-                            let label = ui.fonts(|f| {
+                            let label = ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     tr(lang, "↻ Redraw").to_owned(),
                                     egui::TextStyle::Button.resolve(ui.style()),
@@ -2511,7 +2512,7 @@ impl AutoShadeApp {
                     };
                     // The frame's own margin (egui's 4 px each side) lies
                     // outside `desired_width`, so it comes off the budget too.
-                    let name_margin = egui::Margin::symmetric(4.0, 2.0);
+                    let name_margin = egui::Margin::symmetric(4, 2);
                     let name_resp = {
                         let buf = &mut self.mask_name_buf.as_mut().expect("seeded above").2;
                         ui.add(

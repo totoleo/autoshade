@@ -2142,7 +2142,7 @@ than the pre-call state; model weights remain outside the repository.
   input — and every job that builds a published binary asserts it got the
   pinned version before it compiles. Edition 2024 is the floor the manifest
   states.
-- Desktop UI: `eframe`/`egui 0.29` (**dependency pin**).
+- Desktop UI: `eframe`/`egui 0.33` (**dependency pin**).
 - HTTP implementation: `tiny_http`; embedded HTML/CSS/JS via `include_str!`
   (**designed self-contained UI**).
 - Web capability: 32 random bytes, URL-safe base64 without padding

@@ -109,7 +109,7 @@ fn place(
     let label = text.text().to_owned();
     #[cfg(test)]
     let fits = cell.is_none_or(|cell| {
-        let width = ui.fonts(|f| {
+        let width = ui.fonts_mut(|f| {
             f.layout_no_wrap(label.clone(), egui::TextStyle::Button.resolve(ui.style()), egui::Color32::WHITE)
                 .size()
                 .x
@@ -149,7 +149,7 @@ fn place(
     if ghost && enabled && (response.hovered() || response.has_focus()) {
         let w = &ui.visuals().widgets;
         let fill = if response.is_pointer_button_down_on() { w.active.weak_bg_fill } else { w.hovered.weak_bg_fill };
-        ui.painter().set(plate, egui::Shape::rect_filled(response.rect, w.hovered.rounding, fill));
+        ui.painter().set(plate, egui::Shape::rect_filled(response.rect, w.hovered.corner_radius, fill));
     }
     #[cfg(test)]
     let kind = if kind == "glyph_toggle_on" { "glyph_toggle" } else { kind };
@@ -176,7 +176,7 @@ pub(crate) fn group<R>(
 ) -> R {
     let font = egui::TextStyle::Button.resolve(ui.style());
     let padding = 2.0 * ui.spacing().button_padding.x;
-    let text: f32 = ui.fonts(|f| {
+    let text: f32 = ui.fonts_mut(|f| {
         labels
             .iter()
             .map(|l| f.layout_no_wrap((*l).to_owned(), font.clone(), egui::Color32::WHITE).size().x + padding)

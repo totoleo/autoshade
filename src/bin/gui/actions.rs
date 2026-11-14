@@ -2851,7 +2851,7 @@ impl AutoShadeApp {
             .order(egui::Order::Middle)
             .fixed_pos(egui::Pos2::ZERO)
             .show(ctx, |ui| {
-                let r = ctx.screen_rect();
+                let r = ctx.content_rect();
                 ui.allocate_response(r.size(), egui::Sense::click_and_drag());
                 ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
             });
@@ -3013,7 +3013,7 @@ impl AutoShadeApp {
             .order(egui::Order::Middle)
             .fixed_pos(egui::Pos2::ZERO)
             .show(ctx, |ui| {
-                let r = ctx.screen_rect();
+                let r = ctx.content_rect();
                 ui.allocate_response(r.size(), egui::Sense::click_and_drag());
                 ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
             });

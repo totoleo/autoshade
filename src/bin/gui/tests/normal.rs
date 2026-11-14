@@ -19,7 +19,7 @@
                 egui::Color32::from_rgb((60.0 + 150.0 * y) as u8, (110.0 + 40.0 * x) as u8, (190.0 - 120.0 * y) as u8)
             })
             .collect();
-        app.after_tex = Some(ctx.load_texture("normal-photo", egui::ColorImage { size: [w, h], pixels: px }, egui::TextureOptions::LINEAR));
+        app.after_tex = Some(ctx.load_texture("normal-photo", egui::ColorImage::new([w, h], px), egui::TextureOptions::LINEAR));
         let mut tex = ShotTextures::default();
         let mut last = None;
         for i in 0..4 {

@@ -811,7 +811,7 @@ impl AutoShadeApp {
                 egui::Color32::from_rgba_unmultiplied(ACCENT.r(), ACCENT.g(), ACCENT.b(), 40);
             let draw = |r: egui::Rect| {
                 ui.painter().rect_filled(r, 0.0, fill);
-                ui.painter().rect_stroke(r, 0.0, stroke);
+                ui.painter().rect_stroke(r, 0.0, stroke, egui::StrokeKind::Middle);
             };
             if let Some((s, e)) = self.region_drag {
                 draw(egui::Rect::from_two_pos(s, e).intersect(rect));
@@ -1727,7 +1727,7 @@ impl AutoShadeApp {
                 grid,
             );
         }
-        p.rect_stroke(r_full, 0.0, egui::Stroke::new(1.5, egui::Color32::WHITE));
+        p.rect_stroke(r_full, 0.0, egui::Stroke::new(1.5, egui::Color32::WHITE), egui::StrokeKind::Middle);
         for k in 0..4u8 {
             p.rect_filled(
                 egui::Rect::from_center_size(handle_pos(&c, k), egui::vec2(9.0, 9.0)),
