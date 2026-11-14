@@ -73,6 +73,37 @@ pub fn hide_child_console(cmd: &mut std::process::Command) {
     }
 }
 
+/// Does this process own a console window? Windows only: the console flag this
+/// answers for has no counterpart elsewhere. False for the release GUI, which
+/// is built `windows_subsystem = "windows"` and started without one.
+///
+/// The distinction decides more than the window: `CREATE_NO_WINDOW` starts the
+/// child with no console of its own, and stdio it inherits does not reach the
+/// parent's console (measured with a probe child, which printed nothing from a
+/// console parent). Callers that PIPE their stdio lose nothing and hide
+/// unconditionally ([`windowless_command`]); the pi harness's Node child
+/// INHERITS its stdio to keep the CLI's analyze trace, so it hides only when
+/// this is false.
+#[cfg(windows)]
+pub(crate) fn has_console() -> bool {
+    // SAFETY: reads this process's console window; no handle is retained.
+    unsafe { !windows_sys::Win32::System::Console::GetConsoleWindow().is_null() }
+}
+
+/// One child that must never open a console window of its own, for callers
+/// that PIPE (or null) its stdio and therefore lose nothing by hiding.
+///
+/// The python sidecars go through [`sidecar_command`], which adds the env
+/// allowlist and the kill group; this is the plainer door for every other
+/// console child the desktop app can start (the `comfy` CLI, `uv`, the python
+/// version probe, the `cmd` junction fallback). See [`has_console`] for the
+/// inherited-stdio case.
+pub(crate) fn windowless_command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    hide_child_console(&mut cmd);
+    cmd
+}
+
 /// A kill-group over a sidecar child AND every descendant it spawns (L11#7).
 ///
 /// The three sidecar kill sites used `Child::kill` — TerminateProcess /
@@ -337,13 +368,12 @@ pub(crate) fn test_skipped(test: &str, why: &str) {
 ///
 /// The caller adds the argv — which is per bridge — and nothing else.
 pub fn sidecar_command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
-    let mut cmd = std::process::Command::new(program);
+    let mut cmd = windowless_command(program);
     cmd.envs(crate::config::dotenv_child_env());
     cmd.envs(crate::config::Config::sidecar_child_env());
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    hide_child_console(&mut cmd);
     arm_kill_group(&mut cmd);
     cmd
 }
@@ -917,6 +947,118 @@ mod sidecar_executor_tests {
             started.elapsed()
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Every console child the desktop app can start is started WITHOUT a console
+/// window of its own.
+///
+/// The release GUI is `windows_subsystem = "windows"`, so Windows allocates a
+/// NEW console window for each console child it spawns — that is the cmd window
+/// that appeared when a one-click look or an AI analysis ran, because both go
+/// through the pi harness's Node child. A missing flag has no signature until a
+/// user sees the window, so the sites are pinned at the source; and the flag
+/// itself is pinned on a real child, because a source test cannot see whether
+/// the call reaches the kernel.
+#[cfg(test)]
+mod windowless_child_tests {
+    /// The flag costs the child its console — measured, not assumed, which is
+    /// also why the harness only applies it when the parent has none (a
+    /// windowless child cannot show inherited stderr; see `harness::node_command`).
+    ///
+    /// MUTATION: drop `hide_child_console` from `windowless_command` and the
+    /// child reports a console window and fails.
+    #[cfg(windows)]
+    #[test]
+    fn a_windowless_child_reports_no_console() {
+        const CHILD: &str = "AUTOSHADE_WINDOWLESS_CHILD_TEST";
+        const ANSWER: &str = "AUTOSHADE_WINDOWLESS_CHILD_TEST_ANSWER";
+        if std::env::var_os(CHILD).is_some() {
+            let answer = super::has_console();
+            std::fs::write(std::env::var(ANSWER).unwrap(), answer.to_string()).unwrap();
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("autoshade-windowless-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let answer = dir.join("has-console");
+        let exe = std::env::current_exe().unwrap();
+        let mut cmd = super::windowless_command(&exe);
+        cmd.args([
+            "--exact",
+            "windowless_child_tests::a_windowless_child_reports_no_console",
+            "--nocapture",
+        ])
+        .env(CHILD, "1")
+        .env(ANSWER, &answer);
+        let out = cmd.output().expect("the child test binary runs");
+        assert!(
+            out.status.success(),
+            "the child test binary failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let reported = std::fs::read_to_string(&answer).expect("the child wrote its answer");
+        assert_eq!(
+            reported, "false",
+            "a `windowless_command` child still had a console window — the flag never reached the kernel"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every library site that starts a console child spells the shared door.
+    ///
+    /// MUTATION: put `Command::new` back at any named site and its file is
+    /// named here.
+    #[test]
+    fn every_console_child_a_windowed_app_starts_is_windowless() {
+        for (file, src, calls) in [
+            ("comfy.rs", include_str!("comfy.rs"), 1),
+            ("python_env.rs", include_str!("python_env.rs"), 2),
+            ("config.rs", include_str!("config.rs"), 1),
+        ] {
+            let non_test = crate::source_before_tests(src);
+            assert_eq!(
+                non_test.matches("crate::windowless_command(").count(),
+                calls,
+                "{file} no longer starts its console child(ren) through `windowless_command`"
+            );
+            for raw in ["Command::new(", "ProcessCommand::new("] {
+                assert!(
+                    !non_test.contains(raw),
+                    "{file} builds a child with `{raw}` again — from the windowed GUI that opens a console window"
+                );
+            }
+        }
+    }
+
+    /// The harness's Node child INHERITS our stdio, so it is the one site that
+    /// must not hide the console unconditionally: with a console of our own it
+    /// attaches there and keeps the CLI's analyze trace; from the windowed GUI
+    /// it gets the flag. One constructor, both callers.
+    ///
+    /// MUTATION: call `ProcessCommand::new` at either spawn site, or hide the
+    /// console unconditionally, and an assertion here fails.
+    #[test]
+    fn the_node_child_that_inherits_our_stdio_is_console_aware() {
+        let src = crate::source_before_tests(include_str!("harness.rs"));
+        assert_eq!(
+            src.matches("ProcessCommand::new(").count(),
+            1,
+            "harness.rs must build Node in exactly one place"
+        );
+        assert!(src.contains("fn node_command("), "the one constructor is `node_command`");
+        assert_eq!(
+            src.matches("node_command(&node)").count(),
+            2,
+            "the deferred analyze run and the model call both go through `node_command`"
+        );
+        assert!(
+            src.contains("if !crate::has_console()"),
+            "`node_command` hides the console only when the parent has none"
+        );
+        assert!(
+            src.contains("crate::hide_child_console(&mut cmd)"),
+            "`node_command` stopped hiding the console"
+        );
     }
 }
 

@@ -1674,13 +1674,14 @@ pub const PYTHON_CANDIDATES: &[&str] = &["python3", "python"];
 /// is there" is not the question a user pressing an AI button is asking — a
 /// stub that only offers to install developer tools exists, and does not work.
 ///
-/// Never inherits this process's stdio: the windowed build has no console, and
-/// a sidecar probe writing to one is how a GUI ends up with a stray terminal.
+/// Never inherits this process's stdio, and never opens a console of its own:
+/// the windowed build has no console to inherit, and a probe started without
+/// the console flag is how a GUI ends up with a stray terminal.
 pub fn python_runs(bin: &str) -> bool {
     if bin.trim().is_empty() {
         return false;
     }
-    std::process::Command::new(bin)
+    crate::windowless_command(bin)
         .arg("--version")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

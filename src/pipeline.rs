@@ -7255,9 +7255,8 @@ mod tests {
                 Ok(()) => return Ok("symlink"),
                 Err(e) => e,
             };
-            let mut cmd = std::process::Command::new("cmd");
+            let mut cmd = crate::windowless_command("cmd");
             cmd.arg("/C").arg("mklink").arg("/J").arg(link).arg(target);
-            crate::hide_child_console(&mut cmd);
             match cmd.output() {
                 Ok(o) if o.status.success() => Ok("junction"),
                 Ok(o) => Err(format!(

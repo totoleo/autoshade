@@ -11,7 +11,6 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// The environment's directory under the store root.
 pub const DIR_NAME: &str = "python-env";
@@ -116,7 +115,7 @@ pub struct PythonCheck {
 /// interpreter rather than merely run it.
 pub fn python_major(bin: &str) -> Option<u32> {
     const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-    let mut child = Command::new(bin)
+    let mut child = crate::windowless_command(bin)
         .args(["-c", "import sys;sys.stdout.write(str(sys.version_info[0]))"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -276,7 +275,7 @@ impl Plan {
         cwd: Option<&Path>,
         on_line: &mut dyn FnMut(&str),
     ) -> anyhow::Result<()> {
-        let mut cmd = Command::new(&self.uv);
+        let mut cmd = crate::windowless_command(&self.uv);
         cmd.args(args)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())

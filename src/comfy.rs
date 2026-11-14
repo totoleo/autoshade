@@ -304,7 +304,10 @@ impl Cli {
     }
 
     fn command(&self) -> Command {
-        let mut cmd = Command::new(&self.exe);
+        // Windowless: every caller pipes stdio, and the desktop app starts this
+        // from its windowed build, where an inherited console would be a new
+        // window for each `comfy` call.
+        let mut cmd = crate::windowless_command(&self.exe);
         if let Some(workspace) = &self.workspace {
             cmd.arg(format!("--workspace={}", workspace.display()));
         }

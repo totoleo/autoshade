@@ -116,6 +116,23 @@ fn node_exe() -> String {
     node_exe_from(exe_dir.as_deref())
 }
 
+/// The ONE way this module starts Node.
+///
+/// Node keeps the stdio it inherits, because its stderr is the analyze trace
+/// the CLI prints. From the windowed GUI there is no console to inherit:
+/// Windows gives a console child a new console window of its own instead — the
+/// cmd window that appeared when an AI button was pressed. So the console flag
+/// is applied exactly when [`crate::has_console`] is false.
+fn node_command(node: &str) -> ProcessCommand {
+    let mut cmd = ProcessCommand::new(node);
+    // Only the windowed GUI lacks a console; the flag is Windows-only.
+    #[cfg(windows)]
+    if !crate::has_console() {
+        crate::hide_child_console(&mut cmd);
+    }
+    cmd
+}
+
 /// The analysis-role key the harness process must see. The harness IS the
 /// analysis role: a DeepSeek key saved there is the one to send; the image
 /// role's OpenAI key is only a fallback. An ambient env key wins (the wrapper
@@ -256,7 +273,7 @@ fn run_inner(photo: &Path, defer: bool) -> Result<Run> {
     let summary_path = sessions.join(format!(".summary-{}-{stamp}.json", std::process::id()));
     let result_path = sessions.join(format!(".result-{}-{stamp}.json", std::process::id()));
     let node = node_exe();
-    let mut cmd = ProcessCommand::new(&node);
+    let mut cmd = node_command(&node);
     cmd.arg(&script);
     cmd.arg(photo.file_name().unwrap_or(photo.as_os_str()));
     cmd.env("AUTOSHADE_PHOTO_ROOT", root);
@@ -478,7 +495,7 @@ pub(crate) fn complete(call: &ModelCall, timeout_secs: u64) -> Result<String> {
     .with_context(|| format!("write {}", request_path.display()))?;
 
     let node = node_exe();
-    let mut cmd = ProcessCommand::new(&node);
+    let mut cmd = node_command(&node);
     cmd.arg(&script)
         .env("AUTOSHADE_MODEL_REQUEST", &request_path)
         .env("AUTOSHADE_MODEL_RESULT", &result_path)

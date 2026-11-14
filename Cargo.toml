@@ -138,6 +138,10 @@ windows-sys = { version = "0.59", features = [
     # bindings beat a hand-rolled `extern` for a kernel32 struct whose
     # `dwLength` field is a versioning contract.
     "Win32_System_SystemInformation",
+    # `GetConsoleWindow` decides whether a console child may keep inherited
+    # stdio or has to be started windowless (`lib::windowless_command`). Same
+    # crate, header-only, no new supply-chain surface.
+    "Win32_System_Console",
 ] }
 
 [target.'cfg(unix)'.dependencies]
