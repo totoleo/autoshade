@@ -113,34 +113,34 @@
     #[test]
     fn a_selection_switch_disarms_index_armed_tools() {
         let mut app = AutoShadeApp::default();
-        app.editor.doc_mut().recipe.masks =
+        app.editor_mut().doc_mut().recipe.masks =
             vec![autoshade::recipe::LocalAdjustment::default(), Default::default()];
 
-        app.workspace.masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::Redraw(0)));
-        app.workspace.masks_mut().place_start = Some((0.5, 0.5));
-        assert!(!app.workspace.disarm_selection_bound_tools(Some(1)), "no brush session died");
-        assert!(app.workspace.masks().placing_mask.is_none(), "an armed Redraw dies with its row");
-        assert!(app.workspace.masks().place_start.is_none(), "…and its gesture anchor with it");
+        app.workspace_mut().masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::Redraw(0)));
+        app.workspace_mut().masks_mut().place_start = Some((0.5, 0.5));
+        assert!(!app.workspace_mut().disarm_selection_bound_tools(Some(1)), "no brush session died");
+        assert!(app.workspace().masks().placing_mask.is_none(), "an armed Redraw dies with its row");
+        assert!(app.workspace().masks().place_start.is_none(), "…and its gesture anchor with it");
 
-        app.workspace.masks_mut().placing_mask = Some((
+        app.workspace_mut().masks_mut().placing_mask = Some((
             MaskKind::Radial,
             PlaceTarget::Component(0, autoshade::recipe::MaskCombine::Add),
         ));
-        app.workspace.disarm_selection_bound_tools(None); // same-row deselect
-        assert!(app.workspace.masks().placing_mask.is_none(), "deselecting disarms too");
+        app.workspace_mut().disarm_selection_bound_tools(None); // same-row deselect
+        assert!(app.workspace().masks().placing_mask.is_none(), "deselecting disarms too");
 
         // NewMask is NOT selection-bound — browsing the list keeps it armed;
         // non-mask tools (crop) are none of this helper's business.
-        app.workspace.masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::NewMask));
-        app.workspace.crop_mut().mode = true;
-        app.workspace.disarm_selection_bound_tools(Some(1));
-        assert!(app.workspace.masks().placing_mask.is_some(), "a NewMask placement survives");
-        assert!(app.workspace.crop().mode, "non-mask tools survive");
+        app.workspace_mut().masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::NewMask));
+        app.workspace_mut().crop_mut().mode = true;
+        app.workspace_mut().disarm_selection_bound_tools(Some(1));
+        assert!(app.workspace().masks().placing_mask.is_some(), "a NewMask placement survives");
+        assert!(app.workspace().crop().mode, "non-mask tools survive");
 
         // The kept row's own arming survives.
-        app.workspace.masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::Redraw(1)));
-        app.workspace.disarm_selection_bound_tools(Some(1));
-        assert!(app.workspace.masks().placing_mask.is_some(), "the selected row keeps its arming");
+        app.workspace_mut().masks_mut().placing_mask = Some((MaskKind::Linear, PlaceTarget::Redraw(1)));
+        app.workspace_mut().disarm_selection_bound_tools(Some(1));
+        assert!(app.workspace().masks().placing_mask.is_some(), "the selected row keeps its arming");
     }
 
     /// L06#5: the plate under the canvas was replaced — a live brush
@@ -151,38 +151,39 @@
     /// session survives.
     #[test]
     fn a_plate_replacement_ends_the_mask_brush_session() {
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 base_preview: Some(std::sync::Arc::new(image::DynamicImage::new_rgba8(8, 8))),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
+            }; editor });
         app.commands().start_mask_brush(None);
         assert!(
-            app.workspace.masks().mask_brush.is_some() && app.workspace.masks().mask_brush_gray.is_some() && app.workspace.masks().paint_mode,
+            app.workspace().masks().mask_brush.is_some() && app.workspace().masks().mask_brush_gray.is_some() && app.workspace().masks().paint_mode,
             "fixture: a session is armed"
         );
 
-        app.workspace.rebind_paint_canvas(app.lang, 16, 16);
-        assert!(app.workspace.masks().mask_brush.is_none(), "the session dies with the plate");
-        assert!(app.workspace.masks().mask_brush_gray.is_none(), "no weight buffer left to bake");
-        assert!(!app.workspace.masks().paint_mode);
-        let m = app.workspace.masks().mask_paint.as_ref().expect("a fresh canvas at the new size");
+        let __lang = app.lang();
+        app.workspace_mut().rebind_paint_canvas(__lang, 16, 16);
+        assert!(app.workspace().masks().mask_brush.is_none(), "the session dies with the plate");
+        assert!(app.workspace().masks().mask_brush_gray.is_none(), "no weight buffer left to bake");
+        assert!(!app.workspace().masks().paint_mode);
+        let m = app.workspace().masks().mask_paint.as_ref().expect("a fresh canvas at the new size");
         assert_eq!((m.width(), m.height()), (16, 16));
 
-        app.editor.doc_mut().recipe.masks =
+        app.editor_mut().doc_mut().recipe.masks =
             vec![autoshade::recipe::LocalAdjustment::default(), Default::default()];
         app.commands().start_mask_brush(Some(0));
         assert!(
-            app.workspace.disarm_selection_bound_tools(Some(1)),
+            app.workspace_mut().disarm_selection_bound_tools(Some(1)),
             "an off-selection brush session dies, and says so (return drives the toast)"
         );
-        assert!(app.workspace.masks().mask_brush.is_none());
+        assert!(app.workspace().masks().mask_brush.is_none());
 
         app.commands().start_mask_brush(Some(1));
-        assert!(!app.workspace.disarm_selection_bound_tools(Some(1)));
-        assert!(app.workspace.masks().mask_brush.is_some(), "the selected row keeps its session");
+        assert!(!app.workspace_mut().disarm_selection_bound_tools(Some(1)));
+        assert!(app.workspace().masks().mask_brush.is_some(), "the selected row keeps its session");
     }
 
     /// R22 #2: the full-resolution mask refine refuses a source whose own
@@ -195,7 +196,7 @@
     #[test]
     fn an_over_budget_refine_refuses_with_the_dimensions_and_keeps_the_mask() {
         let ctx = egui::Context::default();
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 recipe: EditRecipe {
                 masks: vec![autoshade::recipe::LocalAdjustment {
@@ -207,7 +208,7 @@
 
                 ..Default::default()
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.busy_mut() = true; view } , ..Default::default() };
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
         // The gate's own arithmetic decides what "over budget" is — pin the
         // dimensions against it instead of hard-coding a pixel count that a
         // budget change would silently make meaningless. Asked with an EMPTY
@@ -224,23 +225,23 @@
             ),
             "fixture: 108 MP must be over the mask budget"
         );
-        app.services.tx
+        app.services().tx
             .send(Msg::MaskRefined(Ok(MaskRefineOutcome::OverBudget { w: 12_000, h: 9_000 })))
             .unwrap();
         app.poll_workers(&ctx);
 
-        assert!(!app.workspace.busy(), "the refusal releases the worker gate");
+        assert!(!app.workspace().busy(), "the refusal releases the worker gate");
         assert!(
-            matches!(&app.editor.doc().recipe.masks[0].mask, MaskGeometry::Bitmap { path } if path == "mask-1.png"),
+            matches!(&app.editor().doc().recipe.masks[0].mask, MaskGeometry::Bitmap { path } if path == "mask-1.png"),
             "nothing was written, so the mask keeps its own raster"
         );
         assert!(
-            app.workspace.status().contains("12000") && app.workspace.status().contains("9000"),
+            app.workspace().status().contains("12000") && app.workspace().status().contains("9000"),
             "the refusal names the source it is talking about: {}",
-            app.workspace.status()
+            app.workspace().status()
         );
         assert!(
-            app.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
+            app.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
             "a refusal the user did not ask for is a toast, not just a status line"
         );
     }
@@ -254,7 +255,7 @@
         let ctx = egui::Context::default();
         let mut app = AutoShadeApp::default();
         let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
-        app.editor.doc_mut().variants = vec![Variant {
+        app.editor_mut().doc_mut().variants = vec![Variant {
             id: String::new(),
             name: None,
             kind: VariantKind::Original,
@@ -263,14 +264,14 @@
             origin: None,
             thumb: None,
         }];
-        app.editor.doc_mut().active = 0;
-        app.editor.photo_mut().base_preview = Some(b0.clone());
-        app.editor.reset_history(&app.workspace); // committed = (neutral recipe, b0)
+        app.editor_mut().doc_mut().active = 0;
+        app.editor_mut().photo_mut().base_preview = Some(b0.clone());
+        { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) }; // committed = (neutral recipe, b0)
 
         // A slider edit still mid-gesture when the worker returns.
-        app.editor.doc_mut().recipe.exposure_ev = 0.5;
+        app.editor_mut().doc_mut().recipe.exposure_ev = 0.5;
 
-        let epoch = app.workspace.tools().gen_epoch;
+        let epoch = app.workspace().tools().gen_epoch;
         app.commands().on_retouched(
             &ctx,
             Lang::En,
@@ -289,15 +290,15 @@
             )),
         );
 
-        assert_eq!(app.editor.session().hist.undo_stack.len(), 2, "slider step + pixel step, not one folded step");
-        let undone = app.editor.session().hist.undo_stack.last().unwrap();
+        assert_eq!(app.editor().session().hist.undo_stack.len(), 2, "slider step + pixel step, not one folded step");
+        let undone = app.editor().session().hist.undo_stack.last().unwrap();
         assert_eq!(undone.recipe.exposure_ev, 0.5, "the slider edit is NOT in the pixel step");
         assert!(
             undone.base.as_ref().is_some_and(|b| std::sync::Arc::ptr_eq(b, &b0)),
             "one Ctrl+Z drops the retouch and keeps the slider move"
         );
         assert!(
-            app.editor.session().hist.committed.base.as_ref().is_some_and(|b| !std::sync::Arc::ptr_eq(b, &b0)),
+            app.editor().session().hist.committed.base.as_ref().is_some_and(|b| !std::sync::Arc::ptr_eq(b, &b0)),
             "the head holds the retouched pixels"
         );
     }
@@ -316,7 +317,7 @@
             egui::ColorImage::example(),
             egui::TextureOptions::LINEAR,
         );
-        app.editor.doc_mut().variants = vec![
+        app.editor_mut().doc_mut().variants = vec![
             Variant {
                 id: String::new(),
                 name: None,
@@ -336,19 +337,19 @@
                 thumb: None,
             },
         ];
-        app.editor.doc_mut().active = 0;
-        app.editor.session_mut().dirty = false;
-        app.editor.scheduler_mut().inflight = false;
+        app.editor_mut().doc_mut().active = 0;
+        app.editor_mut().session_mut().dirty = false;
+        app.editor_mut().scheduler_mut().inflight = false;
         app.commands().switch_variant(1, &ctx);
-        assert!(app.editor.doc().variants[0].thumb.is_some(), "a settled card keeps its thumb");
+        assert!(app.editor().doc().variants[0].thumb.is_some(), "a settled card keeps its thumb");
 
-        app.editor.session_mut().dirty = false;
-        app.editor.scheduler_mut().inflight = false;
+        app.editor_mut().session_mut().dirty = false;
+        app.editor_mut().scheduler_mut().inflight = false;
         app.commands().switch_variant(0, &ctx);
-        app.editor.session_mut().dirty = true; // an edit awaiting dispatch — no frame depicts it
+        app.editor_mut().session_mut().dirty = true; // an edit awaiting dispatch — no frame depicts it
         app.commands().switch_variant(1, &ctx);
         assert!(
-            app.editor.doc().variants[0].thumb.is_none(),
+            app.editor().doc().variants[0].thumb.is_none(),
             "no completed frame depicts the edit — the honest … placeholder takes over"
         );
     }
@@ -358,7 +359,7 @@
         // The KEEP arm honours the request only when open_path's recorded
         // FACT agrees the flight was same-path: honouring a stale request
         // grafted the outgoing photo's whole strip onto the incoming one.
-        // Deleting `&& self.workspace.open().open_same_path` at the KEEP arm turns phase 1
+        // Deleting `&& self.workspace().open().open_same_path` at the KEEP arm turns phase 1
         // into a graft and fails its assert.
         let mut app = AutoShadeApp::default();
         let ctx = egui::Context::default();
@@ -371,19 +372,19 @@
             origin: Some(PathBuf::from("out/_keepfact_gen.png")),
             thumb: None,
         };
-        app.editor.doc_mut().variants = vec![mk(), mk()];
+        app.editor_mut().doc_mut().variants = vec![mk(), mk()];
         // Stem must be globally improbable: the fresh arm's
         // read_saved_develop runs store::migrate_legacy, which scans the
         // cwd ./out for {stem}.recipe.json / {stem}.xmp and MOVES any hit
         // into the develop dir keyed to this fake path — a generic stem
         // ("b") could relocate a real user's legacy sidecars into an
         // unreachable key.
-        app.editor.photo_mut().src_path =
+        app.editor_mut().photo_mut().src_path =
             Some(std::env::temp_dir().join(format!("autoshade-keepfact-{}/__autoshade_keepfact__.ARW", std::process::id())));
-        app.workspace.cards_mut().keep_recipe = true;
-        app.workspace.open_mut().open_same_path = false; // stale request, cross-photo fact
+        app.workspace_mut().cards_mut().keep_recipe = true;
+        app.workspace_mut().open_mut().open_same_path = false; // stale request, cross-photo fact
         let base = Arc::new(image::DynamicImage::new_rgb8(8, 6));
-        app.services.tx
+        app.services().tx
             .send(Msg::Opened(Box::new(Ok((
                 base.clone(),
                 Default::default(),
@@ -395,12 +396,12 @@
             )))))
             .unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.editor.doc().variants.len(), 1, "fresh arm: the strip is rebuilt, never grafted");
+        assert_eq!(app.editor().doc().variants.len(), 1, "fresh arm: the strip is rebuilt, never grafted");
         // ...and an HONOURED request (fact agrees) preserves the strip.
-        app.editor.doc_mut().variants = vec![mk(), mk()];
-        app.workspace.cards_mut().keep_recipe = true;
-        app.workspace.open_mut().open_same_path = true;
-        app.services.tx
+        app.editor_mut().doc_mut().variants = vec![mk(), mk()];
+        app.workspace_mut().cards_mut().keep_recipe = true;
+        app.workspace_mut().open_mut().open_same_path = true;
+        app.services().tx
             .send(Msg::Opened(Box::new(Ok((
                 base,
                 Default::default(),
@@ -412,16 +413,16 @@
             )))))
             .unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.editor.doc().variants.len(), 2, "keep arm: the strip survives a same-path re-decode");
+        assert_eq!(app.editor().doc().variants.len(), 2, "keep arm: the strip survives a same-path re-decode");
         // ...and the REQUEST half is load-bearing too: fact without request
         // (a same-path FRESH reopen) reloads fresh. Reducing the KEEP arm to
-        // `let keep = self.workspace.open().open_same_path;` turns this into a graft — the
+        // `let keep = self.workspace().open().open_same_path;` turns this into a graft — the
         // reload never happens and the one-shot request goes sticky — and
         // fails the assert.
-        app.editor.doc_mut().variants = vec![mk(), mk()];
-        app.workspace.cards_mut().keep_recipe = false;
-        app.workspace.open_mut().open_same_path = true;
-        app.services.tx
+        app.editor_mut().doc_mut().variants = vec![mk(), mk()];
+        app.workspace_mut().cards_mut().keep_recipe = false;
+        app.workspace_mut().open_mut().open_same_path = true;
+        app.services().tx
             .send(Msg::Opened(Box::new(Ok((
                 Arc::new(image::DynamicImage::new_rgb8(8, 6)),
                 Default::default(),
@@ -433,7 +434,7 @@
             )))))
             .unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.editor.doc().variants.len(), 1, "fresh arm: a reopen without the request reloads");
+        assert_eq!(app.editor().doc().variants.len(), 1, "fresh arm: a reopen without the request reloads");
     }
 
     #[test]
@@ -446,7 +447,7 @@
         // this is what keeps it honest.) The memo seam keeps this
         // decodable-RAW-free — the repair consults the memo before
         // estimating, so a primed answer makes the gate's verdict visible
-        // as the era stamp. Deleting `&& self.workspace.cards().keep_recipe` at the
+        // as the era stamp. Deleting `&& self.workspace().cards().keep_recipe` at the
         // apply_step gate repairs phase 1's install and fails its assert.
         let mut app = AutoShadeApp::default();
         let ctx = egui::Context::default();
@@ -461,8 +462,8 @@
         );
         let pre_era =
             EditRecipe { version: 1, base_curve: washy.clone(), ..Default::default() };
-        app.editor.photo_mut().src_path = Some(p);
-        app.editor.doc_mut().variants = vec![Variant {
+        app.editor_mut().photo_mut().src_path = Some(p);
+        app.editor_mut().doc_mut().variants = vec![Variant {
             id: String::new(),
             name: None,
             kind: VariantKind::Original,
@@ -471,28 +472,28 @@
             origin: None,
             thumb: None,
         }];
-        app.editor.doc_mut().recipe = pre_era.clone();
-        app.editor.session_mut().hist.committed = UndoStep { recipe: pre_era.clone(), base: None, origin: None, keep_skin: None };
-        app.editor.session_mut().hist.undo_stack.push(UndoStep { recipe: pre_era.clone(), base: None, origin: None, keep_skin: None });
+        app.editor_mut().doc_mut().recipe = pre_era.clone();
+        app.editor_mut().session_mut().hist.committed = UndoStep { recipe: pre_era.clone(), base: None, origin: None, keep_skin: None };
+        app.editor_mut().session_mut().hist.undo_stack.push(UndoStep { recipe: pre_era.clone(), base: None, origin: None, keep_skin: None });
         // Same-path FRESH reopen in flight: fact without request — refused.
-        app.workspace.open_mut().open_in_flight = true;
-        app.workspace.open_mut().open_same_path = true;
-        app.workspace.cards_mut().keep_recipe = false;
-        app.editor.undo(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.doc().recipe.version, 1, "fresh-reopen flight: the install is NOT repaired");
-        assert_eq!(app.editor.doc().recipe.base_curve, washy, "…and the washed curve is untouched");
+        app.workspace_mut().open_mut().open_in_flight = true;
+        app.workspace_mut().open_mut().open_same_path = true;
+        app.workspace_mut().cards_mut().keep_recipe = false;
+        { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
+        assert_eq!(app.editor().doc().recipe.version, 1, "fresh-reopen flight: the install is NOT repaired");
+        assert_eq!(app.editor().doc().recipe.base_curve, washy, "…and the washed curve is untouched");
         // Same-path keep-flight: request AND fact — admitted, and the memo's
         // primed answer is adopted with its era stamp.
-        app.workspace.cards_mut().keep_recipe = true;
-        app.editor.redo(&mut app.workspace, app.lang, &ctx);
+        app.workspace_mut().cards_mut().keep_recipe = true;
+        { let (e, w, l) = app.editor_workspace_mut(); e.redo(w, l, &ctx) };
         assert_eq!(
-            app.editor.doc().recipe.version,
+            app.editor().doc().recipe.version,
             autoshade::recipe::CALIB_ERA,
             "keep-flight: the reinstalled pre-era pair is repaired"
         );
-        assert_eq!(app.editor.doc().recipe.base_curve, primed, "…with the primed answer, not a re-estimate");
+        assert_eq!(app.editor().doc().recipe.base_curve, primed, "…with the primed answer, not a re-estimate");
         assert_eq!(
-            app.editor.doc().variants[0].recipe.base_curve, primed,
+            app.editor().doc().variants[0].recipe.base_curve, primed,
             "…and the strip entry follows the healed canvas"
         );
         // ...and the FACT half is load-bearing too: the redo above pushed the
@@ -500,12 +501,12 @@
         // reinstalls it — this time with the request but a CROSS-PHOTO fact,
         // where src_path already points at the incoming photo and repairing
         // would estimate the wrong RAW onto this canvas. Deleting
-        // `&& self.workspace.open().open_same_path` from the apply_step gate repairs it and
+        // `&& self.workspace().open().open_same_path` from the apply_step gate repairs it and
         // fails these asserts.
-        app.workspace.open_mut().open_same_path = false;
-        app.editor.undo(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.doc().recipe.version, 1, "cross-photo flight: the install is NOT repaired");
-        assert_eq!(app.editor.doc().recipe.base_curve, washy, "…and the washed curve is untouched");
+        app.workspace_mut().open_mut().open_same_path = false;
+        { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
+        assert_eq!(app.editor().doc().recipe.version, 1, "cross-photo flight: the install is NOT repaired");
+        assert_eq!(app.editor().doc().recipe.base_curve, washy, "…and the washed curve is untouched");
     }
 
     #[test]
@@ -517,7 +518,7 @@
         // read it (a heal in that window installs a new-edge raster under an
         // old-edge canvas). Three outcomes, three asserts.
         let ctx = egui::Context::default();
-        let armed = |base: Option<Arc<image::DynamicImage>>, origin: Option<PathBuf>| AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let armed = |base: Option<Arc<image::DynamicImage>>, origin: Option<PathBuf>| AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(std::env::temp_dir().join(
                 "autoshade-edgeflight/__autoshade_edgeflight__.ARW",
@@ -542,7 +543,7 @@
                 ..Default::default()
 
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.genai_mut() = GenerativeState {
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.genai_mut() = GenerativeState {
                 preview_edge: 4096,
                 ..Default::default()
             }; *view.cards_mut() = CardsState {
@@ -555,15 +556,15 @@
                 open_same_path: true,
                 open_in_flight: true,
                 ..Default::default()
-            }; *view.status_mut() = "decoding … ".to_string(); view } , ..Default::default() };
+            }; *view.status_mut() = "decoding … ".to_string(); view });
         let fresh = || Arc::new(image::DynamicImage::new_rgb8(8, 6));
 
         // (1) The re-decode FAILED: the photo and its canvas are untouched.
         let mut app = armed(None, None);
-        app.services.tx.send(Msg::Opened(Box::new(Err(anyhow::anyhow!("decode failed"))))).unwrap();
+        app.services().tx.send(Msg::Opened(Box::new(Err(anyhow::anyhow!("decode failed"))))).unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.workspace.genai().preview_edge, 1280, "a failed keep-flight puts the switch back");
-        assert!(app.editor.photo().src_path.is_some(), "…and leaves the still-open photo alone");
+        assert_eq!(app.workspace().genai().preview_edge, 1280, "a failed keep-flight puts the switch back");
+        assert!(app.editor().photo().src_path.is_some(), "…and leaves the still-open photo alone");
 
         // (2) It landed, but the canvas renders an UNSAVED retouch — no
         // pixels.json, so the worker brought no master and base_preview
@@ -579,9 +580,9 @@
         let _scrub = Scrub(vec![master.clone()]);
         std::fs::write(&master, b"png").unwrap();
         let mut app = armed(Some(old_raster.clone()), Some(master.clone()));
-        app.editor.photo_mut().base_preview = Some(old_raster.clone());
-        app.editor.photo_mut().source_preview = Some(old_source.clone()); // the OLD-edge decode
-        app.services.tx
+        app.editor_mut().photo_mut().base_preview = Some(old_raster.clone());
+        app.editor_mut().photo_mut().source_preview = Some(old_source.clone()); // the OLD-edge decode
+        app.services().tx
             .send(Msg::Opened(Box::new(Ok((
                 fresh(),
                 Default::default(),
@@ -593,25 +594,25 @@
             )))))
             .unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.workspace.genai().preview_edge, 1280, "a switch the canvas cannot take is not recorded");
+        assert_eq!(app.workspace().genai().preview_edge, 1280, "a switch the canvas cannot take is not recorded");
         assert!(
-            app.editor.photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &old_raster)),
+            app.editor().photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &old_raster)),
             "…the retouched canvas is untouched"
         );
         assert!(
-            app.editor.photo().source_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &old_source)),
+            app.editor().photo().source_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &old_source)),
             "…and the OLD-edge source survives instead of being replaced by the new one, \
              so a later undo-to-source cannot disagree the other way"
         );
         assert!(
-            app.workspace.status().starts_with("preview resolution kept"),
+            app.workspace().status().starts_with("preview resolution kept"),
             "…and the refusal replaces the flight's 'decoding …', which never expires: {}",
-            app.workspace.status()
+            app.workspace().status()
         );
         assert!(
-            app.workspace.status().contains("save the photo"),
+            app.workspace().status().contains("save the photo"),
             "…prescribing the remedy that DOES work when the master is on disk: {}",
-            app.workspace.status()
+            app.workspace().status()
         );
 
         // (3) The SAME master, recorded: the switch applies. The two
@@ -622,9 +623,9 @@
         let abs = std::path::absolute(&rel).unwrap();
         assert_ne!(rel, abs, "premise: the two spellings are not equal as paths");
         let mut app = armed(Some(old_raster.clone()), Some(rel));
-        app.editor.photo_mut().base_preview = Some(old_raster.clone());
+        app.editor_mut().photo_mut().base_preview = Some(old_raster.clone());
         let master = fresh();
-        app.services.tx
+        app.services().tx
             .send(Msg::Opened(Box::new(Ok((
                 fresh(),
                 Default::default(),
@@ -636,13 +637,13 @@
             )))))
             .unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.workspace.genai().preview_edge, 4096, "a canvas that CAN be re-pointed keeps the switch");
+        assert_eq!(app.workspace().genai().preview_edge, 4096, "a canvas that CAN be re-pointed keeps the switch");
         assert!(
-            app.editor.photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &master)),
+            app.editor().photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &master)),
             "…and renders the master re-decoded at the new edge"
         );
         assert!(
-            app.editor.doc().variants[0].base.as_ref().is_some_and(|b| Arc::ptr_eq(b, &master)),
+            app.editor().doc().variants[0].base.as_ref().is_some_and(|b| Arc::ptr_eq(b, &master)),
             "…with the variant re-pointed at it"
         );
     }
@@ -664,7 +665,7 @@
     fn persisted_two_card_fixture() -> AutoShadeApp {
         let original_recipe = EditRecipe { exposure_ev: 0.4, ..Default::default() };
         let fitted_recipe = EditRecipe { contrast: 18.0, ..Default::default() };
-        AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
+        AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
                 saved_recipe: original_recipe.clone(),
                 pixels_on_disk: None,
                 saved_strip: Some(autoshade::store::VariantsRecord {
@@ -724,7 +725,7 @@
                 ..Default::default()
 
 
-            }; editor } , ..Default::default() }
+            }; editor })
     }
 
     #[test]
@@ -733,25 +734,25 @@
         let ctx = egui::Context::default();
         app.commands().switch_variant(1, &ctx);
 
-        assert!(!app.editor.unsaved_marker_dirty(), "the ● marker predicate stays clean");
-        assert!(!app.editor.quit_guard_open_dirty(), "the window-close predicate stays clean");
-        assert!(!app.editor.nav_stash_gate_dirty(), "the navigation-stash gate stays clean");
-        assert!(!app.editor.pending_save_gate_dirty(), "the PendingSave gate stays clean");
+        assert!(!app.editor().unsaved_marker_dirty(), "the ● marker predicate stays clean");
+        assert!(!app.editor().quit_guard_open_dirty(), "the window-close predicate stays clean");
+        assert!(!app.editor().nav_stash_gate_dirty(), "the navigation-stash gate stays clean");
+        assert!(!app.editor().pending_save_gate_dirty(), "the PendingSave gate stays clean");
         assert_eq!(
-            app.editor.open_dirty_variants(),
+            app.editor().open_dirty_variants(),
             0,
             "the saved-active card is now background and resolves through recipe.json"
         );
         assert_eq!(
-            app.editor.session().hist.saved_strip.as_ref().and_then(|r| r.active_id.as_deref()),
+            app.editor().session().hist.saved_strip.as_ref().and_then(|r| r.active_id.as_deref()),
             Some("card-x"),
             "viewing another card does not move the persisted selection"
         );
 
-        let old = app.editor.photo().src_path.clone().unwrap();
+        let old = app.editor().photo().src_path.clone().unwrap();
         app.commands().open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__variant-baseline-next__.ARW", std::process::id())));
         assert!(
-            !app.workspace.open().nav_stash.contains_key(&old),
+            !app.workspace().open().nav_stash.contains_key(&old),
             "the production navigation call site must not stash a clean card switch"
         );
     }
@@ -761,33 +762,33 @@
         let mut app = persisted_two_card_fixture();
         let ctx = egui::Context::default();
         app.commands().switch_variant(1, &ctx);
-        app.editor.doc_mut().recipe.contrast = 27.0;
-        assert!(app.editor.unsaved_marker_dirty(), "editing the switched-to card is dirty");
-        assert!(app.editor.quit_guard_open_dirty(), "the close guard sees that edit");
-        assert!(app.editor.nav_stash_gate_dirty(), "the nav gate sees that edit");
-        assert!(app.editor.pending_save_gate_dirty(), "the quit save list sees that edit");
+        app.editor_mut().doc_mut().recipe.contrast = 27.0;
+        assert!(app.editor().unsaved_marker_dirty(), "editing the switched-to card is dirty");
+        assert!(app.editor().quit_guard_open_dirty(), "the close guard sees that edit");
+        assert!(app.editor().nav_stash_gate_dirty(), "the nav gate sees that edit");
+        assert!(app.editor().pending_save_gate_dirty(), "the quit save list sees that edit");
 
-        let active = app.editor.active();
-        let recipe = app.editor.doc().recipe.clone();
-        app.editor.doc_mut().variants[active].recipe = recipe;
-        app.editor.session_mut().hist.saved_recipe = app.editor.doc().recipe.clone();
-        app.editor.session_mut().hist.pixels_on_disk = app.editor.active_variant().and_then(|v| v.origin.clone());
-        app.editor.session_mut().hist.saved_strip = app.editor.current_strip_record();
-        assert!(!app.editor.unsaved_marker_dirty(), "saving on card Y advances Y's baseline");
-        assert_eq!(app.editor.open_dirty_variants(), 0, "the whole strip is clean after that save");
+        let active = app.editor().active();
+        let recipe = app.editor().doc().recipe.clone();
+        app.editor_mut().doc_mut().variants[active].recipe = recipe;
+        app.editor_mut().session_mut().hist.saved_recipe = app.editor().doc().recipe.clone();
+        app.editor_mut().session_mut().hist.pixels_on_disk = app.editor().active_variant().and_then(|v| v.origin.clone());
+        app.editor_mut().session_mut().hist.saved_strip = app.editor().current_strip_record();
+        assert!(!app.editor().unsaved_marker_dirty(), "saving on card Y advances Y's baseline");
+        assert_eq!(app.editor().open_dirty_variants(), 0, "the whole strip is clean after that save");
 
         app.commands().switch_variant(0, &ctx);
-        assert!(!app.editor.unsaved_marker_dirty(), "card X now resolves from saved_strip.others");
-        assert!(!app.editor.quit_guard_open_dirty(), "switching back does not arm close");
-        assert!(!app.editor.nav_stash_gate_dirty(), "switching back does not arm navigation");
-        assert!(!app.editor.pending_save_gate_dirty(), "switching back adds no PendingSave");
-        assert_eq!(app.editor.open_dirty_variants(), 0, "both persisted cards still match");
+        assert!(!app.editor().unsaved_marker_dirty(), "card X now resolves from saved_strip.others");
+        assert!(!app.editor().quit_guard_open_dirty(), "switching back does not arm close");
+        assert!(!app.editor().nav_stash_gate_dirty(), "switching back does not arm navigation");
+        assert!(!app.editor().pending_save_gate_dirty(), "switching back adds no PendingSave");
+        assert_eq!(app.editor().open_dirty_variants(), 0, "both persisted cards still match");
     }
 
     #[test]
     fn pushed_and_deleted_cards_remain_unsaved_strip_work() {
         let mut pushed = persisted_two_card_fixture();
-        pushed.editor.doc_mut().variants.push(Variant {
+        pushed.editor_mut().doc_mut().variants.push(Variant {
             kind: VariantKind::Generated,
             id: "card-new".into(),
             name: None,
@@ -796,21 +797,21 @@
             origin: Some(std::env::temp_dir().join(format!("autoshade-masters-{}/new.png", std::process::id()))),
             thumb: None,
         });
-        pushed.editor.doc_mut().active = 2;
-        pushed.editor.doc_mut().recipe = EditRecipe::default();
-        assert!(pushed.editor.unsaved_marker_dirty(), "a pushed active card has no baseline");
-        assert!(pushed.editor.open_dirty_variants() > 0, "the pushed card is absent on disk");
-        assert!(pushed.editor.nav_stash_gate_dirty(), "navigation protects the pushed card");
-        assert!(pushed.editor.pending_save_gate_dirty(), "quit Save-all includes the pushed card");
+        pushed.editor_mut().doc_mut().active = 2;
+        pushed.editor_mut().doc_mut().recipe = EditRecipe::default();
+        assert!(pushed.editor().unsaved_marker_dirty(), "a pushed active card has no baseline");
+        assert!(pushed.editor().open_dirty_variants() > 0, "the pushed card is absent on disk");
+        assert!(pushed.editor().nav_stash_gate_dirty(), "navigation protects the pushed card");
+        assert!(pushed.editor().pending_save_gate_dirty(), "quit Save-all includes the pushed card");
 
         let mut deleted = persisted_two_card_fixture();
-        deleted.editor.doc_mut().variants.remove(1);
-        assert!(!deleted.editor.unsaved_marker_dirty(), "the surviving active card itself is clean");
-        assert!(deleted.editor.open_dirty_variants() > 0, "a persisted card was deleted live");
-        assert!(deleted.editor.nav_stash_gate_dirty(), "navigation protects the deletion");
-        assert!(deleted.editor.pending_save_gate_dirty(), "quit Save-all persists the deletion");
+        deleted.editor_mut().doc_mut().variants.remove(1);
+        assert!(!deleted.editor().unsaved_marker_dirty(), "the surviving active card itself is clean");
+        assert!(deleted.editor().open_dirty_variants() > 0, "a persisted card was deleted live");
+        assert!(deleted.editor().nav_stash_gate_dirty(), "navigation protects the deletion");
+        assert!(deleted.editor().pending_save_gate_dirty(), "quit Save-all persists the deletion");
         assert!(
-            deleted.editor.quit_guard_open_dirty() || deleted.editor.inactive_dirty_variants(&deleted.workspace) > 0,
+            deleted.editor().quit_guard_open_dirty() || deleted.editor().inactive_dirty_variants(&deleted.workspace()) > 0,
             "the complete quit guard remains armed for a deletion"
         );
     }
@@ -820,27 +821,27 @@
         let mut app = persisted_two_card_fixture();
         let original_origin = std::env::temp_dir().join(format!("autoshade-masters-{}/original-heal.png", std::process::id()));
         let generated_origin = std::env::temp_dir().join(format!("autoshade-masters-{}/generated.png", std::process::id()));
-        app.editor.doc_mut().variants[0].origin = Some(original_origin.clone());
-        app.editor.session_mut().hist.pixels_on_disk = Some(original_origin);
-        app.editor.doc_mut().variants[1].kind = VariantKind::Generated;
-        app.editor.doc_mut().variants[1].origin = Some(generated_origin.clone());
-        app.editor.doc_mut().variants[1].base = Some(Arc::new(image::DynamicImage::new_rgb8(4, 3)));
-        let entry = &mut app.editor.session_mut().hist.saved_strip.as_mut().unwrap().others[0];
+        app.editor_mut().doc_mut().variants[0].origin = Some(original_origin.clone());
+        app.editor_mut().session_mut().hist.pixels_on_disk = Some(original_origin);
+        app.editor_mut().doc_mut().variants[1].kind = VariantKind::Generated;
+        app.editor_mut().doc_mut().variants[1].origin = Some(generated_origin.clone());
+        app.editor_mut().doc_mut().variants[1].base = Some(Arc::new(image::DynamicImage::new_rgb8(4, 3)));
+        let entry = &mut app.editor_mut().session_mut().hist.saved_strip.as_mut().unwrap().others[0];
         entry.kind = "generated".into();
         entry.origin = Some(generated_origin);
         let ctx = egui::Context::default();
         app.commands().switch_variant(1, &ctx);
 
-        assert!(!app.editor.unsaved_marker_dirty(), "pixels.json belongs to card X, not card Y");
-        assert!(!app.editor.quit_guard_open_dirty(), "the quit pixel half uses Y's entry");
-        assert!(!app.editor.nav_stash_gate_dirty(), "the nav pixel half uses Y's entry");
-        assert!(!app.editor.pending_save_gate_dirty(), "PendingSave uses Y's entry");
+        assert!(!app.editor().unsaved_marker_dirty(), "pixels.json belongs to card X, not card Y");
+        assert!(!app.editor().quit_guard_open_dirty(), "the quit pixel half uses Y's entry");
+        assert!(!app.editor().nav_stash_gate_dirty(), "the nav pixel half uses Y's entry");
+        assert!(!app.editor().pending_save_gate_dirty(), "PendingSave uses Y's entry");
 
-        app.editor.doc_mut().variants[1].origin = Some(std::env::temp_dir().join(format!("autoshade-masters-{}/generated-edited.png", std::process::id())));
-        assert!(app.editor.unsaved_marker_dirty(), "changing Y's origin re-arms the marker");
-        assert!(app.editor.quit_guard_open_dirty(), "changing Y's origin re-arms close");
-        assert!(app.editor.nav_stash_gate_dirty(), "changing Y's origin re-arms navigation");
-        assert!(app.editor.pending_save_gate_dirty(), "changing Y's origin re-arms Save-all");
+        app.editor_mut().doc_mut().variants[1].origin = Some(std::env::temp_dir().join(format!("autoshade-masters-{}/generated-edited.png", std::process::id())));
+        assert!(app.editor().unsaved_marker_dirty(), "changing Y's origin re-arms the marker");
+        assert!(app.editor().quit_guard_open_dirty(), "changing Y's origin re-arms close");
+        assert!(app.editor().nav_stash_gate_dirty(), "changing Y's origin re-arms navigation");
+        assert!(app.editor().pending_save_gate_dirty(), "changing Y's origin re-arms Save-all");
     }
 
     #[test]
@@ -848,14 +849,14 @@
         let mut app = persisted_two_card_fixture();
         let ctx = egui::Context::default();
         app.commands().switch_variant(1, &ctx);
-        app.editor.doc_mut().variants[1].name = Some("new fitted name".into());
+        app.editor_mut().doc_mut().variants[1].name = Some("new fitted name".into());
 
-        assert!(!app.editor.unsaved_marker_dirty(), "the canvas develop itself did not change");
-        assert!(app.editor.open_dirty_variants() > 0, "the card name's only home changed");
-        assert!(app.editor.nav_stash_gate_dirty(), "navigation protects the rename");
-        assert!(app.editor.pending_save_gate_dirty(), "Save-all includes the rename");
+        assert!(!app.editor().unsaved_marker_dirty(), "the canvas develop itself did not change");
+        assert!(app.editor().open_dirty_variants() > 0, "the card name's only home changed");
+        assert!(app.editor().nav_stash_gate_dirty(), "navigation protects the rename");
+        assert!(app.editor().pending_save_gate_dirty(), "Save-all includes the rename");
         assert!(
-            app.editor.quit_guard_open_dirty() || app.editor.inactive_dirty_variants(&app.workspace, ) > 0,
+            app.editor().quit_guard_open_dirty() || app.editor().inactive_dirty_variants(&app.workspace(), ) > 0,
             "the complete quit guard remains armed for the rename"
         );
     }
@@ -886,7 +887,7 @@
             origin: Some(origin),
             thumb: None,
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
                 pixels_on_disk: Some(std::path::absolute(&master).unwrap()),
                 ..Default::default()
             }, ..Default::default() }; *editor.photo_mut() = PhotoPixels {
@@ -905,15 +906,15 @@ variants: vec![mk(master.clone()), mk(master.clone())],
                 ..Default::default()
 
 
-            }; editor } , ..Default::default() };
+            }; editor });
         // Not persisted yet (no mirror): the background card IS unsaved work.
-        assert_eq!(app.editor.open_dirty_variants(), 1, "premise: unsaved until the strip persists");
+        assert_eq!(app.editor().open_dirty_variants(), 1, "premise: unsaved until the strip persists");
         // The persisted record spells the master ABSOLUTIZED (read_variants
         // resolves to the dev dir / absolute), the live variant holds the
         // relative ./out spelling — same_master_opt must bridge them, or a
         // fully saved strip re-reports as unsaved (the original regression,
         // re-expressed against the v0.22 mirror).
-        app.editor.session_mut().hist.saved_strip = Some(autoshade::store::VariantsRecord {
+        app.editor_mut().session_mut().hist.saved_strip = Some(autoshade::store::VariantsRecord {
             extra: Default::default(),
             active_id: None,
             active_name: None,
@@ -930,18 +931,18 @@ variants: vec![mk(master.clone()), mk(master.clone())],
             }],
         });
         assert_eq!(
-            app.editor.open_dirty_variants(),
+            app.editor().open_dirty_variants(),
             0,
             "a background variant matching the persisted strip record is not unsaved work"
         );
-        app.editor.doc_mut().variants.truncate(1);
+        app.editor_mut().doc_mut().variants.truncate(1);
         // Mirror follows the trivial strip (as a save would persist it) —
         // this half of the test pins the PIXELS spelling comparison in the
         // stash gate, not strip dirtiness.
-        app.editor.session_mut().hist.saved_strip = None;
+        app.editor_mut().session_mut().hist.saved_strip = None;
         app.commands().open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_masterid_next__.ARW", std::process::id())));
         assert!(
-            !app.workspace.open().nav_stash.contains_key(src),
+            !app.workspace().open().nav_stash.contains_key(src),
             "a saved retouch must not stash as unsaved just because the store spells its master absolutely"
         );
     }
@@ -954,8 +955,8 @@ variants: vec![mk(master.clone()), mk(master.clone())],
         // round-trip through the stash write verbatim.
         let (mut app, _scrub) = app_with_masked_photo("stashkind");
         let src = std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_stashkind__.ARW", std::process::id()));
-        app.editor.photo_mut().src_path = Some(src.clone());
-        app.editor.doc_mut().variants.push(Variant {
+        app.editor_mut().photo_mut().src_path = Some(src.clone());
+        app.editor_mut().doc_mut().variants.push(Variant {
             id: String::new(),
             name: None,
             kind: VariantKind::Fitted,
@@ -964,10 +965,10 @@ variants: vec![mk(master.clone()), mk(master.clone())],
             origin: None,
             thumb: None,
         });
-        app.editor.doc_mut().active = 1;
-        app.editor.doc_mut().recipe = EditRecipe { contrast: 21.0, ..Default::default() };
+        app.editor_mut().doc_mut().active = 1;
+        app.editor_mut().doc_mut().recipe = EditRecipe { contrast: 21.0, ..Default::default() };
         app.commands().open_path(std::env::temp_dir().join(format!("autoshade-library-{}/__autoshade_stashkind_next__.ARW", std::process::id())));
-        let st = app.workspace.open().nav_stash.get(&src).expect("a dirty strip stashes on nav-away");
+        let st = app.workspace().open().nav_stash.get(&src).expect("a dirty strip stashes on nav-away");
         assert_eq!(
             st.kind,
             VariantKind::Fitted,
@@ -992,7 +993,7 @@ variants: vec![mk(master.clone()), mk(master.clone())],
         let _scrub = Scrub(vec![dev.clone()]);
         let master = dev.join("reimagine-1.png");
         std::fs::write(&master, b"png").unwrap();
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.session_mut() = EditorSession { hist: HistoryState {
                 pixels_on_disk: None,
                 ..Default::default()
             }, ..Default::default() }; *editor.photo_mut() = PhotoPixels {
@@ -1041,15 +1042,15 @@ variants: vec![mk(master.clone()), mk(master.clone())],
                 ..Default::default()
 
 
-            }; editor } , ..Default::default() };
+            }; editor });
         // The exact pre-fix trap: unsaved strip, guard armed…
-        assert!(app.editor.inactive_dirty_variants(&app.workspace, ) > 0, "premise: the strip is unsaved work");
+        assert!(app.editor().inactive_dirty_variants(&app.workspace(), ) > 0, "premise: the strip is unsaved work");
         // …then the save persists the strip (what Ctrl+S / Save-all do now)…
-        app.editor.persist_strip(src).expect("strip persists");
+        app.editor_mut().persist_strip(src).expect("strip persists");
         // …and the guard's orphan term must be genuinely clean: this is the
         // assertion whose absence was the livelock.
         assert_eq!(
-            app.editor.inactive_dirty_variants(&app.workspace, ),
+            app.editor().inactive_dirty_variants(&app.workspace(), ),
             0,
             "after a save the close guard must let the window go"
         );
@@ -1062,19 +1063,19 @@ variants: vec![mk(master.clone()), mk(master.clone())],
         assert_eq!(rec.others[1].origin.as_deref(), Some(master.as_path()));
         // Any strip mutation re-arms the protection: deleting the Generated
         // card is unsaved again until the next persist.
-        app.editor.doc_mut().variants.remove(1);
-        app.editor.doc_mut().active = 1;
+        app.editor_mut().doc_mut().variants.remove(1);
+        app.editor_mut().doc_mut().active = 1;
         assert!(
-            app.editor.inactive_dirty_variants(&app.workspace, ) > 0,
+            app.editor().inactive_dirty_variants(&app.workspace(), ) > 0,
             "a deleted background variant is unsaved work against the mirror"
         );
         // …and switching the active card (identity drift) counts too.
-        app.editor.persist_strip(src).expect("re-persist");
-        assert_eq!(app.editor.inactive_dirty_variants(&app.workspace, ), 0);
-        app.editor.doc_mut().active = 0;
-        app.editor.doc_mut().variants.swap(0, 1);
+        app.editor_mut().persist_strip(src).expect("re-persist");
+        assert_eq!(app.editor().inactive_dirty_variants(&app.workspace(), ), 0);
+        app.editor_mut().doc_mut().active = 0;
+        app.editor_mut().doc_mut().variants.swap(0, 1);
         assert!(
-            app.editor.open_dirty_variants() > 0,
+            app.editor().open_dirty_variants() > 0,
             "active-card identity drift reopens as a different strip"
         );
     }

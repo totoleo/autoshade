@@ -17,11 +17,11 @@
                 thumb: None,
             })
             .collect();
-        AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
      variants,
      active: 1,
      ..Default::default()
- }; editor } , lang, ..Default::default() }
+ }; editor }).but_lang(lang)
     }
 
     /// Two frames of the AI panel in a side panel `width` px wide (the panel
@@ -67,7 +67,7 @@
             for width in [320.0, 900.0] {
                 let mut app = app_with_fit_sources(lang);
                 ai_panel_at(&mut app, width);
-                let menu = app.seams.fit_from_rect.expect("the From menu was drawn");
+                let menu = app.seams().fit_from_rect.expect("the From menu was drawn");
                 let extract = tr(lang, K_AI_EXTRACT_STYLE);
                 let verb = crate::buttons::DRAWN
                     .with_borrow(|d| d.iter().find(|d| d.label == extract).map(|d| d.rect))

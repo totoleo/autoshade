@@ -448,12 +448,12 @@
              </rdf:Seq></crs:MaskGroupBasedCorrections>\n\
              </rdf:Description></rdf:RDF></x:xmpmeta>";
         let mut app =
-            AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+            AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
      recipe: autoshade::xmp::xmp_to_recipe(doc),
      ..Default::default()
- }; editor } , ..Default::default() };
+ }; editor });
         assert_eq!(
-            app.editor.doc().recipe.masks.len(),
+            app.editor().doc().recipe.masks.len(),
             2,
             "premise: the importer brought the Lightroom masks in — without this the \
              panel assertions below would pass on an empty list and prove nothing"
@@ -478,7 +478,7 @@
         // …and they are LIVE, not parked: both carry a real exposure delta, so
         // the section earns its ●.
         assert!(
-            app.editor.masks_section_active(),
+            app.editor().masks_section_active(),
             "an imported Lightroom mask with a real slider must light the section"
         );
     }

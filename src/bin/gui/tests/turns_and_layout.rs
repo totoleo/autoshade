@@ -19,51 +19,51 @@
         let ctx = egui::Context::default();
         // A deliberately non-square plate, so a turn is visible in the dims.
         let plate = std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6));
-        app.editor.photo_mut().base_preview = Some(plate.clone());
-        app.editor.photo_mut().source_preview = Some(plate);
-        app.editor.photo_mut().base_turns = 0;
+        app.editor_mut().photo_mut().base_preview = Some(plate.clone());
+        app.editor_mut().photo_mut().source_preview = Some(plate);
+        app.editor_mut().photo_mut().base_turns = 0;
         let src = std::env::temp_dir().join(format!("autoshade-rotate-plate-{}.arw", std::process::id()));
         std::fs::write(&src, b"raw").unwrap();
-        app.editor.photo_mut().src_path = Some(src);
+        app.editor_mut().photo_mut().src_path = Some(src);
 
-        assert!(app.editor.can_rotate(&app.workspace), "a parametric photo with a plate is rotatable");
-        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
-        assert_eq!(app.editor.doc().recipe.quarter_turns, 1);
-        assert_eq!(app.editor.photo().base_turns, 1);
+        assert!(app.editor().can_rotate(&app.workspace()), "a parametric photo with a plate is rotatable");
+        { let (e, w, l) = app.editor_workspace_mut(); e.rotate_photo(w, l, 1, &ctx) };
+        assert_eq!(app.editor().doc().recipe.quarter_turns, 1);
+        assert_eq!(app.editor().photo().base_turns, 1);
         assert_eq!(
-            app.editor.photo().base_preview.as_ref().unwrap().dimensions(),
+            app.editor().photo().base_preview.as_ref().unwrap().dimensions(),
             (6, 8),
             "one clockwise quarter turn transposes the plate"
         );
-        assert_eq!(app.editor.photo().source_preview.as_ref().unwrap().dimensions(), (6, 8));
+        assert_eq!(app.editor().photo().source_preview.as_ref().unwrap().dimensions(), (6, 8));
 
         // A second turn moves by the DELTA, not by the running total.
-        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
-        assert_eq!(app.editor.doc().recipe.quarter_turns, 2);
-        assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (8, 6));
+        { let (e, w, l) = app.editor_workspace_mut(); e.rotate_photo(w, l, 1, &ctx) };
+        assert_eq!(app.editor().doc().recipe.quarter_turns, 2);
+        assert_eq!(app.editor().photo().base_preview.as_ref().unwrap().dimensions(), (8, 6));
 
         // An UNDO changes only the recipe; the per-frame reconciler is what
         // brings the plate back — one mover for both directions.
-        app.editor.undo(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.doc().recipe.quarter_turns, 1, "one Ctrl+Z per turn (7.7)");
-        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
-        assert_eq!(app.editor.photo().base_turns, 1);
+        { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
+        assert_eq!(app.editor().doc().recipe.quarter_turns, 1, "one Ctrl+Z per turn (7.7)");
+        { let (e, w, l) = app.editor_workspace_mut(); e.sync_base_turns(w, l, &ctx) };
+        assert_eq!(app.editor().photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
+        assert_eq!(app.editor().photo().base_turns, 1);
 
         // Idempotent: the common per-frame call is a u8 compare that moves
         // nothing (a reconciler that turned on every frame would spin the
         // canvas).
-        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
+        { let (e, w, l) = app.editor_workspace_mut(); e.sync_base_turns(w, l, &ctx) };
+        assert_eq!(app.editor().photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
 
         // BAKED PIXELS close the door, whole strip (a limitation by design):
         // a master raster is a file in the frame it was baked in, and this
         // build cannot record that it predates a turn.
-        app.editor.doc_mut().variants[0].origin = Some("master.png".into());
-        assert!(!app.editor.can_rotate(&app.workspace), "a baked master must block the turn, not be turned under");
-        let before = app.editor.doc().recipe.quarter_turns;
-        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
-        assert_eq!(app.editor.doc().recipe.quarter_turns, before, "a refused turn changes nothing");
+        app.editor_mut().doc_mut().variants[0].origin = Some("master.png".into());
+        assert!(!app.editor().can_rotate(&app.workspace()), "a baked master must block the turn, not be turned under");
+        let before = app.editor().doc().recipe.quarter_turns;
+        { let (e, w, l) = app.editor_workspace_mut(); e.rotate_photo(w, l, 1, &ctx) };
+        assert_eq!(app.editor().doc().recipe.quarter_turns, before, "a refused turn changes nothing");
     }
 
     /// R29 C3/C4 item 1 — the GUI tells the two subject backends apart, and it
@@ -88,8 +88,8 @@
         let ctx = egui::Context::default();
 
         // THE PINNED MODEL: named in the status, and no alarm raised.
-        let mut ok = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.busy_mut() = true; view } , ..Default::default() };
-        ok.services.tx
+        let mut ok = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
+        ok.services().tx
             .send(Msg::Segmented(Ok((
                 "Subject".into(),
                 PathBuf::from("mask-subject.png"),
@@ -98,22 +98,22 @@
             .unwrap();
         ok.poll_workers(&ctx);
         assert!(
-            ok.workspace.status().contains("BiRefNet e2bf8e4460fc"),
+            ok.workspace().status().contains("BiRefNet e2bf8e4460fc"),
             "the run must name the model that drew the mask: {}",
-            ok.workspace.status()
+            ok.workspace().status()
         );
         assert!(
-            !ok.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
+            !ok.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
             "the model the user ruled for is not a warning"
         );
-        assert_eq!(ok.editor.doc().recipe.masks.len(), 1, "the mask still lands");
+        assert_eq!(ok.editor().doc().recipe.masks.len(), 1, "the mask still lands");
 
         // THE FALLBACK TIER: named in the status AND escalated to an error
         // toast, because a status line nobody is looking at is not a
         // disclosure. The remedy travels with it.
-        let mut degraded = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.busy_mut() = true; view } , ..Default::default() };
+        let mut degraded = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
         degraded
-            .services.tx
+            .services().tx
             .send(Msg::Segmented(Ok((
                 "Subject".into(),
                 PathBuf::from("mask-subject.png"),
@@ -122,12 +122,12 @@
             .unwrap();
         degraded.poll_workers(&ctx);
         assert!(
-            degraded.workspace.status().contains("FALLBACK"),
+            degraded.workspace().status().contains("FALLBACK"),
             "the degraded run must say so where the good one said its model: {}",
-            degraded.workspace.status()
+            degraded.workspace().status()
         );
         let alarm = degraded
-            .workspace.chrome().toasts
+            .workspace().chrome().toasts
             .iter()
             .find(|t| matches!(t.kind, ToastKind::Error))
             .expect("a silent degradation is the bug this closes");
@@ -137,15 +137,15 @@
             alarm.text
         );
         assert_ne!(
-            ok.workspace.status(), degraded.workspace.status(),
+            ok.workspace().status(), degraded.workspace().status(),
             "two backends, two sentences — this is the whole point"
         );
 
         // A sidecar too old to print the line says nothing, and the landing
         // must not invent a model name for it.
-        let mut silent = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.busy_mut() = true; view } , ..Default::default() };
+        let mut silent = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
         silent
-            .services.tx
+            .services().tx
             .send(Msg::Segmented(Ok((
                 "Sky".into(),
                 PathBuf::from("mask-sky.png"),
@@ -154,12 +154,12 @@
             .unwrap();
         silent.poll_workers(&ctx);
         assert!(
-            !silent.workspace.status().contains("drawn by") && !silent.workspace.status().contains("绘制"),
+            !silent.workspace().status().contains("drawn by") && !silent.workspace().status().contains("绘制"),
             "an empty label must add no clause at all: {}",
-            silent.workspace.status()
+            silent.workspace().status()
         );
         assert!(
-            !silent.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
+            !silent.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
             "unknown is not a fallback"
         );
     }
@@ -179,7 +179,7 @@
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let frame = |app: &mut AutoShadeApp| -> Option<bool> {
-            app.seams.adherence_gate_enabled = None; // this frame's evidence only
+            app.seams().adherence_gate_enabled = None; // this frame's evidence only
             let _ = ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -194,30 +194,30 @@
                     });
                 },
             );
-            app.seams.adherence_gate_enabled
+            app.seams().adherence_gate_enabled
         };
         // (1) no direction: the dial exists but cannot be moved.
         let mut app = AutoShadeApp::default();
-        assert!(app.workspace.ai().guidance.trim().is_empty(), "premise: the default app has no direction");
+        assert!(app.workspace().ai().guidance.trim().is_empty(), "premise: the default app has no direction");
         assert_eq!(frame(&mut app), Some(false), "a blank direction must leave the slider inert");
         // (2) whitespace is still blank - the gate trims.
-        app.workspace.ai_mut().guidance = "   \n\t ".into();
+        app.workspace_mut().ai_mut().guidance = "   \n\t ".into();
         assert_eq!(frame(&mut app), Some(false), "whitespace is not a direction");
         // (3) a real direction under the library guide: still inert — the
         // direction is not sent (library OR direction, 2026-10-14).
-        app.workspace.ai_mut().guidance = "warmer, moodier".into();
-        assert_eq!(app.aip.guide, autoshade::pipeline::Guide::Library, "premise: the default guide");
+        app.workspace_mut().ai_mut().guidance = "warmer, moodier".into();
+        assert_eq!(app.aip().guide, autoshade::pipeline::Guide::Library, "premise: the default guide");
         assert_eq!(frame(&mut app), Some(false), "a direction the library overrides has no dial");
         // (4) guided by that direction: live.
-        app.aip.guide = autoshade::pipeline::Guide::Direction;
+        app.aip_mut().guide = autoshade::pipeline::Guide::Direction;
         assert_eq!(frame(&mut app), Some(true), "with a guiding direction the dial must be usable");
         // …and the DIAL reaches the request as a tier, which is the only thing
         // the value is for.
-        app.aip.direction_adherence = 0.1;
-        let hint = autoshade::recipe::DirectionAdherence::new(app.aip.direction_adherence);
+        app.aip_mut().direction_adherence = 0.1;
+        let hint = autoshade::recipe::DirectionAdherence::new(app.aip().direction_adherence);
         assert_eq!(hint.tier(), autoshade::recipe::AdherenceTier::Hint);
-        app.aip.direction_adherence = 0.95;
-        let brief = autoshade::recipe::DirectionAdherence::new(app.aip.direction_adherence);
+        app.aip_mut().direction_adherence = 0.95;
+        let brief = autoshade::recipe::DirectionAdherence::new(app.aip().direction_adherence);
         assert_eq!(brief.tier(), autoshade::recipe::AdherenceTier::Brief);
         assert_ne!(hint.tier(), brief.tier(), "the dial must be able to change the tier");
         // …and the tooltip NAMES the tiers, which is what a user needs to know
@@ -245,7 +245,7 @@
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let frame = |app: &mut AutoShadeApp| -> Option<(bool, bool)> {
-            app.seams.guide_gate_enabled = None;
+            app.seams().guide_gate_enabled = None;
             let _ = ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 900.0))),
@@ -257,11 +257,11 @@
                     });
                 },
             );
-            app.seams.guide_gate_enabled
+            app.seams().guide_gate_enabled
         };
         let mut app = AutoShadeApp::default();
         assert_eq!(frame(&mut app), Some((false, true)), "library: Direction greyed, Style live");
-        app.aip.guide = Guide::Direction;
+        app.aip_mut().guide = Guide::Direction;
         assert_eq!(frame(&mut app), Some((true, false)), "direction: Direction live, Style greyed");
         let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("Guided by the Direction")), "a greyed library must say why: {seen:?}");
@@ -271,7 +271,7 @@
         let back: Prefs = serde_json::from_str(&json).unwrap();
         let mut restored = AutoShadeApp::default();
         restored.restore_prefs(back);
-        assert_eq!(restored.aip.guide, Guide::Direction, "the switch must survive a restart");
+        assert_eq!(restored.aip().guide, Guide::Direction, "the switch must survive a restart");
 
         // The request half lives in the reflection layer, whose own tests drive
         // it (`logic::look::an_analyze_snapshots_the_panel_and_folds_a_region`
@@ -299,7 +299,7 @@
             "a prefs file written before this key existed must decode to OFF"
         );
         assert!(
-            !AutoShadeApp::default().aip.style_describe,
+            !AutoShadeApp::default().aip().style_describe,
             "a fresh app must not start a 4.3 GB download"
         );
         // A pre-S2 preferences file really is such a file: it has no key at all.
@@ -314,29 +314,23 @@
 
         // The preference is what the workers resolve, and the resolver answers
         // a VALUE — no test and no build writes the process environment.
-        let on = AutoShadeApp {
-            aip: AiPrefs {
+        let on = AutoShadeApp::default().but_aip(AiPrefs {
                 style_describe: true,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
-        let off = AutoShadeApp {
-            aip: AiPrefs {
+            });
+        let off = AutoShadeApp::default().but_aip(AiPrefs {
                 style_describe: false,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
+            });
         let unset = |_: &str| None;
-        assert!(autoshade::library::DescribeSwitch::resolve_with(None, on.aip.style_describe, unset).on());
-        assert!(!autoshade::library::DescribeSwitch::resolve_with(None, off.aip.style_describe, unset).on());
+        assert!(autoshade::library::DescribeSwitch::resolve_with(None, on.aip().style_describe, unset).on());
+        assert!(!autoshade::library::DescribeSwitch::resolve_with(None, off.aip().style_describe, unset).on());
 
         // The preference crosses the file both ways: restore lands it on the
         // app, save writes the app's value back.
         let mut restored = AutoShadeApp::default();
         restored.restore_prefs(Prefs { style_describe: true, ..Prefs::default() });
-        assert!(restored.aip.style_describe, "the saved preference must be restored at start-up");
+        assert!(restored.aip().style_describe, "the saved preference must be restored at start-up");
         let mut storage = PrefsMemory::default();
         eframe::App::save(&mut restored, &mut storage);
         let saved: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
@@ -439,7 +433,7 @@
             origin: None,
             thumb: None,
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/_buttons.ARW", std::process::id()))),
 
@@ -457,7 +451,7 @@
                 ..Default::default()
 
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
                 versions: vec![1],
                 ..Default::default()
             }; *view.gal_mut() = GalleryState {
@@ -467,26 +461,26 @@
             }; *view.fit_mut() = FitState {
                 fit_ref: Some(std::env::temp_dir().join(format!("autoshade-library-{}/_buttons-reference.png", std::process::id()))),
                 ..Default::default()
-            }; view } , lang, ..Default::default() };
-        app.editor.photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(64, 96)));
-        app.editor.doc_mut().recipe.masks.push(LocalAdjustment {
+            }; view }).but_lang(lang);
+        app.editor_mut().photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(64, 96)));
+        app.editor_mut().doc_mut().recipe.masks.push(LocalAdjustment {
             mask: MaskGeometry::Bitmap { path: "mask-buttons.png".into() },
             components: vec![MaskComponent::default()],
             ..Default::default()
         });
-        app.editor.doc_mut().recipe.colour_field =
+        app.editor_mut().doc_mut().recipe.colour_field =
             Some(ColourField { x: 1, y: 1, b: 1, grid: vec![[0.0; 5]], amount: 0.5, enabled: true });
         // 2026-10-13: a lens blur, so its section's rows are laid too.
-        app.editor.doc_mut().recipe.lens_blur =
+        app.editor_mut().doc_mut().recipe.lens_blur =
             Some(autoshade::render::LensBlur { depth_map: "depth-buttons.png".into(), ..Default::default() });
         // v1.5.0: a Point Color swatch — its row is a chip, a name and a
         // ✕, and its four sliders are laid beside the mixer's own.
-        app.editor.doc_mut().recipe.point_colors.push(autoshade::recipe::PointColor::sampled(0.9, 0.7, 0.5));
+        app.editor_mut().doc_mut().recipe.point_colors.push(autoshade::recipe::PointColor::sampled(0.9, 0.7, 0.5));
         // A histogram, so the readout's width can be pinned (2026-09-27).
-        app.workspace.chrome_mut().histogram = Some(vec![[0.5; 4]; 256]);
-        app.workspace.masks_mut().sel_mask = Some(0);
+        app.workspace_mut().chrome_mut().histogram = Some(vec![[0.5; 4]; 256]);
+        app.workspace_mut().masks_mut().sel_mask = Some(0);
         app.commands().start_mask_brush(None);
-        assert!(app.workspace.masks().mask_brush.is_some(), "{lang:?}: the brush session armed");
+        assert!(app.workspace().masks().mask_brush.is_some(), "{lang:?}: the brush session armed");
         app
     }
 
@@ -609,7 +603,7 @@
                     let drawn = DRAWN.with_borrow(|d| d.clone());
                     // The histogram readout used to be the one widget that grew
                     // with the panel without limit (user report 2026-09-27).
-                    let hist = app.seams.histogram_rect.expect("the histogram readout was drawn");
+                    let hist = app.seams().histogram_rect.expect("the histogram readout was drawn");
                     assert!(
                         hist.width() <= crate::theme::FIELD_W_MAX + 0.5,
                         "{lang:?}, {controls_width} px, frame {frame}: the histogram is {:.1} px wide — past the {:.0} px readable ceiling",
@@ -668,29 +662,29 @@
     #[test]
     fn a_clone_on_a_turned_photo_is_refused_before_it_asks_for_a_source_point() {
         for lang in [Lang::En, Lang::Zh] {
-            let mut app = AutoShadeApp { lang, ..Default::default() };
-            app.editor.photo_mut().src_path = Some(PathBuf::from("clone-turn-guard.png"));
-            app.workspace.tools_mut().clone_src = None; // the gate answers before this is even asked for
+            let mut app = AutoShadeApp::default().but_lang(lang);
+            app.editor_mut().photo_mut().src_path = Some(PathBuf::from("clone-turn-guard.png"));
+            app.workspace_mut().tools_mut().clone_src = None; // the gate answers before this is even asked for
             let refusal = tr(
                 lang,
                 K_RETOUCH_THIS_PHOTO_IS_TURNED_AND_PIXEL_REPAIRS_STILL_WOR,
             );
             let ask = tr(lang, K_ACTIONS_ALT_CLICK_TO_SET_THE_CLONE_SOURCE_FIRST);
             for turns in [1u8, 2, 3, 5] {
-                app.editor.doc_mut().recipe.quarter_turns = turns;
-                app.workspace.status_mut().clear();
+                app.editor_mut().doc_mut().recipe.quarter_turns = turns;
+                app.workspace_mut().status_mut().clear();
                 app.commands().start_clone();
-                assert!(!app.workspace.busy(), "quarter_turns={turns}: a refused clone never reaches a worker");
-                assert_eq!(app.workspace.status(), refusal, "quarter_turns={turns}");
+                assert!(!app.workspace().busy(), "quarter_turns={turns}: a refused clone never reaches a worker");
+                assert_eq!(app.workspace().status(), refusal, "quarter_turns={turns}");
             }
             // No turn, or a full one, IS the un-turned frame: the verb goes on
             // to its own next check, exactly as heal and fill do.
             for turns in [0u8, 4] {
-                app.editor.doc_mut().recipe.quarter_turns = turns;
-                app.workspace.status_mut().clear();
+                app.editor_mut().doc_mut().recipe.quarter_turns = turns;
+                app.workspace_mut().status_mut().clear();
                 app.commands().start_clone();
-                assert!(!app.workspace.busy());
-                assert_eq!(app.workspace.status(), ask, "quarter_turns={turns}");
+                assert!(!app.workspace().busy());
+                assert_eq!(app.workspace().status(), ask, "quarter_turns={turns}");
             }
         }
     }
@@ -702,25 +696,25 @@
     #[test]
     fn a_mask_refine_on_a_turned_photo_is_refused_before_it_spawns() {
         for lang in [Lang::En, Lang::Zh] {
-            let mut app = AutoShadeApp { lang, ..Default::default() };
-            app.editor.photo_mut().src_path = Some(PathBuf::from("refine-turn-guard.png"));
+            let mut app = AutoShadeApp::default().but_lang(lang);
+            app.editor_mut().photo_mut().src_path = Some(PathBuf::from("refine-turn-guard.png"));
             let refusal = tr(
                 lang,
                 K_RETOUCH_THIS_PHOTO_IS_TURNED_AND_PIXEL_REPAIRS_STILL_WOR,
             );
             for turns in [1u8, 2, 3] {
-                app.editor.doc_mut().recipe.quarter_turns = turns;
-                app.workspace.status_mut().clear();
+                app.editor_mut().doc_mut().recipe.quarter_turns = turns;
+                app.workspace_mut().status_mut().clear();
                 app.commands().start_mask_refine(0);
-                assert!(!app.workspace.busy(), "quarter_turns={turns}: a refused refine never reaches a worker");
-                assert_eq!(app.workspace.status(), refusal, "quarter_turns={turns}");
+                assert!(!app.workspace().busy(), "quarter_turns={turns}: a refused refine never reaches a worker");
+                assert_eq!(app.workspace().status(), refusal, "quarter_turns={turns}");
             }
             // Un-turned, with no mask at that index: the verb returns quietly.
-            app.editor.doc_mut().recipe.quarter_turns = 0;
-            app.workspace.status_mut().clear();
+            app.editor_mut().doc_mut().recipe.quarter_turns = 0;
+            app.workspace_mut().status_mut().clear();
             app.commands().start_mask_refine(0);
-            assert!(!app.workspace.busy());
-            assert!(app.workspace.status().is_empty(), "{}", app.workspace.status());
+            assert!(!app.workspace().busy());
+            assert!(app.workspace().status().is_empty(), "{}", app.workspace().status());
         }
     }
 
@@ -813,8 +807,8 @@
         let src = std::env::temp_dir().join(format!("autoshade-turned-doors-{}.arw", std::process::id()));
         std::fs::write(&src, b"raw").unwrap();
         let _src_scrub = Scrub(vec![src.clone()]);
-        app.editor.photo_mut().src_path = Some(src.clone());
-        app.editor.doc_mut().recipe.quarter_turns = 1;
+        app.editor_mut().photo_mut().src_path = Some(src.clone());
+        app.editor_mut().doc_mut().recipe.quarter_turns = 1;
         type Door = fn(&mut AutoShadeApp, PathBuf);
         let doors: [(&str, Door); 4] = [
             ("start_ai_denoise", |a, _| a.commands().start_ai_denoise()),
@@ -823,11 +817,11 @@
             ("start_stack", |a, p| a.commands().start_stack(vec![p])),
         ];
         for (name, door) in doors {
-            app.workspace.set_busy(false);
-            app.workspace.status_mut().clear();
+            app.workspace_mut().set_busy(false);
+            app.workspace_mut().status_mut().clear();
             door(&mut app, src.clone());
-            assert!(!app.workspace.busy(), "{name}: a refused pixel worker never reaches a worker thread");
-            assert!(app.workspace.status().contains("this photo is turned"), "{name}: {}", app.workspace.status());
+            assert!(!app.workspace().busy(), "{name}: a refused pixel worker never reaches a worker thread");
+            assert!(app.workspace().status().contains("this photo is turned"), "{name}: {}", app.workspace().status());
         }
     }
 
@@ -841,19 +835,19 @@
         let (mut app, _scrub) = app_with_masked_photo("rotate-paint");
         let ctx = egui::Context::default();
         let plate = std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6));
-        app.editor.photo_mut().base_preview = Some(plate.clone());
-        app.editor.photo_mut().source_preview = Some(plate);
-        app.editor.photo_mut().base_turns = 0;
-        app.workspace.masks_mut().mask_paint = Some(image::RgbaImage::new(8, 6));
-        app.editor.doc_mut().recipe.quarter_turns = 1;
-        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
+        app.editor_mut().photo_mut().base_preview = Some(plate.clone());
+        app.editor_mut().photo_mut().source_preview = Some(plate);
+        app.editor_mut().photo_mut().base_turns = 0;
+        app.workspace_mut().masks_mut().mask_paint = Some(image::RgbaImage::new(8, 6));
+        app.editor_mut().doc_mut().recipe.quarter_turns = 1;
+        { let (e, w, l) = app.editor_workspace_mut(); e.sync_base_turns(w, l, &ctx) };
+        assert_eq!(app.editor().photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
         assert_eq!(
-            app.workspace.masks().mask_paint.as_ref().unwrap().dimensions(),
+            app.workspace().masks().mask_paint.as_ref().unwrap().dimensions(),
             (6, 8),
             "the paint canvas follows the plate's frame"
         );
-        assert!(!app.workspace.has_painted_mask(), "a rebound canvas starts empty");
+        assert!(!app.workspace().has_painted_mask(), "a rebound canvas starts empty");
     }
 
     /// The coverage overlay and the range eyedropper share the one-slot
@@ -866,13 +860,13 @@
     #[test]
     fn the_range_reference_is_one_builder_with_every_geometry_field_stripped() {
         let (mut app, _scrub) = app_with_masked_photo("range-ref");
-        let first = app.editor.doc().recipe.masks[0].clone();
-        app.editor.doc_mut().recipe.masks.push(first);
-        app.editor.doc_mut().recipe.ca_r = 0.4;
-        app.editor.doc_mut().recipe.ca_b = -0.3;
-        app.editor.doc_mut().recipe.straighten_deg = 2.0;
-        app.editor.doc_mut().recipe.lens_distortion = 0.1;
-        let pre = app.editor.range_reference_recipe(1);
+        let first = app.editor().doc().recipe.masks[0].clone();
+        app.editor_mut().doc_mut().recipe.masks.push(first);
+        app.editor_mut().doc_mut().recipe.ca_r = 0.4;
+        app.editor_mut().doc_mut().recipe.ca_b = -0.3;
+        app.editor_mut().doc_mut().recipe.straighten_deg = 2.0;
+        app.editor_mut().doc_mut().recipe.lens_distortion = 0.1;
+        let pre = app.editor().range_reference_recipe(1);
         assert_eq!(pre.masks.len(), 1, "mask 1's reference is the prefix before it");
         assert_eq!(
             (pre.ca_r, pre.ca_b),
@@ -980,58 +974,59 @@
     #[test]
     fn each_tool_keeps_its_own_painted_area() {
         let paint = |app: &mut AutoShadeApp| {
-            app.workspace.masks_mut().mask_paint.as_mut().unwrap().put_pixel(1, 1, image::Rgba([255, 64, 64, 160]));
-            app.workspace.paint_mask_changed(Some(true));
+            app.workspace_mut().masks_mut().mask_paint.as_mut().unwrap().put_pixel(1, 1, image::Rgba([255, 64, 64, 160]));
+            app.workspace_mut().paint_mask_changed(Some(true));
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 base_preview: Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6))),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
-        app.workspace.rebind_paint_canvas(app.lang, 8, 6);
-        assert_eq!(app.workspace.masks().paint_owner, BrushOwner::Fill, "Fill's area is the canvas by default");
+            }; editor });
+        let __lang = app.lang();
+        app.workspace_mut().rebind_paint_canvas(__lang, 8, 6);
+        assert_eq!(app.workspace().masks().paint_owner, BrushOwner::Fill, "Fill's area is the canvas by default");
 
         app.commands().arm_brush(BrushOwner::Heal);
-        assert!(app.workspace.masks().paint_mode && app.workspace.brush_armed(BrushOwner::Heal) && !app.workspace.brush_armed(BrushOwner::Fill));
+        assert!(app.workspace().masks().paint_mode && app.workspace().brush_armed(BrushOwner::Heal) && !app.workspace().brush_armed(BrushOwner::Fill));
         paint(&mut app);
-        assert!(app.workspace.area_painted(BrushOwner::Heal));
-        assert!(!app.workspace.area_painted(BrushOwner::Fill) && !app.workspace.area_painted(BrushOwner::Adjust));
+        assert!(app.workspace().area_painted(BrushOwner::Heal));
+        assert!(!app.workspace().area_painted(BrushOwner::Fill) && !app.workspace().area_painted(BrushOwner::Adjust));
 
         // Fill's turn: a blank canvas, and Heal's strokes wait in the store
         // with their memo — reading them back scans nothing.
-        let scans = app.workspace.overlay().mask_presence_scans.get();
+        let scans = app.workspace().overlay().mask_presence_scans.get();
         app.commands().arm_brush(BrushOwner::Fill);
-        assert!(!app.workspace.has_painted_mask(), "Fill sees its own blank area, not Heal's strokes");
-        assert!(app.workspace.area_painted(BrushOwner::Heal), "Heal's strokes survive off the canvas");
-        assert_eq!(app.workspace.overlay().mask_presence_scans.get(), scans, "a stored memo answers without a scan");
-        assert!(app.workspace.export_area_png(BrushOwner::Heal).is_some());
-        assert!(app.workspace.export_area_png(BrushOwner::Fill).is_none());
+        assert!(!app.workspace().has_painted_mask(), "Fill sees its own blank area, not Heal's strokes");
+        assert!(app.workspace().area_painted(BrushOwner::Heal), "Heal's strokes survive off the canvas");
+        assert_eq!(app.workspace().overlay().mask_presence_scans.get(), scans, "a stored memo answers without a scan");
+        assert!(app.workspace().export_area_png(BrushOwner::Heal).is_some());
+        assert!(app.workspace().export_area_png(BrushOwner::Fill).is_none());
 
         // The Stamp arms through clone_mode and takes the paint flag down.
         app.commands().arm_brush(BrushOwner::Stamp);
-        assert!(app.workspace.tools().clone_mode && !app.workspace.masks().paint_mode && app.workspace.brush_armed(BrushOwner::Stamp));
+        assert!(app.workspace().tools().clone_mode && !app.workspace().masks().paint_mode && app.workspace().brush_armed(BrushOwner::Stamp));
         paint(&mut app);
-        assert!(app.workspace.area_painted(BrushOwner::Stamp) && app.workspace.area_painted(BrushOwner::Heal));
+        assert!(app.workspace().area_painted(BrushOwner::Stamp) && app.workspace().area_painted(BrushOwner::Heal));
 
         // Clearing one tool's area leaves the others'.
-        app.workspace.clear_area(BrushOwner::Heal);
-        assert!(!app.workspace.area_painted(BrushOwner::Heal) && app.workspace.area_painted(BrushOwner::Stamp));
+        app.workspace_mut().clear_area(BrushOwner::Heal);
+        assert!(!app.workspace().area_painted(BrushOwner::Heal) && app.workspace().area_painted(BrushOwner::Stamp));
         app.commands().arm_brush(BrushOwner::Heal);
-        assert!(!app.workspace.has_painted_mask(), "Heal comes back blank");
+        assert!(!app.workspace().has_painted_mask(), "Heal comes back blank");
 
         // A mask-brush session stashes the live area and gives it back.
         app.commands().arm_brush(BrushOwner::Adjust);
         paint(&mut app);
         app.commands().start_mask_brush(None);
-        assert!(!app.workspace.has_painted_mask(), "the session starts on its own blank canvas");
-        assert!(app.workspace.area_painted(BrushOwner::Adjust), "Adjust's strokes wait in the store");
-        assert!(!app.workspace.brush_armed(BrushOwner::Adjust), "a session belongs to no tool");
-        app.workspace.disarm_brush();
-        assert!(app.workspace.masks().mask_brush.is_none() && !app.workspace.masks().paint_mode);
+        assert!(!app.workspace().has_painted_mask(), "the session starts on its own blank canvas");
+        assert!(app.workspace().area_painted(BrushOwner::Adjust), "Adjust's strokes wait in the store");
+        assert!(!app.workspace().brush_armed(BrushOwner::Adjust), "a session belongs to no tool");
+        app.workspace_mut().disarm_brush();
+        assert!(app.workspace().masks().mask_brush.is_none() && !app.workspace().masks().paint_mode);
         assert!(
-            app.workspace.has_painted_mask() && app.workspace.masks().paint_owner == BrushOwner::Adjust,
+            app.workspace().has_painted_mask() && app.workspace().masks().paint_owner == BrushOwner::Adjust,
             "the session's end restores Adjust's area"
         );
 
@@ -1044,7 +1039,8 @@
         );
 
         // A plate rebind starts every tool blank.
-        app.workspace.rebind_paint_canvas(app.lang, 8, 6);
-        assert!(!app.workspace.area_painted(BrushOwner::Adjust) && !app.workspace.area_painted(BrushOwner::Stamp));
-        assert!(app.workspace.masks().paint_store.iter().all(Option::is_none));
+        let __lang = app.lang();
+        app.workspace_mut().rebind_paint_canvas(__lang, 8, 6);
+        assert!(!app.workspace().area_painted(BrushOwner::Adjust) && !app.workspace().area_painted(BrushOwner::Stamp));
+        assert!(app.workspace().masks().paint_store.iter().all(Option::is_none));
     }

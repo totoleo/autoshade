@@ -168,25 +168,25 @@
     /// could previously be deleted with every GUI test green.
     #[test]
     fn export_opts_carries_every_dial_to_the_renderer() {
-        let app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
+        let app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
                 long_edge: 2560,
                 sharpen: 35.0,
                 quality: 88.0,
                 space: 1,
                 format: ExportFormat::Png8,
                 ..Default::default()
-            }; view } , ..Default::default() };
-        let o = app.workspace.export_opts();
+            }; view });
+        let o = app.workspace().export_opts();
         assert_eq!(o.long_edge, Some(2560));
         assert!((o.sharpen - 35.0).abs() < 1e-6);
         assert_eq!(o.jpeg_quality, 88);
         assert!(o.eight_bit, "Png8 is 8-bit");
         assert!(matches!(o.color_space, autoshade::render::ExportColorSpace::DisplayP3));
-        let flat = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
+        let flat = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
                 long_edge: 0,
                 ..Default::default()
-            }; view } , ..Default::default() };
-        assert_eq!(flat.workspace.export_opts().long_edge, None, "0 = no resize");
+            }; view });
+        assert_eq!(flat.workspace().export_opts().long_edge, None, "0 = no resize");
     }
 
     /// L16-11: the shortcut exclusivity gates, tested NEGATIVELY — deleting
@@ -204,47 +204,47 @@
         };
         // Positive control first: with NO transient up, R arms the crop —
         // proving this harness actually reaches the tool tier.
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/x.arw", std::process::id()))),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
+            }; editor });
         let mut input = egui::RawInput::default();
         input.events.push(key(egui::Key::R));
         let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
-        assert!(app.workspace.crop().mode, "positive control: R arms the crop tool");
+        assert!(app.workspace().crop().mode, "positive control: R arms the crop tool");
 
         // The negative: a transient (Settings) swallows the tool tier…
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(std::env::temp_dir().join(format!("autoshade-library-{}/x.arw", std::process::id()))),
 
                 ..Default::default()
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.ui_mut() = ShellState { show_settings: true, ..Default::default() }; view } , ..Default::default() };
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.ui_mut() = ShellState { show_settings: true, ..Default::default() }; view });
         let mut input = egui::RawInput::default();
         input.events.push(key(egui::Key::R));
         let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
-        assert!(!app.workspace.crop().mode, "R is dead while a modal transient is up");
+        assert!(!app.workspace().crop().mode, "R is dead while a modal transient is up");
         // …and Esc dismisses the transient instead of leaking anywhere.
         let mut input = egui::RawInput::default();
         input.events.push(key(egui::Key::Escape));
         let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
-        assert!(!app.workspace.ui().show_settings, "Esc dismissed the transient");
-        assert!(!app.workspace.crop().mode);
+        assert!(!app.workspace().ui().show_settings, "Esc dismissed the transient");
+        assert!(!app.workspace().crop().mode);
 
         // The reverse-fit question is a transient too: R is dead under it
         // (the prompt's own frame path is the same gate).
         let one = "out/_fit_prompt_test.reimagine.png";
         let mut prompt = app_before_a_generation(Lang::En);
         land(&mut prompt, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
-        assert!(prompt.workspace.fit().fit_prompt.is_some());
+        assert!(prompt.workspace().fit().fit_prompt.is_some());
         let mut input = egui::RawInput::default();
         input.events.push(key(egui::Key::R));
         let _ = ctx.run(input, |ctx| prompt.upd_shortcuts(ctx));
-        assert!(!prompt.workspace.crop().mode, "R is dead under the prompt");
+        assert!(!prompt.workspace().crop().mode, "R is dead under the prompt");
     }
 
     /// L16-12: the display resync is exercised through a REAL swap path
@@ -271,7 +271,7 @@
         )
         .unwrap();
 
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(src.clone()),
 
@@ -287,17 +287,17 @@ rationale: "stale rationale".into(),
                 ..Default::default()
 
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.masks_mut() = MaskEditState {
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.masks_mut() = MaskEditState {
                 sel_mask: Some(3),
                 ..Default::default()
-            }; view } , ..Default::default() };
+            }; view });
         app.commands().load_version(1);
-        assert!((app.editor.doc().recipe.exposure_ev - 0.75).abs() < 1e-3, "the version landed");
+        assert!((app.editor().doc().recipe.exposure_ev - 0.75).abs() < 1e-3, "the version landed");
         assert_eq!(
-            app.editor.analysis().rationale, "v1 marker rationale",
+            app.editor().analysis().rationale, "v1 marker rationale",
             "the swap path resynced the rationale display"
         );
-        assert_eq!(app.workspace.masks().sel_mask, None, "a stale mask selection cannot linger");
+        assert_eq!(app.workspace().masks().sel_mask, None, "a stale mask selection cannot linger");
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&dev);
     }
@@ -318,7 +318,7 @@ rationale: "stale rationale".into(),
             origin: None,
             thumb: None,
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 variants: vec![
                 mk(VariantKind::Original, "card-a", Some("base")),
@@ -329,10 +329,10 @@ rationale: "stale rationale".into(),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
+            }; editor });
 
         // Hop 1 (live strip → record) and hop 2 (record → live strip).
-        let rec = app.editor.current_strip_record().expect("a two-card strip is worth recording");
+        let rec = app.editor().current_strip_record().expect("a two-card strip is worth recording");
         assert_eq!(rec.active_id.as_deref(), Some("card-b"));
         assert_eq!(rec.active_name.as_deref(), Some("偏暖"));
         assert_eq!(rec.others[0].id.as_deref(), Some("card-a"));
@@ -365,10 +365,10 @@ rationale: "stale rationale".into(),
 
         // Hop 3 (live strip → stash) and hop 5 (stash → record), driven
         // through the stash-building path the way navigation does.
-        let others: Vec<StashedVariant> = app.editor.doc().variants
+        let others: Vec<StashedVariant> = app.editor().doc().variants
             .iter()
             .enumerate()
-            .filter(|(i, _)| *i != app.editor.doc().active)
+            .filter(|(i, _)| *i != app.editor().doc().active)
             .map(|(_, v)| StashedVariant {
                 kind: v.kind,
                 id: v.id.clone(),
@@ -379,14 +379,14 @@ rationale: "stale rationale".into(),
             })
             .collect();
         let st = crate::model::StashEntry {
-            recipe: app.editor.doc().recipe.clone(),
+            recipe: app.editor().doc().recipe.clone(),
             base: None,
             origin: None,
-            kind: app.editor.doc().variants[app.editor.doc().active].kind,
-            id: app.editor.doc().variants[app.editor.doc().active].id.clone(),
-            name: app.editor.doc().variants[app.editor.doc().active].name.clone(),
+            kind: app.editor().doc().variants[app.editor().doc().active].kind,
+            id: app.editor().doc().variants[app.editor().doc().active].id.clone(),
+            name: app.editor().doc().variants[app.editor().doc().active].name.clone(),
             others,
-            active_pos: app.editor.doc().active,
+            active_pos: app.editor().doc().active,
         };
         let stashed = crate::util::stash_strip_record(&st).expect("a stashed strip is recordable");
         assert_eq!(stashed.active_id.as_deref(), Some("card-b"));
@@ -416,19 +416,19 @@ rationale: "stale rationale".into(),
         // ONLY home its name and its minted id have, and dropping it would
         // discard both silently (the `strip_is_trivial` owner, shared with
         // the stash path).
-        app.editor.doc_mut().variants.truncate(1);
-        app.editor.doc_mut().active = 0;
+        app.editor_mut().doc_mut().variants.truncate(1);
+        app.editor_mut().doc_mut().active = 0;
         let rec = app
-            .editor.current_strip_record()
+            .editor().current_strip_record()
             .expect("a NAMED lone Original still needs its record");
         assert_eq!(rec.active_name.as_deref(), Some("base"));
         assert_eq!(rec.active_id.as_deref(), Some("card-a"));
         // Strip the two things only the record can hold and it goes back to
         // being noise: recipe.json + pixels.json say everything, and the base
         // negative's fixed id is reconstructed by every reader.
-        app.editor.doc_mut().variants[0].name = None;
-        app.editor.doc_mut().variants[0].id = crate::model::ORIGINAL_VARIANT_ID.to_string();
-        assert!(app.editor.current_strip_record().is_none());
+        app.editor_mut().doc_mut().variants[0].name = None;
+        app.editor_mut().doc_mut().variants[0].id = crate::model::ORIGINAL_VARIANT_ID.to_string();
+        assert!(app.editor().current_strip_record().is_none());
     }
 
     /// R24-3 (#7): 「apply to Original」 copies a card's develop PARAMETERS
@@ -459,7 +459,7 @@ rationale: "stale rationale".into(),
             origin: None,
             thumb: None,
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 variants: vec![negative, fitted],
 
@@ -469,33 +469,33 @@ rationale: "stale rationale".into(),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
-        app.editor.reset_history(&app.workspace);
+            }; editor });
+        { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         app.commands().apply_to_original(1, &ctx);
 
-        assert_eq!(app.editor.doc().active, 0, "the canvas lands on the card that was written");
-        assert_eq!(app.editor.doc().variants.len(), 2, "the source card is KEPT");
-        assert_eq!(app.editor.doc().variants[1].name.as_deref(), Some("dusk"), "…untouched");
-        assert_eq!(app.editor.doc().variants[0].recipe.contrast, 44.0, "the develop was copied");
-        assert_eq!(app.editor.doc().variants[0].recipe.exposure_ev, 0.5);
+        assert_eq!(app.editor().doc().active, 0, "the canvas lands on the card that was written");
+        assert_eq!(app.editor().doc().variants.len(), 2, "the source card is KEPT");
+        assert_eq!(app.editor().doc().variants[1].name.as_deref(), Some("dusk"), "…untouched");
+        assert_eq!(app.editor().doc().variants[0].recipe.contrast, 44.0, "the develop was copied");
+        assert_eq!(app.editor().doc().variants[0].recipe.exposure_ev, 0.5);
         assert!(
-            app.editor.doc().variants[0].base.as_ref().is_some_and(|b| Arc::ptr_eq(b, &pixels)),
+            app.editor().doc().variants[0].base.as_ref().is_some_and(|b| Arc::ptr_eq(b, &pixels)),
             "the negative's own pixels are not touched"
         );
         assert_eq!(
-            app.editor.doc().variants[0].origin.as_deref(),
+            app.editor().doc().variants[0].origin.as_deref(),
             Some(master.as_path()),
             "…nor its raster origin: this copies PARAMETERS"
         );
-        assert_eq!(app.editor.doc().recipe.contrast, 44.0, "the canvas shows what was applied");
+        assert_eq!(app.editor().doc().recipe.contrast, 44.0, "the canvas shows what was applied");
 
         // ONE Ctrl+Z, and the negative's own develop is back.
-        app.editor.undo(&mut app.workspace, app.lang, &ctx);
-        assert_eq!(app.editor.doc().recipe.contrast, 11.0, "one undo step, not zero and not two");
+        { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
+        assert_eq!(app.editor().doc().recipe.contrast, 11.0, "one undo step, not zero and not two");
 
         // A PIXEL-STATE source is refused with the reverse-fit remedy — its
         // look is in its raster, and the recipe over it is stripped bare.
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 variants: vec![
                 Variant {
@@ -522,14 +522,14 @@ rationale: "stale rationale".into(),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
+            }; editor });
         app.commands().apply_to_original(1, &ctx);
-        assert_eq!(app.editor.doc().variants[0].recipe.contrast, 11.0, "the negative was not overwritten");
-        assert_eq!(app.editor.doc().active, 1, "and the canvas did not move");
+        assert_eq!(app.editor().doc().variants[0].recipe.contrast, 11.0, "the negative was not overwritten");
+        assert_eq!(app.editor().doc().active, 1, "and the canvas did not move");
         assert!(
-            app.workspace.status().contains("Reverse-fit"),
+            app.workspace().status().contains("Reverse-fit"),
             "the refusal carries the remedy: {}",
-            app.workspace.status()
+            app.workspace().status()
         );
     }
 
@@ -551,7 +551,7 @@ rationale: "stale rationale".into(),
         };
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 variants: vec![
                 mk(VariantKind::Original, crate::model::ORIGINAL_VARIANT_ID),
@@ -562,10 +562,10 @@ rationale: "stale rationale".into(),
 
                 ..Default::default()
 
-            }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
+            }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
                 versions: vec![1, 2],
                 ..Default::default()
-            }; view } , ..Default::default() };
+            }; view });
         let _ = ctx.run(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -584,7 +584,7 @@ rationale: "stale rationale".into(),
             },
         );
         assert_eq!(
-            app.seams.edit_list_rows,
+            app.seams().edit_list_rows,
             vec!["variant:original", "variant:generated", "version:1", "version:2"],
             "cards above versions, in strip order then ascending"
         );
@@ -629,7 +629,7 @@ rationale: "stale rationale".into(),
         ] {
             let ctx = egui::Context::default();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+            let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                     variants: vec![
                     mk(VariantKind::Original, crate::model::ORIGINAL_VARIANT_ID),
@@ -640,10 +640,10 @@ rationale: "stale rationale".into(),
 
                     ..Default::default()
 
-                }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
+                }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.cards_mut() = CardsState {
                     versions: vec![1],
                     ..Default::default()
-                }; view } , ..Default::default() };
+                }; view });
             let mut widths = Vec::new();
             for _ in 0..3 {
                 let _ = ctx.run(
@@ -665,7 +665,7 @@ rationale: "stale rationale".into(),
                     },
                 );
             }
-            assert_eq!(app.seams.edit_list_actions, want, "active={active}");
+            assert_eq!(app.seams().edit_list_actions, want, "active={active}");
             assert!(
                 (widths[0] - widths[2]).abs() < 0.5,
                 "active={active}: the controls panel must not grow ({widths:?})"
@@ -677,7 +677,7 @@ rationale: "stale rationale".into(),
         // one edit state.)
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 variants: vec![mk(VariantKind::Original, crate::model::ORIGINAL_VARIANT_ID)],
 
@@ -685,7 +685,7 @@ rationale: "stale rationale".into(),
 
                 ..Default::default()
 
-            }; editor } , ..Default::default() };
+            }; editor });
         let _ = ctx.run(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -701,7 +701,7 @@ rationale: "stale rationale".into(),
                 });
             },
         );
-        assert_eq!(app.seams.edit_list_actions, vec!["0:＋"]);
+        assert_eq!(app.seams().edit_list_actions, vec!["0:＋"]);
     }
 
     /// R24-3/R24-4, on the real panel: the strip's ACTIVE card carries the
@@ -733,7 +733,7 @@ rationale: "stale rationale".into(),
         {
             let ctx = egui::Context::default();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+            let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                     src_path: Some(photo.clone()),
 
@@ -754,14 +754,14 @@ rationale: "stale rationale".into(),
                     ..Default::default()
 
 
-                }; editor } , ..Default::default() };
+                }; editor });
             let _ = ctx.run(input(), |ctx| {
                 egui::TopBottomPanel::bottom("variants")
                     .exact_height(AutoShadeApp::VARIANT_STRIP_H)
                     .show(ctx, |ui| app.commands().variant_strip(ui));
             });
             let (rect, enabled) = app
-                .seams.strip_apply
+                .seams().strip_apply
                 .unwrap_or_else(|| panic!("{kind:?}: the active card has no apply button"));
             assert!(rect.width() > 0.0, "{kind:?}: the apply button did not lay out");
             assert_eq!(
@@ -771,19 +771,19 @@ rationale: "stale rationale".into(),
             // The name affordance is there too, and a seeded buffer turns it
             // into the edit box (the version rows' shape, on the card's id).
             assert!(
-                app.seams.strip_name_rect.is_some_and(|r| r.width() > 0.0),
+                app.seams().strip_name_rect.is_some_and(|r| r.width() > 0.0),
                 "{kind:?}: the active card offers no name affordance"
             );
-            app.workspace.cards_mut().variant_name_buf =
+            app.workspace_mut().cards_mut().variant_name_buf =
                 Some((photo.clone(), "card-b".into(), String::new(), "dusk".into()));
-            app.seams.strip_name_rect = None;
+            app.seams().strip_name_rect = None;
             let _ = ctx.run(input(), |ctx| {
                 egui::TopBottomPanel::bottom("variants")
                     .exact_height(AutoShadeApp::VARIANT_STRIP_H)
                     .show(ctx, |ui| app.commands().variant_strip(ui));
             });
             assert!(
-                app.seams.strip_name_rect.is_some_and(|r| r.width() > 0.0),
+                app.seams().strip_name_rect.is_some_and(|r| r.width() > 0.0),
                 "{kind:?}: the seeded rename box did not lay out"
             );
         }
@@ -806,7 +806,7 @@ rationale: "stale rationale".into(),
             thumb: None,
         };
         let photo = std::env::temp_dir().join(format!("autoshade-library-{}/_rename_card.ARW", std::process::id()));
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(photo.clone()),
 
@@ -827,30 +827,30 @@ rationale: "stale rationale".into(),
                 ..Default::default()
 
 
-            }; editor } , ..Default::default() };
+            }; editor });
         // Typed on the Fitted card…
-        app.workspace.cards_mut().variant_name_buf =
+        app.workspace_mut().cards_mut().variant_name_buf =
             Some((photo.clone(), "card-fit".into(), String::new(), "dusk".into()));
         // …while an async completion inserts a card ahead of it.
-        app.editor.doc_mut().variants.insert(1, mk(VariantKind::Generated, "card-gen"));
-        app.editor.doc_mut().active = 2;
+        app.editor_mut().doc_mut().variants.insert(1, mk(VariantKind::Generated, "card-gen"));
+        app.editor_mut().doc_mut().active = 2;
         app.commands().commit_pending_names();
-        assert_eq!(app.editor.doc().variants[1].name, None, "the renumbered neighbour is untouched");
+        assert_eq!(app.editor().doc().variants[1].name, None, "the renumbered neighbour is untouched");
         assert_eq!(
-            app.editor.doc().variants[2].name.as_deref(),
+            app.editor().doc().variants[2].name.as_deref(),
             Some("dusk"),
             "the name follows the card's id, not its index"
         );
 
         // Unsaved-work accounting: the mirror still holds the pre-rename
         // record, so quitting has to warn.
-        app.editor.session_mut().hist.saved_strip = app.editor.current_strip_record();
-        assert_eq!(app.editor.open_dirty_variants(), 0, "premise: the mirror is current");
-        app.editor.doc_mut().variants[2].name = Some("dawn".into());
-        assert!(app.editor.open_dirty_variants() >= 1, "renaming the ACTIVE card is unsaved work");
-        app.editor.doc_mut().variants[2].name = Some("dusk".into());
-        app.editor.doc_mut().variants[0].name = Some("negative".into());
-        assert!(app.editor.open_dirty_variants() >= 1, "…and so is renaming a background card");
+        app.editor_mut().session_mut().hist.saved_strip = app.editor().current_strip_record();
+        assert_eq!(app.editor().open_dirty_variants(), 0, "premise: the mirror is current");
+        app.editor_mut().doc_mut().variants[2].name = Some("dawn".into());
+        assert!(app.editor().open_dirty_variants() >= 1, "renaming the ACTIVE card is unsaved work");
+        app.editor_mut().doc_mut().variants[2].name = Some("dusk".into());
+        app.editor_mut().doc_mut().variants[0].name = Some("negative".into());
+        assert!(app.editor().open_dirty_variants() >= 1, "…and so is renaming a background card");
     }
 
     /// R24-3: the calibration rule has TWO directions and one owner. Onto a
@@ -957,7 +957,7 @@ rationale: "stale rationale".into(),
             origin: Some(dir.join("master.png")),
             thumb: None,
         };
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(src.clone()),
 
@@ -972,21 +972,21 @@ rationale: "stale rationale".into(),
                 ..Default::default()
 
 
-            }; editor } , ..Default::default() };
+            }; editor });
         app.commands().save_version();
         assert!(
             autoshade::store::list_versions(&src).is_empty(),
             "a generated card must not mint an empty snapshot"
         );
         assert!(
-            app.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
+            app.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)),
             "the refusal must be SEEN — the keyboard path has no other channel"
         );
 
         // The same canvas on a PARAMETRIC card saves, and records what it
         // was a picture of.
-        app.workspace.chrome_mut().toasts.clear();
-        app.editor.doc_mut().variants = vec![crate::model::Variant {
+        app.workspace_mut().chrome_mut().toasts.clear();
+        app.editor_mut().doc_mut().variants = vec![crate::model::Variant {
             id: "card-fit".into(),
             ..mk(crate::model::VariantKind::Fitted)
         }];

@@ -224,7 +224,7 @@
                 }
                 let mut app = app_with_every_button(lang);
                 with_long_analysis(&mut app);
-                app.workspace.ui_mut().show_analysis_full = true;
+                app.workspace_mut().ui_mut().show_analysis_full = true;
                 window_shot(&mut app, theme).save(dir.join(format!("analysis-window-{lang:?}-{theme:?}.png"))).unwrap();
             }
         }
@@ -246,10 +246,10 @@
             "whites eased so the sky keeps its gradient, vibrance up and saturation held so the red rock ",
             "stays believable, a cooler white balance on the sky band only, and a gentle S curve for depth. ",
         );
-        app.editor.analysis_mut().rationale = std::iter::once(prose.to_string()).chain(notes.iter().map(render_one)).collect();
-        app.editor.doc_mut().recipe.rationale = app.editor.analysis().rationale.clone();
-        app.editor.analysis_mut().rationale_notes = notes;
-        app.editor.analysis_mut().verdict = Some((autoshade::advisor::Decision::Accept, vec!["balanced".into(), "on target".into()]));
+        app.editor_mut().analysis_mut().rationale = std::iter::once(prose.to_string()).chain(notes.iter().map(render_one)).collect();
+        app.editor_mut().doc_mut().recipe.rationale = app.editor().analysis().rationale.clone();
+        app.editor_mut().analysis_mut().rationale_notes = notes;
+        app.editor_mut().analysis_mut().verdict = Some((autoshade::advisor::Decision::Accept, vec!["balanced".into(), "on target".into()]));
     }
 
     /// The analysis full-text window alone, on a 720 × 560 screen at 2×.
@@ -282,7 +282,7 @@
     /// ones that need a live window (drops, title, sheets).
     fn full_window_shot(app: &mut AutoShadeApp, theme: crate::theme::ThemePref, size: egui::Vec2) -> image::RgbaImage {
         // The app reads its own theme field for the bars and the canvas bed.
-        app.workspace.ui_mut().theme = theme;
+        app.workspace_mut().ui_mut().theme = theme;
         let ctx = egui::Context::default();
         crate::theme::install_fonts(&ctx);
         crate::theme::install_theme(&ctx, theme);
@@ -299,7 +299,7 @@
             })
             .collect();
         let photo = egui::ColorImage::new([w, h], px);
-        app.editor.plates_mut().after_tex = Some(ctx.load_texture("shot-photo", photo, egui::TextureOptions::LINEAR));
+        app.editor_mut().plates_mut().after_tex = Some(ctx.load_texture("shot-photo", photo, egui::TextureOptions::LINEAR));
         let ppp = 1.5;
         let mut tex = ShotTextures::default();
         let mut last = None;
@@ -404,7 +404,7 @@
             let mut app = app_with_every_button(lang);
             // Pixels the preview pane develops (a warm-rock / blue-sky frame,
             // the same stand-in the canvas shots use).
-            app.editor.photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::ImageRgb8(
+            app.editor_mut().photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::ImageRgb8(
                 image::RgbImage::from_fn(96, 64, |x, y| {
                     if y < 28 {
                         image::Rgb([70 + (x / 2) as u8, 110, 190])
@@ -413,18 +413,18 @@
                     }
                 }),
             )));
-            app.workspace.rlib_mut().recipes = rows();
-            app.workspace.rlib_mut().recipes_loaded = true;
-            app.workspace.rlib_mut().show_recipes = true;
-            app.workspace.rlib_mut().recipe_sel = Some(names[0].into());
+            app.workspace_mut().rlib_mut().recipes = rows();
+            app.workspace_mut().rlib_mut().recipes_loaded = true;
+            app.workspace_mut().rlib_mut().show_recipes = true;
+            app.workspace_mut().rlib_mut().recipe_sel = Some(names[0].into());
             full_window_shot(&mut app, crate::theme::ThemePref::Dark, egui::vec2(1400.0, 880.0))
                 .save(dir.join(format!("recipe-library-{lang:?}.png")))
                 .unwrap();
             // …and the empty library, whose state has to invite the first save.
             let mut empty = app_with_every_button(lang);
-            empty.workspace.rlib_mut().recipes.clear();
-            empty.workspace.rlib_mut().recipes_loaded = true;
-            empty.workspace.rlib_mut().show_recipes = true;
+            empty.workspace_mut().rlib_mut().recipes.clear();
+            empty.workspace_mut().rlib_mut().recipes_loaded = true;
+            empty.workspace_mut().rlib_mut().show_recipes = true;
             full_window_shot(&mut empty, crate::theme::ThemePref::Dark, egui::vec2(1400.0, 880.0))
                 .save(dir.join(format!("recipe-library-empty-{lang:?}.png")))
                 .unwrap();
