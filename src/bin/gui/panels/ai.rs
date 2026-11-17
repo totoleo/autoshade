@@ -35,7 +35,7 @@
 //! library nobody has yet the one nobody can make.
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
     /// The AI area — TWO first-level sections (user ruling 2026-10-20: the two
     /// AI paths read as one 「AI」 heap before, and they are different
@@ -147,7 +147,7 @@ impl AutoShadeApp {
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| self.panel_view(&mut Vec::new()).analysis_output(ui));
+                    .show(ui, |ui| self.with_panel(|p| p.analysis_output(ui)));
             });
         self.workspace.ui_mut().show_analysis_full = open;
     }
@@ -184,7 +184,7 @@ impl AutoShadeApp {
                             .id_salt("ai_analysis_box")
                             .max_height(ANALYSIS_BOX_MAX_H)
                             .auto_shrink([false, true])
-                            .show(ui, |ui| self.panel_view(&mut Vec::new()).analysis_output(ui))
+                            .show(ui, |ui| self.with_panel(|p| p.analysis_output(ui)))
                     })
                     .inner;
                 #[cfg(test)]
@@ -259,7 +259,7 @@ impl AutoShadeApp {
                 let mut intent = logic::look::LookIntent::of(logic::look::LookKind::Analyze);
                 intent.typed = self.workspace.ai().guidance.clone();
                 intent.region = self.workspace.overlay().region;
-                self.commands().apply_actions(vec![logic::Action::Look(intent)]);
+                self.apply_actions(vec![logic::Action::Look(intent)]);
             }
             // The two TASTE DIALS get their own lines, below the verbs (R23-3).
             //
@@ -402,7 +402,7 @@ impl AutoShadeApp {
                     intent.pixels = self.editor.active_on_ai_pixels()
                         .then(|| self.editor.active_variant().and_then(|v| v.origin.clone()))
                         .flatten();
-                    self.commands().apply_actions(vec![logic::Action::Look(intent)]);
+                    self.apply_actions(vec![logic::Action::Look(intent)]);
                 }
             });
     }
@@ -422,7 +422,7 @@ impl AutoShadeApp {
         // starve it. Not in tests: a headless frame would spawn a worker
         // reading the developer's own store; tests set `style_info` directly.
         if self.workspace.ai().style_info.is_none() && !self.workspace.ai().style_info_loading {
-            self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::RefreshLibraryStatus)]);
+            self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::RefreshLibraryStatus)]);
         }
         ui.add_space(SPACE_XS);
         // Read off the SAME comparison the pipeline makes
@@ -438,7 +438,7 @@ impl AutoShadeApp {
             // them silently vacuous instead of red.
             .open(fold_open_in_tests())
             , |ui| {
-                self.panel_view(&mut Vec::new()).ai_library_status(ui);
+                self.with_panel(|p| p.ai_library_status(ui));
                 self.ai_library_build(ui);
                 if !reads_a_library {
                     // Outside the disabled scope below: the sentence that
@@ -455,7 +455,7 @@ impl AutoShadeApp {
                     {
                         self.seams.ai_library_read_enabled = Some(ui.is_enabled());
                     }
-                    self.panel_view(&mut Vec::new()).ai_library_use(ui);
+                    self.with_panel(|p| p.ai_library_use(ui));
                 });
             });
     }
@@ -524,7 +524,7 @@ impl AutoShadeApp {
             };
             ui.label(egui::RichText::new(raw_note).small().weak());
             if pick_raw {
-                self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::PickRawFolder)]);
+                self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::PickRawFolder)]);
             }
             ui.checkbox(&mut self.aip.style_describe, tr(lang, K_AI_WRITE_LOOK_PHRASES_LOCAL_MODEL))
                 .on_hover_text(tr(lang,
@@ -545,10 +545,10 @@ impl AutoShadeApp {
         // The dialog is modal and blocks: the runtime opens it after the row
         // is laid out (it remembers the pick before starting the build).
         if pick {
-            self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::PickReferenceFolder)]);
+            self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::PickReferenceFolder)]);
         }
         if build.is_some() {
-            self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::BuildReferenceLibrary)]);
+            self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::BuildReferenceLibrary)]);
         }
     }
 
@@ -654,7 +654,7 @@ impl AutoShadeApp {
                             ))
                             .clicked()
                         {
-                            self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::Reimagine)]);
+                            self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::Reimagine)]);
                         }
                     });
                 });
@@ -702,7 +702,7 @@ impl AutoShadeApp {
                     .on_hover_text(tr(lang, K_AI_GPT_IMAGE_RENDER_QUALITY_HIGHER_LOOKS_BETTER_AND));
                 // This fold's own brush and painted area (2026-09-27): it used
                 // to read the Retouch panel's shared mask with no control here.
-                self.commands().brush_row(ui, BrushOwner::Adjust);
+                self.brush_row(ui, BrushOwner::Adjust);
                 let note = if !self.editor.active_on_ai_pixels() {
                     tr(lang, K_AI_SELECT_A_AI_GENERATED_CARD_OR_ITS_EDIT_FIRST)
                 } else if self.workspace.area_painted(BrushOwner::Adjust) {
@@ -720,7 +720,7 @@ impl AutoShadeApp {
                     self.seams.adjust_btn_enabled = Some(resp.enabled());
                 }
                 if resp.clicked() {
-                    self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::AdjustGenerated)]);
+                    self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::AdjustGenerated)]);
                 }
             });
     }
@@ -759,11 +759,11 @@ impl AutoShadeApp {
             // fit solves FROM — the ▣ card or any ◈ / ▦ master — named and
             // choosable. Until then the fold showed the target only, and the
             // source was a rule nobody could see (`negative_index`).
-            let (auto, sources) = self.commands().fit_source_menu();
+            let (auto, sources) = self.fit_source_menu();
             // The label needs the command context, which borrows the editor —
             // read the active index first, then render the label.
             let active = self.editor.doc().active;
-            let card_label = self.commands().numbered_card_label(active);
+            let card_label = self.numbered_card_label(active);
             let to = (self.workspace.fit().fit_ref.is_none() && self.editor.fit_target(&self.workspace).is_some())
                 .then(|| trf(lang, K_ACTIONS_TO, &[("card", &card_label)]));
             if !sources.is_empty() {
@@ -903,7 +903,7 @@ impl AutoShadeApp {
                     ))
                     .clicked()
                 {
-                    self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::ReverseFit)]);
+                    self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::ReverseFit)]);
                 }
                 if action_in(ui, cell, can, tr(lang, K_AI_EXTRACT_STYLE))
                     .on_hover_text(tr(lang,
@@ -911,7 +911,7 @@ impl AutoShadeApp {
                     ))
                     .clicked()
                 {
-                    self.commands().apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::StylePrompt)]);
+                    self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::StylePrompt)]);
                 }
             });
             // R20 opt-in LLM-as-a-judge. OUTSIDE the can_fit gate: the

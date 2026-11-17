@@ -267,7 +267,7 @@
                 ..Default::default()
             };
             input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(2.0);
-            let out = ctx.run(input, |ctx| app.analysis_full_window(ctx));
+            let out = ctx.run(input, |ctx| app.commands().analysis_full_window(ctx));
             tex.apply(&out.textures_delta);
             last = Some(out);
         }

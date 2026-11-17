@@ -16,7 +16,7 @@
                 style_info: Some(Summary::Absent),
                 ..Default::default()
             }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         for want in ["No reference library yet", "folder of finished photos", "no library", "Pick folder"] {
             assert!(seen.iter().any(|t| t.contains(want)), "missing {want:?}: {seen:?}");
         }
@@ -34,7 +34,7 @@
             }),
                 ..Default::default()
             }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("412") && t.contains(finished_text.as_str()) && t.contains("300 with look phrases")),
             "the count, the folder and the phrase coverage: {seen:?}"
@@ -47,7 +47,7 @@
                 style_info: Some(Summary::Unusable("it is format v0, this build reads v1".into())),
                 ..Default::default()
             }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("format v0")), "the cause reaches the user: {seen:?}");
         assert!(seen.iter().any(|t| t.contains("no library")), "and the slider is flagged: {seen:?}");
     }
@@ -63,7 +63,7 @@
     fn the_ai_panel_is_five_folds_that_each_say_what_they_cost() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
             let want = [
                 tr(lang, K_AI_AI_GENERATION_REVERSE_FIT),
                 tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API),
@@ -110,7 +110,7 @@
                     // state cannot make this vacuous.
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.ai_panel(ui);
+                        app.commands().ai_panel(ui);
                     });
                 },
             );
@@ -121,7 +121,7 @@
         assert_eq!(frame(&mut app), (Some(true), Some(true)), "above Style 0 a library is buildable and read");
         app.aip.style_strength = 0.0;
         assert_eq!(frame(&mut app), (Some(true), Some(false)), "at Style 0: still buildable, not read");
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("Style is at 0%")), "a greyed control must say why: {seen:?}");
         assert!(seen.iter().any(|t| t.contains("Build / rebuild")), "the build entry stays at Style 0: {seen:?}");
         app.aip.style_strength = 0.01;
@@ -151,16 +151,16 @@
                 style_embed: false,
                 ..Default::default()
             }, ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains(warn)), "{seen:?}");
         app.aip.style_embed = true;
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(!seen.iter().any(|t| t.contains(warn)), "{seen:?}");
         let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: Some(autoshade::library::Summary::Absent),
                 ..Default::default()
             }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(!seen.iter().any(|t| t.contains(warn)), "nothing built, nothing to warn about: {seen:?}");
     }
 
@@ -214,7 +214,7 @@
     #[test]
     fn the_reverse_fit_area_offers_the_reference_picker() {
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("Choose reference")),
             "the reference entry must exist at all: {seen:?}"
@@ -226,7 +226,7 @@
         // The chosen file is shown, so "what am I fitting against" is
         // answerable without opening a dialog again.
         app.workspace.fit_mut().fit_ref = Some(std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id())));
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("P21-lightroom.tif")),
             "the chosen reference must be named on the panel: {seen:?}"
@@ -248,7 +248,7 @@
         assert!(!Prefs::default().deep_think, "an older prefs file must decode to the SAME answer");
 
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("auto-retry")), "the retry switch must exist: {seen:?}");
         assert!(seen.iter().any(|t| t == "Retry once"), "the deep-fit switch must exist: {seen:?}");
         assert!(seen.iter().any(|t| t == "Deep thinking"), "the switch was not drawn in a 320 px panel: {seen:?}");
@@ -410,7 +410,7 @@
 
                 }; editor } , lang, ..Default::default() };
             app.editor.doc_mut().recipe.rationale = rationale.clone();
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
             let sentence = seen
                 .iter()
                 .find(|t| t.starts_with("“Prose."))
@@ -444,7 +444,7 @@
      ..Default::default()
  }; editor } , ..Default::default() };
         app.editor.doc_mut().recipe.rationale = rationale.clone();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         let title = tr(app.lang, K_AI_DEEP_THINKING_ITS_WORKING);
         assert!(
             seen.iter().any(|t| t.starts_with("“Prose.") && working.iter().all(|w| t.contains(w))),
@@ -652,7 +652,7 @@
      rationale: long.clone(),
      ..Default::default()
  }; editor } , lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
             let rect = app.seams.analysis_box_rect.expect("the analysis box was drawn");
             assert!(
                 rect.height() <= crate::panels::ai::ANALYSIS_BOX_MAX_H + 0.5,
@@ -674,7 +674,7 @@
                         time: Some(f64::from(i) / 60.0),
                         ..Default::default()
                     },
-                    |ctx| app.analysis_full_window(ctx),
+                    |ctx| app.commands().analysis_full_window(ctx),
                 );
                 window = drawn_texts(&out.shapes);
             }
@@ -688,7 +688,7 @@
      rationale: "Balanced.".into(),
      ..Default::default()
  }; editor } , lang, ..Default::default() };
-            let seen = tall_frame(&mut short, |a, ui| a.ai_panel(ui));
+            let seen = tall_frame(&mut short, |a, ui| a.commands().ai_panel(ui));
             assert!(!seen.iter().any(|t| t == verb), "{lang:?}: a short analysis offers no {verb:?}");
         }
     }

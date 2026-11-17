@@ -46,7 +46,7 @@
                 ctx.memory_mut(|m| m.set_everything_is_visible(true));
                 egui::SidePanel::left("controls")
                     .default_width(width)
-                    .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.ai_panel(ui)));
+                    .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.commands().ai_panel(ui)));
             });
             seen.clear();
             out.shapes.iter().for_each(|c| texts(&c.shape, &mut seen));

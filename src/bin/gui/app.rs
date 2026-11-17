@@ -882,7 +882,7 @@ impl AutoShadeApp {
                         // above the sliders it writes into. It used to be three
                         // fragments: a section inside Develop, a section in
                         // the middle of Retouch, and a switch in Settings.
-                        self.ai_panel(ui);
+                        self.commands().ai_panel(ui);
                         self.commands().develop_panel(ui);
                         self.commands().retouch_panel(ui);
                     } else {
@@ -1049,7 +1049,7 @@ impl AutoShadeApp {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
     pub(crate) fn upd_sheets(&mut self, ctx: &egui::Context) {
-        self.analysis_full_window(ctx);
+        self.commands().analysis_full_window(ctx);
         self.commands().recipe_library_window(ctx);
         // Settings window (provider / model / API keys). A local `open` avoids a
         // double &mut self borrow (Window::open vs the closure that reads self).

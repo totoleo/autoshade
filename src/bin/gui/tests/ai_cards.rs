@@ -312,7 +312,7 @@
             ..Default::default()
         }, |ctx| {
             ctx.memory_mut(|m| m.set_everything_is_visible(true));
-            egui::SidePanel::left("adjust-controls").default_width(320.0).show(ctx, |ui| app.ai_panel(ui));
+            egui::SidePanel::left("adjust-controls").default_width(320.0).show(ctx, |ui| app.commands().ai_panel(ui));
         });
         drawn_texts(&out.shapes)
     }
@@ -1288,7 +1288,7 @@
             let rest = &src[from..];
             &rest[..rest.find("\n    }").unwrap()]
         };
-        assert!(body("fn ai_reverse_fit(").contains("self.commands().fit_source_menu()"), "the panel builds its own source list again");
+        assert!(body("fn ai_reverse_fit(").contains("self.fit_source_menu()"), "the panel builds its own source list again");
         let layer = body("pub(crate) fn fit_prompt_layer(");
         assert!(layer.contains("self.fit_source_menu()"), "the prompt builds its own source list again");
         assert!(layer.contains("self.start_fit()"), "the prompt runs a fit of its own");

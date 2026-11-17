@@ -190,7 +190,7 @@
                 },
                 |ctx| {
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.ai_panel(ui);
+                        app.commands().ai_panel(ui);
                     });
                 },
             );
@@ -253,7 +253,7 @@
                 },
                 |ctx| {
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.ai_panel(ui);
+                        app.commands().ai_panel(ui);
                     });
                 },
             );
@@ -263,7 +263,7 @@
         assert_eq!(frame(&mut app), Some((false, true)), "library: Direction greyed, Style live");
         app.aip.guide = Guide::Direction;
         assert_eq!(frame(&mut app), Some((true, false)), "direction: Direction live, Style greyed");
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("Guided by the Direction")), "a greyed library must say why: {seen:?}");
 
         assert_eq!(Prefs::default().guide, Guide::Library, "an older prefs file decodes to the library");
@@ -524,7 +524,7 @@
                         .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
                     let controls = egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            app.ai_panel(ui);
+                            app.commands().ai_panel(ui);
                             sections[0] = ui.min_rect().width();
                             app.commands().develop_panel(ui);
                             sections[1] = ui.min_rect().width();
@@ -919,7 +919,7 @@
                     let controls = egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             let y0 = ui.min_rect().top();
-                            app.ai_panel(ui);
+                            app.commands().ai_panel(ui);
                             let y1 = ui.min_rect().bottom();
                             app.commands().develop_panel(ui);
                             let y2 = ui.min_rect().bottom();

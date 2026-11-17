@@ -129,7 +129,7 @@
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     panel = egui::SidePanel::left("controls")
                         .exact_width(crate::theme::CONTROLS_W_MIN)
-                        .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.ai_panel(ui)))
+                        .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.commands().ai_panel(ui)))
                         .response
                         .rect;
                 });

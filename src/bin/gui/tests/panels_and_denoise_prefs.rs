@@ -421,7 +421,7 @@
                         fit_strength: 0.85,
                         ..Default::default()
                     }, lang, ..Default::default() };
-                let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+                let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
                 let headers: Vec<_> = seen.iter().map(String::as_str)
                     .filter(|t| *t == title || *t == lit.as_str()).collect();
                 assert_eq!(
@@ -467,7 +467,7 @@
         // was invisible outright. Assert the LABELS, not just the values: the
         // label is the half that was being clipped.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         for label in ["Style", "Strength", "30", "65"] {
             assert!(
                 seen.iter().any(|t| t == label),
@@ -483,7 +483,7 @@
             !app.editor.ai_section_active(&app.workspace),
             "a moved Strength slider is a preference, not this photo's AI state"
         );
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         let title = tr(Lang::En, K_AI_AI_ANALYSIS_AUTO_DEVELOP);
         let lit = format!("{title}  ●");
         assert!(
@@ -767,7 +767,7 @@
         );
         // DRAWN in the Reverse-fit fold at the default 320 px panel.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Reverse-fit strength"),
             "the dial must exist in the fold: {seen:?}"

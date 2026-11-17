@@ -454,7 +454,7 @@
                         .default_width(320.0)
                         .show(ctx, |ui| {
                             egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.ai_panel(ui);
+                                app.commands().ai_panel(ui);
                                 app.commands().retouch_panel(ui);
                             });
                         });
@@ -511,7 +511,7 @@
                     let r =
                         egui::SidePanel::left("controls").default_width(800.0).show(ctx, |ui| {
                             egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.ai_panel(ui);
+                                app.commands().ai_panel(ui);
                                 app.commands().retouch_panel(ui);
                             });
                         });
@@ -710,7 +710,7 @@
                 },
                 |ctx| {
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.ai_panel(ui);
+                        app.commands().ai_panel(ui);
                     });
                 },
             );
