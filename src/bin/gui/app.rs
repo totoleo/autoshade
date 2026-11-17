@@ -36,7 +36,7 @@ pub(crate) struct AutoShadeApp {
     lang: Lang,             // UI language: English skeleton / Chinese overlay (i18n.rs)
     /// Layout/behaviour probes for the window tests; see [`TestSeams`].
     #[cfg(test)]
-    pub(crate) seams: TestSeams,
+    seams: TestSeams,
 }
 
 impl AutoShadeApp {
