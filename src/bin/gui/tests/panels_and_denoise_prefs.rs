@@ -70,7 +70,7 @@
                 let out = ctx.run(input(), |ctx| {
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| app.develop_panel(ui));
+                        egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
                     });
                 });
                 texts(&out.shapes, &mut seen);
@@ -144,7 +144,7 @@
             // ① selected → the fourth group caption is drawn.
             app.workspace.masks_mut().sel_mask = Some(0);
             let seen = tall_frame(&mut app, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.iter().any(|t| t == caption),
@@ -155,7 +155,7 @@
             //    negative cannot be satisfied by it.)
             app.workspace.masks_mut().sel_mask = None;
             let seen = tall_frame(&mut app, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 !seen.iter().any(|t| t == caption),
@@ -180,7 +180,7 @@
             };
             let _ = ctx.run(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    changed |= app.panel_view(&mut Vec::new()).curve_editor_for(ui, CurveTarget::Mask(0));
+                    changed |= app.panel_view().curve_editor_for(ui, CurveTarget::Mask(0));
                 });
             });
             changed
@@ -213,7 +213,7 @@
         let mut drew = true;
         let _ = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                drew = app.panel_view(&mut Vec::new()).curve_editor_for(ui, CurveTarget::Mask(0));
+                drew = app.panel_view().curve_editor_for(ui, CurveTarget::Mask(0));
             });
         });
         assert!(!drew, "a stale mask index must not report an edit");
@@ -262,7 +262,7 @@
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             // 1) Nothing imported: not a word of it on screen.
             let mut clean = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut clean, |a, ui| a.retouch_panel(ui));
+            let seen = tall_frame(&mut clean, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 !seen.iter().any(|t| t == tr(lang, K_RETOUCH_IMPORTED_REMOVAL)),
                 "{lang:?}: a photo with no retouch draws no group: {seen:?}"
@@ -272,7 +272,7 @@
             //    pixels were copied, so there is nothing for a model to redo.
             let mut copied = AutoShadeApp { lang, ..Default::default() };
             copied.editor.doc_mut().recipe.retouch = vec![area(SpotOrigin::LightroomHeal)];
-            let seen = tall_frame(&mut copied, |a, ui| a.retouch_panel(ui));
+            let seen = tall_frame(&mut copied, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_RETOUCH_IMPORTED_REMOVAL)),
                 "{lang:?}: an imported area names itself: {seen:?}"
@@ -288,7 +288,7 @@
                 area(SpotOrigin::LightroomHeal),
                 area(SpotOrigin::LightroomGenerative),
             ];
-            let seen = tall_frame(&mut invented, |a, ui| a.retouch_panel(ui));
+            let seen = tall_frame(&mut invented, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_RETOUCH_REGENERATE_THOSE_AREAS)),
                 "{lang:?}: a synthesised area gets the re-solve: {seen:?}"
@@ -324,7 +324,7 @@
             // 1) Nothing: the section is there, and dark.
             let mut clean = AutoShadeApp { lang, ..Default::default() };
             let seen = tall_frame(&mut clean, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.iter().any(|t| t.starts_with(&title)),
@@ -340,7 +340,7 @@
             let mut stored = AutoShadeApp { lang, ..Default::default() };
             stored.editor.doc_mut().recipe.sdr_brightness = 40.0;
             let seen = tall_frame(&mut stored, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.contains(&lit),
@@ -351,7 +351,7 @@
             let mut on = AutoShadeApp { lang, ..Default::default() };
             on.editor.doc_mut().recipe.hdr_edit = true;
             let seen = tall_frame(&mut on, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.contains(&lit),
@@ -658,7 +658,7 @@
         assert_eq!(decoded.save_denoise_strength, DEFAULT_STRENGTH);
         // DRAWN, each in its own fold, at the default 320 px panel.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "AI denoise strength"),
             "the Detail fold's dial must exist: {seen:?}"

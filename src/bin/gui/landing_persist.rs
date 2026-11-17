@@ -8,7 +8,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Persist one accepted analysis result. `stamped` is the recipe the store
     /// writes (the RAW's own develop — the canvas copy may differ on a baked
     /// card); `p` is the open photo.
@@ -120,7 +120,7 @@ match autoshade::store::with_develop_lock(
                 // the background-variant unsaved
                 // protection armed.
                 self.editor.session_mut().hist.saved_strip = strip_rec;
-                self.editor.forget_open_base(&mut self.workspace);
+                self.editor.forget_open_base(self.workspace);
                 if backed.is_some() {
                     self.refresh_versions();
                 }

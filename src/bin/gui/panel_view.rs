@@ -14,18 +14,139 @@ use autoshade::advisor::catalogue::{family_is_active, CONTROL_FAMILIES};
 use crate::panels::develop_widgets::parametric_curve;
 use crate::panels::ai::{is_working_note, note_args, thinking_notes};
 
-pub(crate) struct PanelView<'a, 'b> {
+pub(crate) struct PanelView<'a> {
     pub(crate) editor: &'a mut Editor,
     pub(crate) workspace: &'a mut WorkspaceView,
     pub(crate) lang: Lang,
     pub(crate) aip: &'a mut AiPrefs,
-    /// The frame's action sink: a panel reports intents, the app runs them.
-    pub(crate) actions: &'b mut Vec<logic::Action>,
+    /// The gallery's intents this pass reported.
+    pub(crate) gallery: Vec<logic::gallery::GalleryAction>,
+    /// The settings form's intents this pass reported.
+    pub(crate) settings: Vec<logic::settings::SettingsAction>,
+    /// The Lens Blur section's intents this pass reported.
+    pub(crate) lens: Vec<logic::lens_blur::LensAction>,
+    /// The Develop sections' intents this pass reported.
+    pub(crate) develop: Vec<logic::develop::DevelopAction>,
+    /// The variant strip's intents this pass reported.
+    pub(crate) variants: Vec<VariantAction>,
     #[cfg(test)]
     pub(crate) seams: &'a mut TestSeams,
 }
 
-impl PanelView<'_, '_> {
+impl PanelView<'_> {
+    /// The card's ACTION buttons — ＋ archive, ▣ apply-to-Original, ✕ delete
+    /// — for whichever surface is drawing the card (R24-5).
+    ///
+    /// Extracted from `variant_strip` verbatim when the Versions section's
+    /// edit-state list grew the same three buttons: a card action must mean
+    /// one thing and be implemented once, or the two lists answer 「what does
+    /// ✕ do here」 differently the first time either is touched. The strip
+    /// keeps the rename box (see [`VariantSurface`]).
+    ///
+    /// Returns the deferred action; the caller performs it through
+    /// `dispatch_variant_action` after the layout closure has released `self`.
+    // `surface` decides only which headless seam records the row, so it is
+    // genuinely unused in a release build — the alternative (two near-copies
+    // of this function) is the thing the extraction exists to remove.
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn variant_card_buttons(
+        &mut self,
+        ui: &mut egui::Ui,
+        i: usize,
+        active: bool,
+        busy: bool,
+        surface: VariantSurface,
+    ) -> Option<VariantAction> {
+        let lang = self.lang;
+        let kind = self.editor.doc().variants[i].kind;
+        let mut act: Option<VariantAction> = None;
+        // Which glyphs this row actually laid out — the list surface's test
+        // seam, since it has no rects of its own to assert on.
+        #[cfg(test)]
+        let mut drawn: Vec<&str> = Vec::new();
+        // R24-2 (user decision ②, in place of save-as-you-go snapshots): a
+        // one-click archive entry point ON the card whose develop it
+        // snapshots. Active card only — the button acts on the LIVE canvas,
+        // and offering it on a background card would promise a snapshot of
+        // something else. A row-height glyph square in the existing label row
+        // (R38): the row is already interact_size.y tall, so the strip's
+        // card-height arithmetic (and its geometry test) is untouched.
+        // Inert (visibly, not silently) while a photo is still opening — the
+        // canvas then still holds the OUTGOING photo's develop, and the
+        // snapshot would land it in the incoming photo's store. Same rule the
+        // Versions section applies to its own copy.
+        if active {
+            #[cfg(test)]
+            drawn.push("＋");
+            if glyph(ui, !busy, "＋")
+                .on_hover_text(tr(lang, K_DEVELOP_SNAPSHOT_THIS_CARD_S_DEVELOP_ONLY_AS_A_NUMBERED))
+                .clicked()
+            {
+                act = Some(VariantAction::SaveVersion);
+            }
+        }
+        // R24-3 (#7) 「apply to Original」, on the ACTIVE card for the same
+        // reason ＋ is: it copies the LIVE canvas. Two concepts the hover keeps
+        // apart — it overwrites the ▣ Original CARD's develop parameters (its
+        // pixels stay, this card stays), and Ctrl+S is what afterwards makes
+        // that card's develop the photo's SAVED develop.
+        // A pixel-state card shows the button DISABLED with the reason rather
+        // than hiding it (the R24-2 save_version judgement, same remedy): its
+        // look is in its raster, so there is nothing parametric to copy.
+        // Hidden entirely when this card IS the negative, or when the strip
+        // has no Original card to apply onto.
+        if active && kind != VariantKind::Original && self.editor.original_index().is_some() {
+            let can = kind.is_source_based();
+            let hover = if can {
+                tr(lang, K_DEVELOP_COPY_THIS_VARIANT_S_DEVELOP_ONTO_THE_ORIGINAL_CA)
+            } else if kind == VariantKind::Edited {
+                tr(lang, K_DEVELOP_THIS_CARD_S_DEVELOP_IS_TUNED_OVER_AI_GENERATED_P)
+            } else {
+                tr(lang, K_DEVELOP_A_GENERATED_VARIANT_S_LOOK_LIVES_IN_ITS_PIXELS_T)
+            };
+            let resp = glyph(ui, can && !busy, "▣").on_hover_text(hover);
+            #[cfg(test)]
+            drawn.push(if can && !busy { "▣" } else { "▣(off)" });
+            #[cfg(test)]
+            if surface == VariantSurface::Strip {
+                // The STRIP owns this seam: a full frame draws both surfaces,
+                // and letting the list overwrite it would silently retarget
+                // every existing assertion at the other widget.
+                self.seams.strip_apply = Some((resp.rect, can && !busy));
+            }
+            if resp.clicked() {
+                act = Some(VariantAction::Apply(i));
+            }
+        }
+        // Any variant except the sole Original can be dropped.
+        // ✕ — the ONE close/cancel glyph app-wide (the old bare × was the
+        // fourth variant of it). ARMED (R24-4): the first click asks, the
+        // second deletes — the button says which, because a deleted card
+        // cannot be brought back (unlike a version, whose number the registry
+        // keeps burned rather than the card recoverable).
+        let armed = self.workspace.cards().variant_delete_confirm == Some(i);
+        if self.editor.doc().variants.len() > 1
+            && kind != VariantKind::Original
+            && glyph(ui, true, if armed { "✕?" } else { "✕" })
+                .on_hover_text(if armed {
+                    tr(lang, K_DEVELOP_CLICK_AGAIN_TO_DELETE_THIS_VARIANT_IT_CANNOT_BE)
+                } else {
+                    tr(lang, K_DEVELOP_DELETE_THIS_VARIANT)
+                })
+                .clicked()
+        {
+            act = Some(VariantAction::Delete(i));
+        }
+        #[cfg(test)]
+        if self.editor.doc().variants.len() > 1 && kind != VariantKind::Original {
+            drawn.push(if armed { "✕?" } else { "✕" });
+        }
+        #[cfg(test)]
+        if surface == VariantSurface::List {
+            self.seams.edit_list_actions.push(format!("{i}:{}", drawn.join("")));
+        }
+        act
+    }
     /// The selected entry developed on the open photo, as a texture + its
     /// pixel size. Rebuilt only when its key changes — the entry's file stamp,
     /// the photo, or the base pixels' allocation — so clicking through the
@@ -263,9 +384,7 @@ impl PanelView<'_, '_> {
                 if brush_armed {
                     self.disarm_tools();
                 } else if self.editor.photo().base_preview.is_some() {
-                    self.act_all(vec![logic::Action::Develop(
-                        logic::develop::DevelopAction::MaskBrush(None),
-                    )]);
+                    self.act_develop(logic::develop::DevelopAction::MaskBrush(None),);
                 }
             }
         });
@@ -1039,17 +1158,13 @@ impl PanelView<'_, '_> {
                 .on_hover_text(tr(lang, K_DEVELOP_MOVE_UP_RENDERS_EARLIER))
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::MoveMaskUp(i),
-                )]);
+                self.act_develop(logic::develop::DevelopAction::MoveMaskUp(i),);
             }
             if glyph(ui, i + 1 < self.editor.doc().recipe.masks.len(), "⬇")
                 .on_hover_text(tr(lang, K_DEVELOP_MOVE_DOWN_RENDERS_LATER))
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::MoveMaskDown(i),
-                )]);
+                self.act_develop(logic::develop::DevelopAction::MoveMaskDown(i),);
             }
             // Duplicate: a second gradient with the same tuned ten
             // sliders; rasters are DETACHED copies (the version-load
@@ -1058,9 +1173,7 @@ impl PanelView<'_, '_> {
                 .on_hover_text(tr(lang, K_DEVELOP_DUPLICATE_THIS_MASK_BITMAP_RASTERS_ARE_COPIED_SO))
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::DuplicateMask(i),
-                )]);
+                self.act_develop(logic::develop::DevelopAction::DuplicateMask(i),);
             }
         });
         // R38: the two switches on their own row, under the verbs.
@@ -1159,18 +1272,14 @@ impl PanelView<'_, '_> {
                     if edit_armed {
                         self.disarm_tools();
                     } else {
-                        self.act_all(vec![logic::Action::Develop(
-                        logic::develop::DevelopAction::MaskBrush(Some(i)),
-                    )]);
+                        self.act_develop(logic::develop::DevelopAction::MaskBrush(Some(i)),);
                     }
                 }
                 if action_in(ui, cell, !self.workspace.busy(), tr(lang, K_DEVELOP_FULL_RES_REFINE))
                     .on_hover_text(tr(lang, K_DEVELOP_RE_CUT_THIS_MASK_AGAINST_THE_FULL_RESOLUTION_SOU))
                     .clicked()
                 {
-                    self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::MaskRefine(i),
-                )]);
+                    self.act_develop(logic::develop::DevelopAction::MaskRefine(i),);
                 }
             });
             ui.horizontal(|ui| {
@@ -1179,7 +1288,7 @@ impl PanelView<'_, '_> {
                     .on_hover_text(tr(lang, K_DEVELOP_SOFTEN_THE_MASK_BOUNDARY_ONE_STEP_BAKES_A_NEW_RA))
                     .clicked()
                 {
-                    crate::masks::bake_mask_raster(&mut self.editor, &mut self.workspace, self.lang, 
+                    crate::masks::bake_mask_raster(self.editor, self.workspace, self.lang, 
                         i,
                         |g| {
                             let s = (g.width().max(g.height()) as f32 / 400.0).max(1.0);
@@ -1192,7 +1301,7 @@ impl PanelView<'_, '_> {
                     .on_hover_text(tr(lang, K_DEVELOP_GROW_THE_SELECTION_ONE_STEP_BAKES_A_NEW_RASTER))
                     .clicked()
                 {
-                    crate::masks::bake_mask_raster(&mut self.editor, &mut self.workspace, self.lang, 
+                    crate::masks::bake_mask_raster(self.editor, self.workspace, self.lang, 
                         i,
                         |g| {
                             let r = (g.width().max(g.height()) / 500).max(2) as i32;
@@ -1205,7 +1314,7 @@ impl PanelView<'_, '_> {
                     .on_hover_text(tr(lang, K_DEVELOP_SHRINK_THE_SELECTION_ONE_STEP_BAKES_A_NEW_RASTER))
                     .clicked()
                 {
-                    crate::masks::bake_mask_raster(&mut self.editor, &mut self.workspace, self.lang, 
+                    crate::masks::bake_mask_raster(self.editor, self.workspace, self.lang, 
                         i,
                         |g| {
                             let r = (g.width().max(g.height()) / 500).max(2) as i32;
@@ -1251,9 +1360,7 @@ impl PanelView<'_, '_> {
                 )) } else { missing.to_string() })
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::Segment { target: "subject", label: "Subject" },
-                )]);
+                self.act_develop(logic::develop::DevelopAction::Segment { target: "subject", label: "Subject" },);
             }
             if action_in(ui, cell, can_seg, tr(lang, K_DEVELOP_SELECT_SKY))
                 .on_hover_text(if has_helper { ai_xref(lang, tr(lang,
@@ -1261,9 +1368,7 @@ impl PanelView<'_, '_> {
                 )) } else { missing.to_string() })
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Develop(
-                    logic::develop::DevelopAction::Segment { target: "sky", label: "Sky" },
-                )]);
+                self.act_develop(logic::develop::DevelopAction::Segment { target: "sky", label: "Sky" },);
             }
         });
         // Empty state: an open section with zero rows looked like a bug;
@@ -1427,7 +1532,7 @@ impl PanelView<'_, '_> {
                     .on_hover_text(hint)
                     .clicked()
                 {
-                    self.editor.export_xmp_beside(&mut self.workspace, self.lang);
+                    self.editor.export_xmp_beside(self.workspace, self.lang);
                 }
             });
         false
@@ -1574,7 +1679,7 @@ impl PanelView<'_, '_> {
                     if action_in(ui, cell, true, label).clicked() {
                         let on = !self.workspace.crop().mode;
                         self.disarm_tools();
-                        self.editor.set_crop_mode(&mut self.workspace, on);
+                        self.editor.set_crop_mode(self.workspace, on);
                     }
                     if action_in(ui, cell, true, tr(lang, K_DEVELOP_CLEAR_CROP)).clicked()
                         && self.editor.doc_mut().recipe.crop.take().is_some()
@@ -1629,23 +1734,7 @@ impl PanelView<'_, '_> {
     /// crop_drag used to hijack the next drag. clone_src (the sampled source
     /// pin) deliberately survives — samples stay for resuming, like paint.
     pub(crate) fn disarm_tools(&mut self) {
-        self.editor.set_crop_mode(self.workspace, false);
-        self.workspace.masks_mut().paint_mode = false;
-        self.workspace.tools_mut().clone_mode = false;
-        self.workspace.tools_mut().wb_picking = false;
-        self.workspace.tools_mut().range_picking = None;
-        self.workspace.tools_mut().point_color_picking = false;
-        self.workspace.tools_mut().lens_focus_picking = false;
-        self.workspace.masks_mut().placing_mask = None;
-        self.workspace.masks_mut().place_start = None;
-        self.workspace.crop_mut().drag = None;
-        self.workspace.masks_mut().mask_drag = None;
-        self.workspace.masks_mut().paint_last = None;
-        self.workspace.end_mask_brush();
-        // A preset change armed for the crop tool must die with it — the
-        // flag survived Esc / Done / a hold-B detour and rewrote the box as
-        // a surprise on the next crop entry (CX5-4).
-        self.workspace.crop_mut().aspect_pending = false;
+        self.workspace.disarm_tools(self.editor);
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
@@ -1730,9 +1819,7 @@ impl PanelView<'_, '_> {
                         )) } else { missing.to_string() })
                         .clicked()
                     {
-                        self.act_all(vec![logic::Action::Develop(
-                            logic::develop::DevelopAction::AiDenoise,
-                        )]);
+                        self.act_develop(logic::develop::DevelopAction::AiDenoise,);
                     }
                     // No 「Full-res」 checkbox any more (2026-09-15): the
                     // result is a CARD, and a card baked from a ≤2048 px
@@ -2051,9 +2138,7 @@ impl PanelView<'_, '_> {
                         .clicked()
                         && let Some(extra) = photo_files_dialog()
                     {
-                        self.act_all(vec![logic::Action::Develop(
-                            logic::develop::DevelopAction::Stack(extra),
-                        )]);
+                        self.act_develop(logic::develop::DevelopAction::Stack(extra),);
                     }
                 });
             });
@@ -2067,13 +2152,13 @@ impl PanelView<'_, '_> {
         // every surface).
         let actions = self.lens_blur_section(ui);
         let touched = !actions.is_empty();
-        if touched {
-            self.act_all(actions);
+        for action in actions {
+            self.act_lens(action);
         }
         touched
     }
 
-    pub(crate) fn lens_blur_section(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_section(&mut self, ui: &mut egui::Ui) -> Vec<logic::lens_blur::LensAction> {
         let lang = self.lang;
         let active = logic::lens_blur::active(&self.editor.doc().recipe);
         let mut actions = Vec::new();
@@ -2088,7 +2173,7 @@ impl PanelView<'_, '_> {
         actions
     }
 
-    pub(crate) fn lens_blur_body(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_body(&mut self, ui: &mut egui::Ui) -> Vec<logic::lens_blur::LensAction> {
         let lang = self.lang;
         let mut actions = Vec::new();
         let has_helper = depth_helper_available();
@@ -2101,7 +2186,7 @@ impl PanelView<'_, '_> {
             tr(lang, K_LENS_THIS_FEATURE_NEEDS_AUTOSHADE_S_PYTHON_HELPER_WHI).to_string()
         };
         if action_row(ui, can_run, verb).on_hover_text(tip).clicked() {
-            actions.push(logic::Action::Lens(logic::lens_blur::LensAction::EstimateDepth));
+            actions.push(logic::lens_blur::LensAction::EstimateDepth);
         }
         // The card's current values, copied out so the draw below never holds a
         // borrow into the recipe the facade is about to change.
@@ -2114,15 +2199,15 @@ impl PanelView<'_, '_> {
         ui.horizontal(|ui| {
             let mute = tr(lang, K_LENS_SHOW_MUTE_THE_LENS_BLUR_WITHOUT_LOSING_ITS_SETTI);
             if glyph_toggle(ui, enabled, "👁").on_hover_text(mute).clicked() {
-                actions.push(logic::Action::Lens(logic::lens_blur::LensAction::ToggleLensBlur(!enabled)));
+                actions.push(logic::lens_blur::LensAction::ToggleLensBlur(!enabled));
             }
             let cell = egui::vec2(ui.available_width() - row_h(ui) - ui.spacing().item_spacing.x, row_h(ui));
             let how = tr(lang, K_LENS_CLICK_THE_PHOTO_WHATEVER_IS_AT_THAT_DISTANCE_STA);
             if toggle_in(ui, cell, picking, tr(lang, K_LENS_PICK_FOCUS)).on_hover_text(how).clicked() {
-                actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetFocusPicking(!picking)));
+                actions.push(logic::lens_blur::LensAction::SetFocusPicking(!picking));
             }
             if glyph(ui, true, "🗑").on_hover_text(tr(lang, K_LENS_REMOVE_THE_LENS_BLUR)).clicked() {
-                actions.push(logic::Action::Lens(logic::lens_blur::LensAction::RemoveLensBlur));
+                actions.push(logic::lens_blur::LensAction::RemoveLensBlur);
             }
         });
         // The two dials of `render::LensBlur`; the copy is what the view may
@@ -2130,11 +2215,11 @@ impl PanelView<'_, '_> {
         ui.add_enabled_ui(enabled, |ui| {
             let mut next = amount;
             if slider(ui, lang, tr(lang, K_LENS_BLUR_AMOUNT), &mut next, 0.0, 100.0, 50.0) {
-                actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetBlurAmount(next)));
+                actions.push(logic::lens_blur::LensAction::SetBlurAmount(next));
             }
             let mut next = range;
             if slider(ui, lang, tr(lang, K_LENS_FOCUS_RANGE), &mut next, 0.0, 100.0, 10.0) {
-                actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetFocusRange(next)));
+                actions.push(logic::lens_blur::LensAction::SetFocusRange(next));
             }
         });
         let carried = tr(lang, K_LENS_RENDERED_HERE_AND_IN_EVERY_EXPORT_FROM_THIS_APP);
@@ -2922,9 +3007,29 @@ impl PanelView<'_, '_> {
         crate::panels::develop_forms::render_and_apply(ui, self.lang, &mut self.editor.doc_mut().recipe, table)
     }
 
-    /// Report a batch of intents.
-    pub(crate) fn act_all(&mut self, actions: impl IntoIterator<Item = logic::Action>) {
-        self.actions.extend(actions);
+    /// Report one gallery verb; the host applies it after the pass.
+    pub(crate) fn act_gallery(&mut self, action: logic::gallery::GalleryAction) {
+        self.gallery.push(action);
+    }
+
+    /// Report one settings verb; the host applies it after the pass.
+    pub(crate) fn act_settings(&mut self, action: logic::settings::SettingsAction) {
+        self.settings.push(action);
+    }
+
+    /// Report one Lens Blur verb; the host applies it after the pass.
+    pub(crate) fn act_lens(&mut self, action: logic::lens_blur::LensAction) {
+        self.lens.push(action);
+    }
+
+    /// Report one Develop verb; the host applies it after the pass.
+    pub(crate) fn act_develop(&mut self, action: logic::develop::DevelopAction) {
+        self.develop.push(action);
+    }
+
+    /// Report one variant-strip verb; the host dispatches it after the pass.
+    pub(crate) fn act_variant(&mut self, action: VariantAction) {
+        self.variants.push(action);
     }
 
     /// Toggle the clipping overlay (the J overlay and the histogram's corner

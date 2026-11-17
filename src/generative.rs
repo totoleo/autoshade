@@ -2382,6 +2382,7 @@ mod tests {
 
 
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test drives a local loopback server
     fn a_blank_prompt_is_refused_for_a_whole_image_adjust() {
         let dir = std::env::temp_dir().join(format!("autoshade-adjust-blank-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("library")).unwrap();

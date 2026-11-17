@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
     /// Rescan the photo's develop dir for version snapshots (cached in
@@ -48,48 +48,6 @@ impl AutoShadeApp {
     }
 
 
-    /// Commit a pending version rename to ITS OWN photo and number — the
-    /// version half of the `commit_mask_name_buf` rule (U10): a name still
-    /// sitting in its TextEdit when the user hits Ctrl+S, clicks another
-    /// photo or quits must reach the disk, not die with the buffer. Keyed by
-    /// (photo, number), both captured at seed time, so a boundary that has
-    /// already re-pointed `src_path` cannot rename the incoming photo's v1.
-    /// The write is advisory: a failure is disclosed and the buffer is left
-    /// alone so the next boundary retries.
-    pub(crate) fn commit_version_name_buf(&mut self) {
-        let Some((photo, n, seed, buf)) = self.workspace.cards().version_name_buf.clone() else { return };
-        if buf == seed {
-            return;
-        }
-        // NoWait wrapper around the store's own Wait lock (the delete_version
-        // rule): a develop held by another process must report here, never
-        // freeze the UI thread on a name.
-        match autoshade::store::with_develop_lock(
-            &photo,
-            autoshade::store::DevelopLockMode::NoWait,
-            || autoshade::store::set_version_name(&photo, n, Some(buf.as_str())),
-        ) {
-            Ok(()) => {
-                let named = Some(buf.trim().to_string()).filter(|s| !s.is_empty());
-                // Re-seed rather than clear: the row is very likely still on
-                // screen, and a SECOND rename in the same row has to compare
-                // against what we just wrote, not the original.
-                self.workspace.cards_mut().version_name_buf = Some((photo.clone(), n, buf.clone(), buf));
-                if self.editor.photo().src_path.as_deref() == Some(photo.as_path()) {
-                    self.workspace.cards_mut().version_meta
-                        .entry(n)
-                        .or_insert_with(|| autoshade::store::VersionMetaEntry {
-                            n,
-                            ..Default::default()
-                        })
-                        .name = named;
-                }
-            }
-            Err(e) => {
-                self.workspace.persist_postponed(self.lang, &e, "Renaming v{n} failed: {err}", &[("n", &n.to_string())]);
-            }
-        }
-    }
 
     /// Save the CURRENT develop as the next numbered version snapshot.
     pub(crate) fn save_version(&mut self) {
@@ -320,8 +278,8 @@ impl AutoShadeApp {
                 // Read from disk: "Keep skin natural" is decided afresh for
                 // this card (`panels/portrait.rs`) — opening never changes a
                 // value.
-                self.decide_keep_skin_for_card();
-                self.resync_recipe_display();
+                self.editor.decide_keep_skin_for_card(self.workspace);
+                self.editor.resync_recipe_display(self.workspace);
                 self.editor.session_mut().dirty = true;
                 // A snapshot loaded onto the pristine ✨ card is an edit like
                 // any other: it lands on a new ✎ card (the immutability rule),

@@ -21,16 +21,16 @@ impl AutoShadeApp {
             let Some(msg) = self.services.rx.as_ref().and_then(|rx| rx.try_recv().ok()) else { break };
             match msg {
                 Msg::Opened(boxed) => {
-                    self.on_opened(ctx, lang, boxed);
+                    self.commands().on_opened(ctx, lang, boxed);
                     // A Lightroom AI mask arrives without an alpha: cut it
                     // on this computer now, or the canvas skips it.
-                    self.start_ai_mask_resolve(lang);
+                    self.commands().start_ai_mask_resolve(lang);
                 }
                 Msg::BaseRedeveloped { path, part, img } => {
-                    self.on_base_redeveloped(ctx, path, *part, *img)
+                    self.commands().on_base_redeveloped(ctx, path, *part, *img)
                 }
-                Msg::AiMasksResolved(boxed) => self.on_ai_masks_resolved(lang, *boxed),
-                Msg::Developed(boxed) => self.finish_redevelop(ctx, *boxed),
+                Msg::AiMasksResolved(boxed) => self.commands().on_ai_masks_resolved(lang, *boxed),
+                Msg::Developed(boxed) => self.commands().finish_redevelop(ctx, *boxed),
                 Msg::Analyzed(epoch, mut boxed) => {
                     // The look protocol's claim: only the pending look's own,
                     // current epoch may touch this result. A looked-for verb
@@ -44,30 +44,33 @@ impl AutoShadeApp {
                         logic::look::restore(claim, recipe);
                     }
                     let landed = boxed.is_ok();
-                    self.on_analyzed(lang, epoch, boxed);
+                    self.commands().on_analyzed(lang, epoch, boxed);
                     // The claimed look's own line, memory and view facts.
                     if let Some(claim) = claim {
                         let effects = logic::look::landed(&claim, &self.editor.doc().recipe, landed);
-                        self.run_effects(effects);
+                        self.commands().run_effects(effects);
                     }
                 }
                 Msg::OneClickBuildProgress { done, total } => {
                     self.workspace.normal_mut().build_progress = Some((done, total));
                 }
-                Msg::OneClickBuilt(res) => self.on_one_click_built(lang, res),
+                Msg::OneClickBuilt(res) => self.commands().on_one_click_built(lang, res),
                 Msg::PythonEnvLine(line) => self.workspace.ui_mut().python_env_line = Some(line),
-                Msg::PythonEnvReady(res) => self.on_python_env_ready(lang, res),
-                Msg::PortraitFound(found) => self.on_portrait_found(lang, *found),
-                Msg::Exported(Ok(outcome)) => {
+                Msg::PythonEnvReady(res) => self.commands().on_python_env_ready(lang, res),
+                Msg::PortraitFound(found) => self.editor.on_portrait_found(&mut self.workspace, lang, *found),
+                Msg::Exported(res) => {
                     // Normal's Save group words its own landing (`normal.rs`).
-                    let plain = self.workspace.normal_delivery_words(lang, &outcome);
+                    let plain = res
+                        .as_ref()
+                        .ok()
+                        .and_then(|outcome| self.workspace.normal_delivery_words(lang, outcome));
                     self.workspace.exp_mut().batch_progress = None; // the bar belongs to ONE batch run
-                    match outcome {
-                        ExportOutcome::Single { out, relooked, warn } => {
-                            // ABSOLUTE (R22-7): the deliverable exists NOW, and
-                            // a folder relative to the launch directory was the
-                            // single most-reported "where did my file go".
-                            let p = abs_display(&out);
+                    match export_workflow::land(lang, res) {
+                        export_workflow::ExportLanding::Failed(e) => {
+                            self.workspace.normal_mut().delivering = false;
+                            self.workspace.fail(tr(lang, K_GUI_EXPORT_FAILED), e);
+                        }
+                        export_workflow::ExportLanding::Single { relooked, line, error } => {
                             if relooked
                                 && let Some(photo) = self.editor.photo().src_path.clone()
                                 && autoshade::pipeline::repair_pre_era_base_curve(
@@ -81,25 +84,14 @@ impl AutoShadeApp {
                                 // divergent for the rest of the session.
                                 self.editor.session_mut().dirty = true;
                             }
-                            let words =
-                                logic::export_landing::single_words(&p, relooked, warn.as_deref());
-                            let mut line = crate::i18n::text(lang, &words.line);
-                            if let Some(relook) = words.relook {
-                                line = format!("{line} — {}", crate::i18n::text(lang, &relook));
-                            }
-                            match words.warn {
-                                Some(warn) => {
-                                    let t = format!(
-                                        "{line} · {}",
-                                        crate::i18n::text(lang, &warn)
-                                    );
-                                    self.workspace.set_status(t.clone());
-                                    self.workspace.toast(ToastKind::Error, t);
-                                }
-                                None => self.workspace.done(line),
+                            if error {
+                                self.workspace.set_status(line.clone());
+                                self.workspace.toast(ToastKind::Error, line);
+                            } else {
+                                self.workspace.done(line);
                             }
                         }
-                        ExportOutcome::Batch { ok, errs, renamed, relooked, warns, dest } => {
+                        export_workflow::ExportLanding::Batch { ok, dest, line, error } => {
                             // Where the batch actually DELIVERED becomes the
                             // remembered destination — here, not at the dialog
                             // (R22 M1): a folder inside the photo library is
@@ -107,40 +99,20 @@ impl AutoShadeApp {
                             // lands nothing and must not be remembered. `ok > 0`
                             // is the proof that at least one file is there.
                             if ok > 0 {
-                                self.workspace.exp_mut().last_dir = Some(dest.clone());
+                                self.workspace.exp_mut().last_dir = Some(dest);
                             }
-                            let words = logic::export_landing::batch_words(
-                                ok,
-                                &errs,
-                                &renamed,
-                                relooked,
-                                &warns,
-                                &abs_display(&dest),
-                            );
-                            let mut line = crate::i18n::text(lang, &words.base);
-                            for part in [words.renamed, words.relooked, words.develops]
-                                .into_iter()
-                                .flatten()
-                            {
-                                line.push_str(&crate::i18n::text(lang, &part));
-                            }
-                            if errs.is_empty() {
-                                self.workspace.done(line);
-                            } else {
+                            if error {
                                 // A partial failure keeps the error channel,
                                 // exactly as the worker-side bail! did.
                                 self.workspace.fail(tr(lang, K_GUI_EXPORT_FAILED), anyhow::anyhow!("{line}"));
+                            } else {
+                                self.workspace.done(line);
                             }
                         }
                     }
                     if let Some(plain) = plain {
                         self.workspace.reword_landing(plain);
                     }
-                }
-                Msg::Exported(Err(e)) => {
-                    self.workspace.exp_mut().batch_progress = None;
-                    self.workspace.normal_mut().delivering = false;
-                    self.workspace.fail(tr(lang, K_GUI_EXPORT_FAILED), e);
                 }
                 Msg::BatchProgress { done, total } => {
                     self.workspace.exp_mut().batch_progress = Some((done, total));
@@ -175,20 +147,20 @@ impl AutoShadeApp {
                         ],
                     );
                 }
-                Msg::StyleBuilt(outcome) => self.on_style_built(lang, *outcome),
-                Msg::Segmented(res) => self.on_segmented(lang, res),
+                Msg::StyleBuilt(outcome) => self.commands().on_style_built(lang, *outcome),
+                Msg::Segmented(res) => self.commands().on_segmented(lang, res),
                 Msg::DepthEstimated(res) => {
-                    self.on_depth_estimated(res);
-                    self.after_portrait_depth();
+                    self.commands().on_depth_estimated(res);
+                    self.editor.after_portrait_depth(&mut self.workspace);
                 }
-                Msg::MaskRefined(res) => self.on_mask_refined(lang, res),
+                Msg::MaskRefined(res) => self.commands().on_mask_refined(lang, res),
                 Msg::Folder(boxed) => {
-                    self.on_folder(lang, *boxed);
+                    self.commands().on_folder(lang, *boxed);
                     self.workspace.show_startup_note();
                 }
-                Msg::Thumb { generation, idx, img } => self.on_thumb(ctx, generation, idx, *img),
+                Msg::Thumb { generation, idx, img } => self.workspace.on_thumb(ctx, generation, idx, *img),
                 Msg::MasterLoaded { photo, origin, edge, stamp, img } => {
-                    self.on_master_loaded(ctx, lang, photo, origin, edge, stamp, *img)
+                    self.commands().on_master_loaded(ctx, lang, photo, origin, edge, stamp, *img)
                 }
                 Msg::Progress(epoch, m) => {
                     // Liveness lines from a running generative worker. Epoch-
@@ -202,11 +174,11 @@ impl AutoShadeApp {
                 Msg::Retouched(epoch, boxed) => {
                     // Normal's noise switch lands through the same door —
                     // with the look's undo history kept across its card.
-                    let history = self.normal_denoise_history();
-                    self.on_retouched(ctx, lang, epoch, *boxed);
-                    self.after_normal_denoise(lang, history);
+                    let history = self.commands().normal_denoise_history();
+                    self.commands().on_retouched(ctx, lang, epoch, *boxed);
+                    self.commands().after_normal_denoise(lang, history);
                 }
-                Msg::Fitted(boxed) => self.on_fitted(ctx, lang, boxed),
+                Msg::Fitted(boxed) => self.commands().on_fitted(ctx, lang, boxed),
                 Msg::Styled(boxed) => match *boxed {
                     Ok((prompt, note)) => {
                         // Into the Reimagine prompt: ready to restyle OTHER photos.
@@ -241,9 +213,9 @@ impl AutoShadeApp {
                         .apply_all
                         .take()
                         .map(|dest| (dest, res.as_ref().is_ok_and(|o| o.errs.is_empty())));
-                    self.on_pasted(lang, res);
+                    self.commands().on_pasted(lang, res);
                     if let Some((dest, pasted)) = then_render {
-                        self.after_apply_all_paste(lang, dest, pasted);
+                        self.commands().after_apply_all_paste(lang, dest, pasted);
                     }
                 }
                 Msg::LegacyImported(res) => {
@@ -257,7 +229,7 @@ impl AutoShadeApp {
                         Err(e) => self.workspace.fail(tr(lang, K_GUI_IMPORT_FAILED), e),
                     }
                 }
-                Msg::Models(role, generation, res) => self.on_models(lang, role, generation, res),
+                Msg::Models(role, generation, res) => self.workspace.on_models(lang, role, generation, res),
             }
         }
     }

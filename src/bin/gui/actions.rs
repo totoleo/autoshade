@@ -47,7 +47,7 @@ impl AutoShadeApp {
         // so a prepared install costs one file check. After the prefs restore
         // (which decides the language) and outside it, so headless tests that
         // restore prefs run no interpreter.
-        if let Some(note) = app.refresh_python_check() {
+        if let Some(note) = app.commands().refresh_python_check() {
             app.workspace.chrome_mut().startup_note = Some(note);
         }
         if !app.workspace.busy() {
@@ -150,7 +150,7 @@ impl AutoShadeApp {
         app.workspace.exp_mut().space = crate::logic::prefs::known_space(prefs.exp_space);
         app.workspace.genai_mut().preview_edge = crate::logic::prefs::known_preview_edge(prefs.preview_edge);
         if let Some(dir) = prefs.gallery_dir.filter(|d| d.is_dir()) {
-            app.open_folder(dir);
+            app.commands().open_folder(dir);
         }
         // A restored folder's asynchronous status must not erase the note
         // before the user sees it. Its completion uses the same status line.
@@ -212,6 +212,10 @@ impl AutoShadeApp {
 
 
 
+
+}
+
+impl Commands<'_> {
 
     /// Add a recipe file the user picked (our own recipe.json, or a Lightroom
     /// .xmp sidecar) to the library.

@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Make `self.editor.doc().active`'s recipe + base pixels the live working state and
     /// rebuild the before texture. Per-variant transient state (undo history,
     /// local selection, view) restarts — like a soft re-open; what persists is
@@ -91,7 +91,7 @@ impl AutoShadeApp {
             // variant's recipe carries an empty curve by construction — the
             // same expression serves both.
             let start = self.editor.doc().recipe.start_only();
-            self.editor.set_before(&mut self.workspace, ctx, &base, &start);
+            self.editor.set_before(self.workspace, ctx, &base, &start);
             self.editor.photo_mut().base_preview = Some(base);
             // A fresh transparent paint mask sized to THIS base (a generated
             // raster and the source neutral can differ in dimensions).
@@ -103,7 +103,7 @@ impl AutoShadeApp {
             self.workspace.overlay_mut().mask_dirty = false;
             self.workspace.masks_mut().paint_last = None;
         }
-        self.reset_history(); // you can't undo across variants
+        self.editor.reset_history(self.workspace); // you can't undo across variants
         self.workspace.overlay_mut().region = None;
         self.workspace.overlay_mut().region_drag = None;
         self.workspace.masks_mut().sel_mask = None;
@@ -124,7 +124,7 @@ impl AutoShadeApp {
         // variant's controls — seconds, on a large photo. The honest
         // "Preparing preview…" placeholder takes over.
         self.editor.plates_mut().after_tex = None;
-        self.panel_view(&mut Vec::new()).disarm_tools();
+        self.workspace.disarm_tools(self.editor);
         self.workspace.tools_mut().clone_src = None; // unlike a mere disarm, a variant switch drops the sample
         self.workspace.view_mut().zoom = 1.0;
         self.workspace.view_mut().zoom_target = 1.0; // instant — a swap must not glide from the old view
@@ -172,7 +172,7 @@ pub(crate) fn switch_variant(&mut self, idx: usize, ctx: &egui::Context) {
     // followed it.
     // (Both arms, like every canvas door — see `set_canvas_status`; this
     // one names the variant, so it writes its own pair.)
-    *self.workspace.status_mut() = match self.editor.baked_canvas_edge(&self.workspace) {
+    *self.workspace.status_mut() = match self.editor.baked_canvas_edge(self.workspace) {
         None => trf(
             lang,
             K_ACTIONS_SWITCHED_TO_VARIANT_VARIANTS_ARE_INDEPENDENT_SWI,
@@ -268,7 +268,7 @@ pub(crate) fn delete_variant(&mut self, idx: usize, ctx: &egui::Context) {
         // variant can land on a background BAKED one, whose raster the
         // preference cannot re-decode. Silent before — and it carried the
         // deleted canvas's own disclosure forward as if it still applied.
-        self.editor.set_canvas_status(&mut self.workspace, self.lang, "variant removed");
+        self.editor.set_canvas_status(self.workspace, self.lang, "variant removed");
     }
 }
 
@@ -327,7 +327,7 @@ pub(crate) fn fork_from_generated(&mut self) -> bool {
     let (from, to) = (self.editor.doc().variants[self.editor.doc().active].id.clone(), forked.id.clone());
     self.editor.insert_variant_after_active(forked);
     // The ✎ card is an edit of this one: it keeps its skin switch.
-    self.inherit_keep_skin(&from, &to);
+    self.editor.inherit_keep_skin(self.workspace, &from, &to);
     // A ✕ armed on an index past the insertion now names the wrong card.
     self.workspace.cards_mut().variant_delete_confirm = None;
     let lang = self.lang;
@@ -396,14 +396,6 @@ pub(crate) fn variant_label(&self, idx: usize) -> String {
     }
 }
 
-/// Where this photo's base negative sits in the strip — `None` when the
-/// strip has none. Not a hypothetical: a cold restore whose record named
-/// a `fitted` active card and listed no Original entry rebuilds exactly
-/// that, so every caller must say something honest instead of assuming
-/// card 0 is the negative.
-pub(crate) fn original_index(&self) -> Option<usize> {
-    crate::logic::cards::original_index(&self.editor.doc().variants)
-}
 
 
 /// The card [`Self::negative_origin`] reads — its rule, spelled once so
@@ -507,7 +499,7 @@ pub(crate) fn apply_to_original(&mut self, idx: usize, ctx: &egui::Context) {
         self.workspace.toast(ToastKind::Error, t);
         return;
     }
-    let Some(dst) = self.original_index() else {
+    let Some(dst) = self.editor.original_index() else {
         let t = tr(
             lang,
             K_ACTIONS_THIS_PHOTO_S_STRIP_HOLDS_NO_ORIGINAL_CARD_TO_APP,
@@ -542,9 +534,9 @@ pub(crate) fn apply_to_original(&mut self, idx: usize, ctx: &egui::Context) {
         o.thumb = None;
     }
     self.editor.doc_mut().recipe = recipe;
-    self.resync_recipe_display();
+    self.editor.resync_recipe_display(self.workspace);
     self.editor.session_mut().dirty = true;
-    self.commit_now();
+    self.editor.commit_now(self.workspace);
     *self.workspace.status_mut() = trf(
         lang,
         K_ACTIONS_COPIED_ONTO_THE_ORIGINAL_CARD_ITS_PIXELS_ARE_UNT,
@@ -647,8 +639,8 @@ pub(crate) fn dispatch_variant_action(&mut self, act: VariantAction, ctx: &egui:
 /// of those, one per box, in `panels/develop.rs`. (Counts re-verified at
 /// the R24 round-end review; the doc had said ten.)
 pub(crate) fn commit_pending_names(&mut self) {
-    self.editor.commit_mask_name_buf(&mut self.workspace);
-    self.commit_version_name_buf();
+    self.editor.commit_mask_name_buf(self.workspace);
+    self.editor.commit_version_name_buf(self.workspace, self.lang);
     self.commit_variant_name_buf();
 }
 }

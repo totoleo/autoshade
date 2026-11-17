@@ -62,7 +62,7 @@ fn window_texts(app: &mut AutoShadeApp) -> Vec<String> {
         };
         let out = ctx.run(input, |ctx| {
             ctx.memory_mut(|m| m.set_everything_is_visible(true));
-            app.recipe_library_window(ctx);
+            app.commands().recipe_library_window(ctx);
         });
         seen = drawn_texts(&out.shapes);
     }
@@ -86,7 +86,7 @@ fn the_open_develop_is_saved_as_a_plain_portable_recipe() {
     });
     let mut app = app_with(&photo, recipe);
     app.workspace.rlib_mut().recipe_name_buf = name.clone();
-    app.save_current_recipe();
+    app.commands().save_current_recipe();
 
     let text = std::fs::read_to_string(&path).expect("the entry exists on disk");
     let back: EditRecipe = serde_json::from_str(&text).unwrap();
@@ -115,18 +115,18 @@ fn a_taken_or_illegal_name_is_refused_and_nothing_is_written() {
     let _scrub = Scrub(vec![path.clone(), recipe_library::entry_path(stem)]);
     let mut app = app_with(&PathBuf::from("D:/library/_gui_recipe_taken.ARW"), EditRecipe { exposure_ev: 0.5, ..Default::default() });
     app.workspace.rlib_mut().recipe_name_buf = name.clone();
-    app.save_current_recipe();
+    app.commands().save_current_recipe();
     let first = std::fs::read_to_string(&path).unwrap();
 
     // The field clears after a save: type the same name again to ask for it.
     app.editor.doc_mut().recipe.exposure_ev = -2.0;
     app.workspace.rlib_mut().recipe_name_buf = name.clone();
-    app.save_current_recipe();
+    app.commands().save_current_recipe();
     assert!(app.workspace.status().contains("already exists"), "{}", app.workspace.status());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), first, "the first entry survived");
 
     app.workspace.rlib_mut().recipe_name_buf = "a/b".into();
-    app.save_current_recipe();
+    app.commands().save_current_recipe();
     assert!(app.workspace.status().contains("cannot contain"), "{}", app.workspace.status());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), first);
 }
@@ -146,7 +146,7 @@ fn applying_a_recipe_to_the_canvas_is_an_unsaved_edit() {
 
     let mut app = app_with(&photo, EditRecipe::default());
     app.editor.session_mut().hist.saved_recipe = app.editor.doc().recipe.clone();
-    app.apply_recipe_to_open(&name);
+    app.commands().apply_recipe_to_open(&name);
     assert!((app.editor.doc().recipe.exposure_ev - 0.9).abs() < 1e-6, "{}", app.editor.doc().recipe.exposure_ev);
     assert_eq!(app.editor.doc().recipe.contrast, 21.0);
     assert!(app.editor.session().dirty, "the canvas is an unsaved edit");
@@ -175,7 +175,7 @@ fn applying_to_the_selection_writes_each_targets_develop() {
     let mut app = app_with(&a, EditRecipe::default());
     app.workspace.gal_mut().gallery = vec![a.clone(), b.clone()];
     app.workspace.gal_mut().multi_sel = [0usize, 1usize].into_iter().collect();
-    app.apply_recipe_to_selection(&name);
+    app.commands().apply_recipe_to_selection(&name);
     let ctx = egui::Context::default();
     let start = std::time::Instant::now();
     while app.workspace.busy() {
@@ -210,12 +210,12 @@ fn rename_moves_the_file_and_update_keeps_the_name() {
     app.workspace.refresh_recipes();
 
     app.editor.doc_mut().recipe.contrast = 44.0;
-    app.update_recipe_from_open(&from);
+    app.commands().update_recipe_from_open(&from);
     let back = recipe_library::read(&from).unwrap();
     assert_eq!(back.contrast, 44.0, "the content was replaced");
     assert!(!recipe_library::entry_path(&to).exists());
 
-    app.rename_recipe(&from, &to);
+    app.commands().rename_recipe(&from, &to);
     assert!(!recipe_library::entry_path(&from).exists(), "the old file is gone");
     assert!(recipe_library::entry_path(&to).is_file(), "the file moved");
     assert_eq!(app.workspace.rlib().recipe_sel.as_deref(), Some(to.as_str()));
@@ -233,7 +233,7 @@ fn deleting_an_entry_removes_its_file_and_the_row() {
     app.workspace.refresh_recipes();
     app.workspace.rlib_mut().recipe_sel = Some(name.clone());
 
-    app.delete_recipe(&name);
+    app.commands().delete_recipe(&name);
     assert!(!recipe_library::entry_path(&name).exists(), "the file is gone");
     assert!(app.workspace.rlib().recipe_sel.is_none(), "the selection followed it");
     assert!(app.workspace.rlib().recipes.iter().all(|r| r.name != name), "the row is gone");
@@ -277,8 +277,7 @@ fn the_selected_recipe_shows_the_settings_it_changes() {
         recipe_library::entry_path(&alpha),
         recipe_library::entry_path(&beta),
     ]);
-    let mut mask = autoshade::recipe::LocalAdjustment::default();
-    mask.exposure_ev = 0.3;
+    let mask = autoshade::recipe::LocalAdjustment { exposure_ev: 0.3, ..Default::default() };
     recipe_library::create(
         &alpha,
         &EditRecipe { exposure_ev: 0.5, contrast: 12.0, masks: vec![mask], ..Default::default() },

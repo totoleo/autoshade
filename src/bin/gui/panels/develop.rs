@@ -7,7 +7,7 @@ use crate::*;
 use crate::sections::{section_active, SECTIONS};
 
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 
@@ -32,7 +32,8 @@ impl AutoShadeApp {
         // mid-open outcome is one preview build whose frame `finish_redevelop`
         // then discards by its base+recipe identity check. Greying the tone
         // readout during every open would be the bigger regression.
-        self.panel_view(&mut Vec::new()).histogram_ui(ui);
+        let ctx = ui.ctx().clone();
+        self.with_panel(&ctx, |p| p.histogram_ui(ui));
         ui.add_space(SPACE_SM);
 
         // Mid-open (decode in flight) these controls would edit the STASHED
@@ -58,17 +59,11 @@ impl AutoShadeApp {
         // The section table (`sections.rs`) owns the display order, the
         // family set each ● reads, and which sections are registered custom
         // widgets. This loop is the only place the panel enumerates them.
-        let mut panel_actions = Vec::new();
         for section in SECTIONS {
             let active = section_active(&self.editor.doc().recipe, section);
-            changed |= match section.draw {
-                crate::sections::SectionDraw::App(draw) => draw(self, ui, active),
-                crate::sections::SectionDraw::Panel(draw) => {
-                    draw(&mut self.panel_view(&mut panel_actions), ui, active)
-                }
-            };
+            let ctx = ui.ctx().clone();
+            changed |= self.with_panel(&ctx, |p| (section.draw)(p, ui, active));
         }
-        self.apply_actions(panel_actions);
         });
 
         if changed {
@@ -317,13 +312,14 @@ impl AutoShadeApp {
                                 } else if let Some(n) = &named {
                                     ui.label(egui::RichText::new(format!("「{n}」")).small().weak());
                                 }
-                                if let Some(a) = self.variant_card_buttons(
+                                let ctx = ui.ctx().clone();
+                                if let Some(a) = self.with_panel(&ctx, |p| p.variant_card_buttons(
                                     ui,
                                     i,
                                     active,
                                     busy,
                                     VariantSurface::Strip,
-                                ) {
+                                )) {
                                     act = Some(a);
                                 }
                             });
@@ -342,119 +338,6 @@ impl AutoShadeApp {
         }
     }
 
-    /// The card's ACTION buttons — ＋ archive, ▣ apply-to-Original, ✕ delete
-    /// — for whichever surface is drawing the card (R24-5).
-    ///
-    /// Extracted from `variant_strip` verbatim when the Versions section's
-    /// edit-state list grew the same three buttons: a card action must mean
-    /// one thing and be implemented once, or the two lists answer 「what does
-    /// ✕ do here」 differently the first time either is touched. The strip
-    /// keeps the rename box (see [`VariantSurface`]).
-    ///
-    /// Returns the deferred action; the caller performs it through
-    /// `dispatch_variant_action` after the layout closure has released `self`.
-    // `surface` decides only which headless seam records the row, so it is
-    // genuinely unused in a release build — the alternative (two near-copies
-    // of this function) is the thing the extraction exists to remove.
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn variant_card_buttons(
-        &mut self,
-        ui: &mut egui::Ui,
-        i: usize,
-        active: bool,
-        busy: bool,
-        surface: VariantSurface,
-    ) -> Option<VariantAction> {
-        let lang = self.lang;
-        let kind = self.editor.doc().variants[i].kind;
-        let mut act: Option<VariantAction> = None;
-        // Which glyphs this row actually laid out — the list surface's test
-        // seam, since it has no rects of its own to assert on.
-        #[cfg(test)]
-        let mut drawn: Vec<&str> = Vec::new();
-        // R24-2 (user decision ②, in place of save-as-you-go snapshots): a
-        // one-click archive entry point ON the card whose develop it
-        // snapshots. Active card only — the button acts on the LIVE canvas,
-        // and offering it on a background card would promise a snapshot of
-        // something else. A row-height glyph square in the existing label row
-        // (R38): the row is already interact_size.y tall, so the strip's
-        // card-height arithmetic (and its geometry test) is untouched.
-        // Inert (visibly, not silently) while a photo is still opening — the
-        // canvas then still holds the OUTGOING photo's develop, and the
-        // snapshot would land it in the incoming photo's store. Same rule the
-        // Versions section applies to its own copy.
-        if active {
-            #[cfg(test)]
-            drawn.push("＋");
-            if glyph(ui, !busy, "＋")
-                .on_hover_text(tr(lang, K_DEVELOP_SNAPSHOT_THIS_CARD_S_DEVELOP_ONLY_AS_A_NUMBERED))
-                .clicked()
-            {
-                act = Some(VariantAction::SaveVersion);
-            }
-        }
-        // R24-3 (#7) 「apply to Original」, on the ACTIVE card for the same
-        // reason ＋ is: it copies the LIVE canvas. Two concepts the hover keeps
-        // apart — it overwrites the ▣ Original CARD's develop parameters (its
-        // pixels stay, this card stays), and Ctrl+S is what afterwards makes
-        // that card's develop the photo's SAVED develop.
-        // A pixel-state card shows the button DISABLED with the reason rather
-        // than hiding it (the R24-2 save_version judgement, same remedy): its
-        // look is in its raster, so there is nothing parametric to copy.
-        // Hidden entirely when this card IS the negative, or when the strip
-        // has no Original card to apply onto.
-        if active && kind != VariantKind::Original && self.original_index().is_some() {
-            let can = kind.is_source_based();
-            let hover = if can {
-                tr(lang, K_DEVELOP_COPY_THIS_VARIANT_S_DEVELOP_ONTO_THE_ORIGINAL_CA)
-            } else if kind == VariantKind::Edited {
-                tr(lang, K_DEVELOP_THIS_CARD_S_DEVELOP_IS_TUNED_OVER_AI_GENERATED_P)
-            } else {
-                tr(lang, K_DEVELOP_A_GENERATED_VARIANT_S_LOOK_LIVES_IN_ITS_PIXELS_T)
-            };
-            let resp = glyph(ui, can && !busy, "▣").on_hover_text(hover);
-            #[cfg(test)]
-            drawn.push(if can && !busy { "▣" } else { "▣(off)" });
-            #[cfg(test)]
-            if surface == VariantSurface::Strip {
-                // The STRIP owns this seam: a full frame draws both surfaces,
-                // and letting the list overwrite it would silently retarget
-                // every existing assertion at the other widget.
-                self.seams.strip_apply = Some((resp.rect, can && !busy));
-            }
-            if resp.clicked() {
-                act = Some(VariantAction::Apply(i));
-            }
-        }
-        // Any variant except the sole Original can be dropped.
-        // ✕ — the ONE close/cancel glyph app-wide (the old bare × was the
-        // fourth variant of it). ARMED (R24-4): the first click asks, the
-        // second deletes — the button says which, because a deleted card
-        // cannot be brought back (unlike a version, whose number the registry
-        // keeps burned rather than the card recoverable).
-        let armed = self.workspace.cards().variant_delete_confirm == Some(i);
-        if self.editor.doc().variants.len() > 1
-            && kind != VariantKind::Original
-            && glyph(ui, true, if armed { "✕?" } else { "✕" })
-                .on_hover_text(if armed {
-                    tr(lang, K_DEVELOP_CLICK_AGAIN_TO_DELETE_THIS_VARIANT_IT_CANNOT_BE)
-                } else {
-                    tr(lang, K_DEVELOP_DELETE_THIS_VARIANT)
-                })
-                .clicked()
-        {
-            act = Some(VariantAction::Delete(i));
-        }
-        #[cfg(test)]
-        if self.editor.doc().variants.len() > 1 && kind != VariantKind::Original {
-            drawn.push(if armed { "✕?" } else { "✕" });
-        }
-        #[cfg(test)]
-        if surface == VariantSurface::List {
-            self.seams.edit_list_actions.push(format!("{i}:{}", drawn.join("")));
-        }
-        act
-    }
 
 
 
@@ -479,6 +362,9 @@ impl AutoShadeApp {
 
 
 
+}
+
+impl PanelView<'_> {
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
     pub(crate) fn dev_versions(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
@@ -645,7 +531,7 @@ impl AutoShadeApp {
                     .on_hover_text(tr(lang, K_DEVELOP_SNAPSHOT_THIS_CARD_S_DEVELOP_ONLY_AS_A_NUMBERED))
                     .clicked()
                 {
-                    self.save_version();
+                    self.act_develop(logic::develop::DevelopAction::SaveVersion);
                 }
                 // R24-2: a version row is 「v3 「日落偏暖」· 来自 ◭ 反推」 —
                 // the number, the user's own name, and which VARIANT the
@@ -706,7 +592,7 @@ impl AutoShadeApp {
                             // stayed a TextEdit forever would keep asking
                             // for focus below and never give it back.
                             if resp.lost_focus() {
-                                self.commit_version_name_buf();
+                                self.act_develop(logic::develop::DevelopAction::CommitVersionName);
                                 self.workspace.cards_mut().version_name_buf = None;
                             } else if !resp.has_focus() {
                                 // The frame the box first appears in: the
@@ -785,7 +671,7 @@ impl AutoShadeApp {
                     // Switching rows commits the previous one to ITS OWN
                     // (photo, number) first — the mask panel's cross-commit
                     // rule, made structural by keying on the number.
-                    self.commit_version_name_buf();
+                    self.act_develop(logic::develop::DevelopAction::CommitVersionName);
                     let cur = self.workspace.cards().version_meta
                         .get(&n)
                         .and_then(|m| m.name.clone())
@@ -793,9 +679,7 @@ impl AutoShadeApp {
                     self.workspace.cards_mut().version_name_buf = Some((p, n, cur.clone(), cur));
                 }
                 if let Some(n) = load {
-                    self.apply_actions(vec![logic::Action::Develop(
-                        logic::develop::DevelopAction::LoadVersion(n),
-                    )]);
+                    self.act_develop(logic::develop::DevelopAction::LoadVersion(n));
                 }
                 if let Some(n) = delete
                     && let Some(src) = self.editor.photo().src_path.clone()
@@ -809,9 +693,7 @@ impl AutoShadeApp {
                     {
                         self.workspace.cards_mut().version_name_buf = None;
                     }
-                    self.apply_actions(vec![logic::Action::Develop(
-                        logic::develop::DevelopAction::DeleteVersion(n),
-                    )]);
+                    self.act_develop(logic::develop::DevelopAction::DeleteVersion(n));
                 }
                 if n_ver == 0 {
                     explainer(ui, lang, tr(lang, K_DEVELOP_LIKE_LR_VIRTUAL_COPIES_STORE_MULTIPLE_PARAMETER));
@@ -821,7 +703,7 @@ impl AutoShadeApp {
         // The edit-state list's card action, performed through the SAME owner
         // the strip uses — after the section's closures have released `self`.
         if let Some(a) = act {
-            self.dispatch_variant_action(a, ui.ctx());
+            self.act_variant(a);
         }
         false
     }

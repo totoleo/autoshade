@@ -266,6 +266,7 @@ fn two_library_names_keep_two_files_and_the_default_is_the_old_one() {
 /// MUTATION: drop the `Restore` guard (or restore before `f` runs) and the
 /// "after" asserts fail.
 #[test]
+#[allow(clippy::disallowed_methods)] // the test checks thread-local scope
 fn the_library_scope_routes_the_unnamed_calls_and_restores_itself() {
     assert_eq!(current_name(), DEFAULT_NAME);
     assert_eq!(path(), path_named(DEFAULT_NAME));

@@ -42,13 +42,14 @@
 
 
             }; editor } , lang, ..Default::default() };
-        app.reset_history();
+        app.editor.reset_history(&app.workspace);
         app
     }
 
     /// A finished worker landing through the one door every retouch takes.
     fn land(app: &mut AutoShadeApp, ctx: &egui::Context, note: RetouchNote, out: &str, kind: RetouchKind) {
-        app.on_retouched(ctx, app.lang, app.workspace.tools().gen_epoch, Ok((
+        let (lang, epoch) = (app.lang, app.workspace.tools().gen_epoch);
+        app.commands().on_retouched(ctx, lang, epoch, Ok((
             image::DynamicImage::new_rgb8(4, 4),
             note,
             PathBuf::from(out),
@@ -75,7 +76,7 @@
                 .collect(),
             ..Default::default()
         };
-        let _ = ctx.run(input, |ctx| app.fit_prompt_layer(ctx));
+        let _ = ctx.run(input, |ctx| app.commands().fit_prompt_layer(ctx));
     }
 
     /// A reimagine landing asks, about the card it just made; a second one
@@ -135,7 +136,7 @@
         land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
         app.workspace.fit_mut().fit_prompt = None;
         app.workspace.set_busy(true);
-        app.offer_fit_prompt(&ctx, 0.1);
+        app.commands().offer_fit_prompt(&ctx, 0.1);
         assert!(app.workspace.fit().fit_prompt.is_none(), "never over a running job");
     }
 
@@ -152,14 +153,14 @@
             let ctx = egui::Context::default();
             let mut app = app_before_a_generation(lang);
             land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
-            assert_eq!(app.negative_index(), Some(1), "premise: Automatic would pick the ◈ master");
+            assert_eq!(app.commands().negative_index(), Some(1), "premise: Automatic would pick the ◈ master");
             let p = app.workspace.fit().fit_prompt.as_ref().unwrap();
             assert_eq!(p.from.as_deref(), Some(ORIGINAL_VARIANT_ID), "{lang:?}: the default is the ▣ original");
-            let (automatic, cards) = app.fit_source_menu();
+            let (automatic, cards) = app.commands().fit_source_menu();
             let ids: Vec<&str> = cards.iter().map(|(id, _)| id.as_str()).collect();
             assert_eq!(ids, [ORIGINAL_VARIANT_ID, "dn"]);
-            assert_eq!(cards[0].1, app.numbered_card_label(0));
-            assert!(automatic.contains(&app.numbered_card_label(1)), "{automatic}");
+            assert_eq!(cards[0].1, app.commands().numbered_card_label(0));
+            assert!(automatic.contains(&app.commands().numbered_card_label(1)), "{automatic}");
         }
     }
 

@@ -1136,6 +1136,7 @@ pub(crate) fn abs_display(p: &std::path::Path) -> String {
 /// escaped from, because `"` is not a legal character in a Windows path;
 /// [`explorer_quoted_arg`] returns `None` rather than assume it, and the
 /// caller then falls back to the old plain argument.
+#[allow(clippy::disallowed_methods)] // the OS folder-reveal door
 pub(crate) fn reveal_folder(dir: &std::path::Path) -> std::io::Result<()> {
     #[cfg(windows)]
     let mut cmd = {

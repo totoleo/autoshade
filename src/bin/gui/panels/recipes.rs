@@ -4,11 +4,11 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Open the window (the Library panel's 「Recipe library…」 button).
     pub(crate) fn open_recipe_library(&mut self) {
         self.workspace.rlib_mut().show_recipes = true;
-        self.apply_actions(vec![logic::Action::Recipe(logic::recipes::RecipeAction::Refresh)]);
+        self.apply_recipe(logic::recipes::RecipeAction::Refresh);
     }
 
     /// One `recipe_library` window frame.
@@ -48,9 +48,7 @@ impl AutoShadeApp {
                     .on_hover_text(tr(lang, K_RECIPES_ADD_A_RECIPE_JSON_OR_A_LIGHTROOM_CAMERA_RAW_XMP))
                     .clicked()
                 {
-                    self.apply_actions(vec![logic::Action::Recipe(
-                        logic::recipes::RecipeAction::ImportFile,
-                    )]);
+                    self.apply_recipe(logic::recipes::RecipeAction::ImportFile,);
                 }
             });
         });
@@ -74,9 +72,7 @@ impl AutoShadeApp {
                 .on_disabled_hover_text(tr(lang, K_RECIPES_OPEN_A_PHOTO_FIRST_THIS_SAVES_THE_OPEN_PHOTO_S_L))
                 .clicked();
             if ready && (clicked || entered) {
-                self.apply_actions(vec![logic::Action::Recipe(
-                    logic::recipes::RecipeAction::SaveCurrent,
-                )]);
+                self.apply_recipe(logic::recipes::RecipeAction::SaveCurrent,);
             }
         });
         ui.separator();
@@ -198,10 +194,10 @@ impl AutoShadeApp {
             }
         });
         if let Some((from, to)) = commit_rename {
-            self.apply_actions(vec![logic::Action::Recipe(logic::recipes::RecipeAction::Rename {
+            self.apply_recipe(logic::recipes::RecipeAction::Rename {
                 from: from.clone(),
                 to: to.clone(),
-            })]);
+            });
         }
         if let Some(name) = picked {
             self.workspace.rlib_mut().recipe_sel = Some(name);
@@ -238,9 +234,7 @@ impl AutoShadeApp {
             .clicked()
                 && let Some(name) = &sel
             {
-                self.apply_actions(vec![logic::Action::Recipe(
-                    logic::recipes::RecipeAction::ApplyToSelection(name.to_owned()),
-                )]);
+                self.apply_recipe(logic::recipes::RecipeAction::ApplyToSelection(name.to_owned()),);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if action(ui, true, tr(lang, K_RECIPES_SHOW_LIBRARY_FOLDER))
@@ -267,7 +261,8 @@ impl AutoShadeApp {
         ui.horizontal_top(|ui| {
             const PREVIEW_W: f32 = 200.0;
             const PREVIEW_H: f32 = 140.0;
-            let tex = if entry.is_ok() { self.panel_view(&mut Vec::new()).recipe_preview_tex(ui.ctx(), name) } else { None };
+            let ctx = ui.ctx().clone();
+            let tex = if entry.is_ok() { self.with_panel(&ctx, |p| p.recipe_preview_tex(&ctx, name)) } else { None };
             ui.vertical(|ui| {
                 let (rect, _) =
                     ui.allocate_exact_size(egui::vec2(PREVIEW_W, PREVIEW_H), egui::Sense::hover());
@@ -358,18 +353,14 @@ impl AutoShadeApp {
                 .on_disabled_hover_text(needs_photo())
                 .clicked()
             {
-                self.apply_actions(vec![logic::Action::Recipe(
-                    logic::recipes::RecipeAction::ApplyToOpen(name.to_owned()),
-                )]);
+                self.apply_recipe(logic::recipes::RecipeAction::ApplyToOpen(name.to_owned()),);
             }
             if action(ui, ok && has_photo && !busy, tr(lang, K_RECIPES_WRITE_BACK_TO_THIS_RECIPE))
                 .on_hover_text(tr(lang, K_RECIPES_SAVES_WHAT_IS_ON_THE_CANVAS_INTO_THIS_ENTRY_KEEP))
                 .on_disabled_hover_text(needs_photo())
                 .clicked()
             {
-                self.apply_actions(vec![logic::Action::Recipe(
-                    logic::recipes::RecipeAction::UpdateFromOpen(name.to_owned()),
-                )]);
+                self.apply_recipe(logic::recipes::RecipeAction::UpdateFromOpen(name.to_owned()),);
             }
             if action(ui, ok && !busy, tr(lang, K_RECIPES_RENAME))
                 .on_hover_text(tr(lang, K_RECIPES_RENAME_THIS_RECIPE_THE_FILE_MOVES_WITH_IT))
@@ -387,9 +378,7 @@ impl AutoShadeApp {
                 .clicked()
             {
                 if armed {
-                    self.apply_actions(vec![logic::Action::Recipe(
-                        logic::recipes::RecipeAction::Delete(name.to_owned()),
-                    )]);
+                    self.apply_recipe(logic::recipes::RecipeAction::Delete(name.to_owned()),);
                 } else {
                     self.workspace.rlib_mut().recipe_delete_armed = Some(name.to_string());
                 }
@@ -511,30 +500,7 @@ fn age_text(lang: Lang, t: std::time::SystemTime) -> Option<String> {
     })
 }
 
-#[cfg(test)]
-mod age_text_tests {
-    use super::age_text;
-    use crate::Lang;
-    use std::time::{Duration, SystemTime};
-
-    #[test]
-    fn a_file_stamp_reads_as_an_elapsed_span() {
-        let now = SystemTime::now();
-        assert_eq!(age_text(Lang::En, now - Duration::from_secs(60)).as_deref(), Some("today"));
-        assert_eq!(
-            age_text(Lang::En, now - Duration::from_secs(3 * 86_400)).as_deref(),
-            Some("3 days ago")
-        );
-        assert_eq!(
-            age_text(Lang::En, now - Duration::from_secs(60 * 86_400)).as_deref(),
-            Some("2 months ago")
-        );
-        assert_eq!(age_text(Lang::En, now + Duration::from_secs(60)), None, "a future stamp says nothing");
-    }
-}
-
 pub(crate) fn recipe_facts(lang: Lang, r: &EditRecipe) -> Vec<(String, String)> {
-    let lang = lang;
     let d = EditRecipe::default();
     let mut out: Vec<(String, String)> = Vec::new();
     if (r.exposure_ev - d.exposure_ev).abs() > 1e-4 {
@@ -585,4 +551,26 @@ pub(crate) fn recipe_facts(lang: Lang, r: &EditRecipe) -> Vec<(String, String)> 
         out.push((tr(lang, K_RECIPES_MASKS__2).to_string(), r.masks.len().to_string()));
     }
     out
+}
+
+#[cfg(test)]
+mod age_text_tests {
+    use super::age_text;
+    use crate::Lang;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn a_file_stamp_reads_as_an_elapsed_span() {
+        let now = SystemTime::now();
+        assert_eq!(age_text(Lang::En, now - Duration::from_secs(60)).as_deref(), Some("today"));
+        assert_eq!(
+            age_text(Lang::En, now - Duration::from_secs(3 * 86_400)).as_deref(),
+            Some("3 days ago")
+        );
+        assert_eq!(
+            age_text(Lang::En, now - Duration::from_secs(60 * 86_400)).as_deref(),
+            Some("2 months ago")
+        );
+        assert_eq!(age_text(Lang::En, now + Duration::from_secs(60)), None, "a future stamp says nothing");
+    }
 }

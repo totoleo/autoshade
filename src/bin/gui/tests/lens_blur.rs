@@ -10,7 +10,7 @@
     fn a_depth_estimate_lands_a_blur_and_arms_the_focus_pick() {
         let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.tools_mut() = ToolsState { wb_picking: true, ..Default::default() }; *view.busy_mut() = true; view } , ..Default::default() };
         let depth = std::env::temp_dir().join(format!("autoshade-lens-{}/depth.png", std::process::id()));
-        app.on_depth_estimated(Ok(depth.clone()));
+        app.commands().on_depth_estimated(Ok(depth.clone()));
         let lb = app.editor.doc().recipe.lens_blur.clone().expect("the first estimate lands a blur");
         assert_eq!(lb.depth_map, depth.display().to_string());
         assert!(app.workspace.tools().lens_focus_picking, "a first estimate arms the focus pick");
@@ -21,14 +21,14 @@
         app.editor.doc_mut().recipe.lens_blur = Some(chosen.clone());
         app.workspace.tools_mut().lens_focus_picking = false;
         let depth2 = std::env::temp_dir().join(format!("autoshade-lens-{}/depth-2.png", std::process::id()));
-        app.on_depth_estimated(Ok(depth2.clone()));
+        app.commands().on_depth_estimated(Ok(depth2.clone()));
         let again = app.editor.doc().recipe.lens_blur.clone().unwrap();
         assert_eq!(again.depth_map, depth2.display().to_string());
         assert_eq!((again.focus, again.amount, again.range), (chosen.focus, chosen.amount, chosen.range));
         assert!(!app.workspace.tools().lens_focus_picking, "a re-estimate does not re-arm the pick");
 
         let before = app.editor.doc().recipe.clone();
-        app.on_depth_estimated(Err(anyhow::anyhow!("no GPU")));
+        app.commands().on_depth_estimated(Err(anyhow::anyhow!("no GPU")));
         assert_eq!(app.editor.doc().recipe, before, "a failed estimate changes nothing");
     }
 

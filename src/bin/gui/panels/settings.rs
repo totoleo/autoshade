@@ -4,7 +4,7 @@ use crate::*;
 
 
 
-impl PanelView<'_, '_> {
+impl PanelView<'_> {
     pub(crate) fn settings_ui(&mut self, ui: &mut egui::Ui) {
         let mut do_save = false;
         let mut fetch: Option<ModelRole> = None;
@@ -136,9 +136,7 @@ impl PanelView<'_, '_> {
             ))
             .clicked()
         {
-            self.act_all(vec![logic::Action::Settings(
-                logic::settings::SettingsAction::ImportLegacyFolder,
-            )]);
+            self.act_settings(logic::settings::SettingsAction::ImportLegacyFolder,);
         }
         // --- the DELIVERY ROOT (R24-5 M8) ------------------------------------
         // The counterpart to the develop store above: that folder holds the
@@ -172,9 +170,7 @@ impl PanelView<'_, '_> {
             });
         }
         if browse_delivery {
-            self.act_all(vec![logic::Action::Settings(
-                logic::settings::SettingsAction::PickDeliveryFolder,
-            )]);
+            self.act_settings(logic::settings::SettingsAction::PickDeliveryFolder,);
         }
         // The RESOLVED root, absolute: a relative setting (the default
         // included) means nothing without saying which directory it is
@@ -298,9 +294,7 @@ impl PanelView<'_, '_> {
             ))
             .clicked()
         {
-            self.act_all(vec![logic::Action::Settings(
-                logic::settings::SettingsAction::InstallPython,
-            )]);
+            self.act_settings(logic::settings::SettingsAction::InstallPython,);
         }
         if let Some(line) = &self.workspace.ui().python_env_line {
             ui.label(egui::RichText::new(line).small().weak());
@@ -650,17 +644,13 @@ impl PanelView<'_, '_> {
             .small(),
         );
         if do_save {
-            self.act_all(vec![logic::Action::Settings(
-                logic::settings::SettingsAction::SaveForm,
-            )]);
+            self.act_settings(logic::settings::SettingsAction::SaveForm,);
         }
         if let Some(role) = fetch {
-            self.act_all(vec![logic::Action::Settings(
-                logic::settings::SettingsAction::FetchModels(match role {
+            self.act_settings(logic::settings::SettingsAction::FetchModels(match role {
                     ModelRole::Analysis => logic::settings::ModelSide::Analysis,
                     ModelRole::Image => logic::settings::ModelSide::Image,
-                }),
-            )]);
+                }),);
         }
     }
 }

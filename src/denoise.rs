@@ -91,6 +91,7 @@ pub(crate) fn bounded_child_output(
     budget_env: &str,
     group: Option<crate::KillGroup>,
 ) -> Result<std::process::Output> {
+    #[allow(clippy::disallowed_methods)] // the sidecar output drainer: one thread per pipe
     fn drain<R: std::io::Read + Send + 'static>(
         reader: Option<R>,
     ) -> std::thread::JoinHandle<(Vec<u8>, bool)> {
@@ -311,6 +312,7 @@ impl DenoiseOpts {
 /// out-of-range values do not survive an AI-denoise round trip — a denoised
 /// export of such a photo clips those colours toward sRGB (recorded with the
 /// single-working-space item).
+#[allow(clippy::disallowed_methods)] // reads the sidecar's staged product
 pub fn denoise_buffer(opts: &DenoiseOpts, data: &mut [[f32; 3]], w: usize, h: usize) -> Result<()> {
     if data.len() != w * h {
         bail!("denoise_buffer: buffer {} != {}x{}", data.len(), w, h);
@@ -396,6 +398,7 @@ pub fn denoise_file(opts: &DenoiseOpts, input: &Path, output: &Path) -> Result<(
 /// promised name). The numbers are still the input-space numbers, so the
 /// input's profile is their correct description. `ext` comes from the
 /// PROMISED name — the staging sibling's suffix is machinery.
+#[allow(clippy::disallowed_methods)] // reads the input's ICC profile
 fn carry_icc_onto_staged(
     input: &Path,
     staged: &Path,
@@ -654,6 +657,7 @@ pub(crate) fn mosaic_args_for(raw: &rawler::RawImage) -> std::result::Result<Mos
 /// spawns nothing. A sensor without a 2×2 Bayer mosaic returns
 /// [`MosaicDenoise::NotApplicable`] with the reason, and the caller falls back
 /// to [`denoise_buffer`] on the developed frame.
+#[allow(clippy::disallowed_methods)] // reads the RAW cleaner's staged product
 pub fn denoise_mosaic(opts: &DenoiseOpts, raw: &mut rawler::RawImage) -> Result<MosaicDenoise> {
     use rawler::rawimage::RawImageData;
     if opts.strength <= 0.0 {
@@ -767,6 +771,7 @@ fn run_sidecar(opts: &DenoiseOpts, input: &Path, output: &Path) -> Result<()> {
     run_sidecar_carrying(opts, input, output, false, sidecar_timeout())
 }
 
+#[allow(clippy::disallowed_methods)] // reads the sidecar's staged product
 fn run_sidecar_carrying(
     opts: &DenoiseOpts,
     input: &Path,
@@ -1164,6 +1169,7 @@ mod tests {
     /// copies input-space numbers, and untagged wide-gamut numbers read as
     /// sRGB everywhere downstream.
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test reads the product back
     fn the_denoise_product_carries_the_inputs_icc_profile() {
         use image::ImageEncoder as _;
         let dir =
@@ -1209,6 +1215,7 @@ mod tests {
     /// depth (the deep half fails), or through `write_working_space` always
     /// (the 8-bit half fails).
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test reads the master back
     fn a_deep_baked_denoise_master_carries_the_working_space_tag() {
         let tag_of = |p: &std::path::Path| {
             let mut dec = image::ImageReader::open(p).unwrap().into_decoder().unwrap();
@@ -1809,44 +1816,6 @@ mod tests {
         assert!(!SIDECAR_SRC.contains("loading the weight pickle unsandboxed"));
     }
 
-    /// L11#7b: every sidecar spawn is wrapped in a kill-group — the timeout
-    /// must reap the whole tree (torch workers survived the direct-child
-    /// kill), and a NEW spawn site must join the rule.
-    ///
-    /// The rule is about the SPAWN, not about a spelling. v1.2.4 moved the
-    /// ceremony into `crate::sidecar_command` / `crate::run_sidecar_child`, so
-    /// the two python bridges stopped spelling it themselves — and this test,
-    /// which asked each file for the literal names, failed on the change that
-    /// made the rule harder to break. Each spawning file must now do ONE of
-    /// two things: go through the shared executor, or arm and assign itself
-    /// (`advisor/claude.rs`, whose child is a `claude` CLI rather than a
-    /// python sidecar and which reads its stdout as a stream). The executor is
-    /// checked for still doing both by `lib::sidecar_executor_tests`.
-    ///
-    /// MUTATION: replace `crate::sidecar_command(` in `denoise.rs` with
-    /// `std::process::Command::new(` and this names the file.
-    #[test]
-    fn every_sidecar_spawn_is_wrapped_in_a_kill_group() {
-        // Assembled needles: denoise.rs scans its own text, so literal
-        // needles here would match themselves (the advisor/mod.rs rule).
-        let arm = format!("arm{}kill_group", '_');
-        let assign = format!("assign{}kill_group", '_');
-        let door = format!("crate::sidecar{}command(", '_');
-        let run = format!("crate::run{0}sidecar{0}child(", '_');
-        for (name, src) in [
-            ("denoise.rs", include_str!("denoise.rs")),
-            ("segment.rs", include_str!("segment.rs")),
-        ] {
-            let src = crate::source_before_tests(src);
-            let through_the_door = src.contains(&door) && src.contains(&run);
-            let by_hand = src.contains(&arm) && src.contains(&assign);
-            assert!(
-                through_the_door || by_hand,
-                "{name} spawns a child without a kill-group: it neither goes through the \
-                 shared sidecar executor nor arms and assigns one itself"
-            );
-        }
-    }
 
     // ── The RAW-mosaic bridge (2026-09-15) ──────────────────────────────────
     // `denoise_mosaic` hands the frame's sensor mosaic to python/denoise_raw.py

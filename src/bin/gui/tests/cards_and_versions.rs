@@ -291,7 +291,7 @@ rationale: "stale rationale".into(),
                 sel_mask: Some(3),
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.load_version(1);
+        app.commands().load_version(1);
         assert!((app.editor.doc().recipe.exposure_ev - 0.75).abs() < 1e-3, "the version landed");
         assert_eq!(
             app.editor.analysis().rationale, "v1 marker rationale",
@@ -466,12 +466,9 @@ rationale: "stale rationale".into(),
                 active: 1,
 
                 recipe: EditRecipe { contrast: 44.0, exposure_ev: 0.5, ..Default::default() },
-
-                ..Default::default()
-
             }; editor } , ..Default::default() };
-        app.reset_history();
-        app.apply_to_original(1, &ctx);
+        app.editor.reset_history(&app.workspace);
+        app.commands().apply_to_original(1, &ctx);
 
         assert_eq!(app.editor.doc().active, 0, "the canvas lands on the card that was written");
         assert_eq!(app.editor.doc().variants.len(), 2, "the source card is KEPT");
@@ -490,7 +487,7 @@ rationale: "stale rationale".into(),
         assert_eq!(app.editor.doc().recipe.contrast, 44.0, "the canvas shows what was applied");
 
         // ONE Ctrl+Z, and the negative's own develop is back.
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.contrast, 11.0, "one undo step, not zero and not two");
 
         // A PIXEL-STATE source is refused with the reverse-fit remedy — its
@@ -523,7 +520,7 @@ rationale: "stale rationale".into(),
                 ..Default::default()
 
             }; editor } , ..Default::default() };
-        app.apply_to_original(1, &ctx);
+        app.commands().apply_to_original(1, &ctx);
         assert_eq!(app.editor.doc().variants[0].recipe.contrast, 11.0, "the negative was not overwritten");
         assert_eq!(app.editor.doc().active, 1, "and the canvas did not move");
         assert!(
@@ -579,7 +576,7 @@ rationale: "stale rationale".into(),
                 // hook opens every collapsible (the brush-slider test's idiom).
                 ctx.memory_mut(|m| m.set_everything_is_visible(true));
                 egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| app.develop_panel(ui));
+                    egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
                 });
             },
         );
@@ -659,7 +656,7 @@ rationale: "stale rationale".into(),
                         let r = egui::SidePanel::left("controls")
                             .default_width(320.0)
                             .show(ctx, |ui| {
-                                egui::ScrollArea::vertical().show(ui, |ui| app.develop_panel(ui));
+                                egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
                             });
                         widths.push(r.response.rect.width());
                     },
@@ -697,7 +694,7 @@ rationale: "stale rationale".into(),
             |ctx| {
                 ctx.memory_mut(|m| m.set_everything_is_visible(true));
                 egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| app.develop_panel(ui));
+                    egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
                 });
             },
         );
@@ -758,7 +755,7 @@ rationale: "stale rationale".into(),
             let _ = ctx.run(input(), |ctx| {
                 egui::TopBottomPanel::bottom("variants")
                     .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.variant_strip(ui));
+                    .show(ctx, |ui| app.commands().variant_strip(ui));
             });
             let (rect, enabled) = app
                 .seams.strip_apply
@@ -780,7 +777,7 @@ rationale: "stale rationale".into(),
             let _ = ctx.run(input(), |ctx| {
                 egui::TopBottomPanel::bottom("variants")
                     .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.variant_strip(ui));
+                    .show(ctx, |ui| app.commands().variant_strip(ui));
             });
             assert!(
                 app.seams.strip_name_rect.is_some_and(|r| r.width() > 0.0),
@@ -834,7 +831,7 @@ rationale: "stale rationale".into(),
         // …while an async completion inserts a card ahead of it.
         app.editor.doc_mut().variants.insert(1, mk(VariantKind::Generated, "card-gen"));
         app.editor.doc_mut().active = 2;
-        app.commit_pending_names();
+        app.commands().commit_pending_names();
         assert_eq!(app.editor.doc().variants[1].name, None, "the renumbered neighbour is untouched");
         assert_eq!(
             app.editor.doc().variants[2].name.as_deref(),
@@ -973,7 +970,7 @@ rationale: "stale rationale".into(),
 
 
             }; editor } , ..Default::default() };
-        app.save_version();
+        app.commands().save_version();
         assert!(
             autoshade::store::list_versions(&src).is_empty(),
             "a generated card must not mint an empty snapshot"
@@ -990,7 +987,7 @@ rationale: "stale rationale".into(),
             id: "card-fit".into(),
             ..mk(crate::model::VariantKind::Fitted)
         }];
-        app.save_version();
+        app.commands().save_version();
         assert_eq!(autoshade::store::list_versions(&src), vec![1]);
         let meta = autoshade::store::read_version_meta(&src);
         assert_eq!(meta[0].from_kind.as_deref(), Some("fitted"));

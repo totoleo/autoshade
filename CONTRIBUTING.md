@@ -26,6 +26,21 @@ reason when `AUTOSHADE_FIT_CALIBRATION_DIR` is unset.
 
 ## What a change has to carry
 
+### Tests are behaviour acceptance
+
+- A test asserts what the software does: state, output, rendered UI, files on
+  disk. A red test must mean user-visible behaviour broke; if it can go red
+  while the product still works, it is not a test.
+- Do not read source text from a test: no `include_str!` of `.rs` files, no
+  source-tree walks, no `contains("fn …")`, no call-site counting. Those
+  punish equivalent refactors and train people to update the expectation
+  mechanically.
+- Architecture constraints (layer dependencies, single doors, forbidden
+  APIs) belong to the compiler or to a lint, not to the test suite. The
+  strength order is: types and visibility, then a lint, then a dedicated
+  architecture gate. A constraint with no executor stays unenforced and the
+  gap is recorded in the change description; it is not parked in the tests.
+
 - **A root cause, not a symptom.** A fix names the mechanism it corrects and
   sweeps every site of the same class in the same change.
 - **A test that would have caught it, and proof the test bites.** Every new

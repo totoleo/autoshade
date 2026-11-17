@@ -8,14 +8,9 @@ use crate::model::Variant;
 
 /// The per-photo document. `recipe` is the ACTIVE card's develop; `variants`
 /// holds every card (the original negative included); `active` indexes it.
+#[derive(Default)]
 pub(crate) struct Document {
     pub(crate) recipe: EditRecipe,
     pub(crate) variants: Vec<Variant>,
     pub(crate) active: usize,
-}
-
-impl Default for Document {
-    fn default() -> Self {
-        Self { recipe: EditRecipe::default(), variants: Vec::new(), active: 0 }
-    }
 }

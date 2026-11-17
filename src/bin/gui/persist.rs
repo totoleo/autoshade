@@ -963,7 +963,7 @@ pub(crate) fn fill_ai_rasters(dst: &mut EditRecipe, from: &EditRecipe) -> usize 
     n
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// The runner the workers call (a test's stand-in when one is set).
     pub(crate) fn ai_mask_runner(&self) -> AiMaskRunner {
         #[cfg(test)]

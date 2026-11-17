@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 
@@ -23,7 +23,7 @@ impl AutoShadeApp {
             return;
         }
         // A handle, not a borrow of `self`: the range reference below asks
-        // `self.film_short_edge()`, which caches into `self`.
+        // `self.editor.film_short_edge()`, which caches into `self`.
         let Some(base) = self.editor.photo().base_preview.clone() else {
             self.workspace.overlay_mut().mask_overlay_tex = None;
             self.workspace.overlay_mut().overlay_key = None;
@@ -93,14 +93,14 @@ impl AutoShadeApp {
                 // LINEAR's handle-only raw-frame rule; RADIAL remains stored.
                 // The canvas's own film edge: the Detail passes ran before this
                 // mask on the canvas, at that scale, so the range must too.
-                let film = self.film_short_edge();
+                let film = self.editor.film_short_edge();
                 let raw_source = self.editor.source_is_raw();
                 let composed = autoshade::render::geometry_profile(&self.editor.doc().recipe);
                 let img = autoshade::render::develop_preview_framed(
                     &base,
                     &pre,
                     &autoshade::diag::pixels(),
-                    self.sampled_frame(&composed),
+                    self.editor.sampled_frame(&composed),
                     film,
                     raw_source,
                 );
@@ -133,7 +133,7 @@ impl AutoShadeApp {
         // and needs no warp, as the canvas's own pixels need none.
         let cov_geom = autoshade::render::geometry_profile(&self.editor.doc().recipe);
         let cov_frame =
-            autoshade::render::MaskFrame::of_base(&cov_geom, self.editor.doc().recipe.lens_distortion, self.base_corrected());
+            autoshade::render::MaskFrame::of_base(&cov_geom, self.editor.doc().recipe.lens_distortion, self.editor.base_corrected());
         let mut cov = image::DynamicImage::ImageLuma8(autoshade::render::mask_coverage(
             &mask, cov_ref, cov_frame,
         ));
@@ -184,7 +184,7 @@ impl AutoShadeApp {
             return;
         };
 
-        let uv = self.editor.view_uv(&mut self.workspace);
+        let uv = self.editor.view_uv(self.workspace);
         // Display size fits the VISIBLE window's aspect (in image pixels).
         let vis_px = egui::vec2(uv.width() * tex_size.x, uv.height() * tex_size.y);
         // Past fit the 4× upscale cap is DROPPED (L13-2): the cap tamed tiny
@@ -285,7 +285,7 @@ impl AutoShadeApp {
                     .clicked()
                 {
                     let ctx = ui.ctx().clone();
-                    self.panel_view(&mut Vec::new()).toggle_clipping(&ctx); // instant — no redevelop
+                    self.with_panel(&ctx, |p| p.toggle_clipping(&ctx)); // instant — no redevelop
                 }
                 ui.label(egui::RichText::new(format!("{:.0}%", scale * 100.0)).weak().small());
                 // --- preview resolution (gap batch E): 1:1 that actually
@@ -422,7 +422,7 @@ impl AutoShadeApp {
             && ui.input(|i| i.key_down(egui::Key::Space));
         let ctrl = ui.input(|i| i.modifiers.command);
         let over_knob = self.workspace.masks().mask_drag.is_some()
-            || self.editor.sel_target_geometry(&self.workspace).is_some_and(|g| {
+            || self.editor.sel_target_geometry(self.workspace).is_some_and(|g| {
                 let (dims, deg, dist) = self.editor.geom_ctx();
                 // Probe BOTH positions: egui reports drag_started only
                 // after ~6 px of travel, so a fast flick's CURRENT pointer
@@ -484,11 +484,12 @@ impl AutoShadeApp {
         } else if self.workspace.tools().lens_focus_picking {
             self.editor.draw_lens_focus(ui, xf);
             if let Some(action) = self.editor.handle_lens_focus_pick(ui, &resp, xf) {
-                self.apply_actions(vec![action]);
+                let effects = self.apply_lens(action);
+                self.run_effects(effects);
             }
         } else if self.workspace.tools().clone_mode {
             self.handle_clone(ui, &resp, xf);
-            self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
+            self.editor.ensure_mask_tex(self.workspace, ui.ctx());
             if let Some(t) = &self.workspace.overlay().mask_tex {
                 ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
             }
@@ -498,7 +499,7 @@ impl AutoShadeApp {
             }
         } else if self.workspace.masks().paint_mode {
             self.handle_paint(&resp, xf);
-            self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
+            self.editor.ensure_mask_tex(self.workspace, ui.ctx());
             if let Some(t) = &self.workspace.overlay().mask_tex {
                 ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
             }
@@ -624,61 +625,16 @@ impl AutoShadeApp {
     /// card's own pixel source: the source neutral, or a baked master): WB
     /// runs before develop, so the solve must see pre-develop pixels, not
     /// the current edit.
-    /// Is the canvas base in the lens-CORRECTED frame (v1.17.0)? A RAW source's
-    /// base never is; a baked master is when its own marker says so
-    /// (`render::SourceFrame`). A source
-    /// whose frame cannot be read is not drawn at all (`start_redevelop`).
-    pub(crate) fn base_corrected(&self) -> bool {
-        self.source_frame().is_ok_and(|f| f.corrected())
-    }
-
-    /// An ORIGINAL-frame point → the point on the canvas base that shows the
-    /// same content: itself, or where the lens correction put it.
-    pub(crate) fn orig_to_base_norm(&self, (nx, ny): (f32, f32)) -> (f32, f32) {
-        if !self.base_corrected() {
-            return (nx, ny);
-        }
-        let (dims, _, dist) = self.editor.geom_ctx();
-        autoshade::render::lens_ungeom_norm(nx, ny, dims, &dist.profile, dist.amount)
-    }
-
-    /// The mask frame of a SAMPLED develop over the canvas base (no geometry
-    /// stage follows): `MaskFrame::Corrected` on a corrected base, else
-    /// `MaskFrame::AsRendered`.
-    fn sampled_frame<'a>(&self, composed: &'a autoshade::recipe::LensProfile) -> autoshade::render::MaskFrame<'a> {
-        if self.base_corrected() {
-            autoshade::render::MaskFrame::Corrected { profile: composed }
-        } else {
-            autoshade::render::MaskFrame::AsRendered
-        }
-    }
-
-    /// The canvas base in the ORIGINAL frame, for the helpers that draw a
-    /// raster the recipe stores there (segmentation, depth, the face find): a
-    /// corrected base mapped back through the engine's own inverse
-    /// (`render::corrected_to_sensor_frame`), otherwise the base itself.
-    pub(crate) fn original_frame_base(&self) -> Option<Arc<image::DynamicImage>> {
-        let base = self.editor.photo().base_preview.clone()?;
-        if !self.base_corrected() {
-            return Some(base);
-        }
-        let geom = autoshade::render::geometry_profile(&self.editor.doc().recipe);
-        Some(match autoshade::render::corrected_to_sensor_frame(&base, &geom, 0.0) {
-            Some((img, _)) => Arc::new(image::DynamicImage::ImageRgb8(img.to_rgb8())),
-            None => base,
-        })
-    }
-
-
     pub(crate) fn handle_wb_pick(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
         let Some(orig) = self.editor.clicked_orig_norm(ui, resp, xf) else { return };
-        let (nx, ny) = self.orig_to_base_norm(orig);
+        let (nx, ny) = self.editor.orig_to_base_norm(orig);
         let px = {
             let Some(base) = &self.editor.photo().base_preview else { return };
             let Some(px) = sample_5x5_mean(base, nx, ny) else { return };
             px
         };
-        self.apply_actions(vec![logic::Action::Pick(logic::pick::PickAction::WhiteBalance(px))]);
+        let effects = self.apply_pick(logic::pick::PickAction::WhiteBalance(px));
+                self.run_effects(effects);
     }
 
     /// Colour-range sample: click keys the pending mask's Color range to that
@@ -711,30 +667,31 @@ impl AutoShadeApp {
                 // The explicit no-downstream frame and film edge for the same
                 // reasons as the overlay build above, and they must MATCH it —
                 // they share cache.
-                let film = self.film_short_edge();
+                let film = self.editor.film_short_edge();
                 let raw_source = self.editor.source_is_raw();
                 let composed = autoshade::render::geometry_profile(&self.editor.doc().recipe);
                 let img = autoshade::render::develop_preview_framed(
                     &base,
                     &pre,
                     &autoshade::diag::pixels(),
-                    self.sampled_frame(&composed),
+                    self.editor.sampled_frame(&composed),
                     film,
                     raw_source,
                 );
                 self.workspace.overlay_mut().overlay_ref = Some((pre, img));
             }
-            let (bx, by) = self.orig_to_base_norm((nx, ny));
+            let (bx, by) = self.editor.orig_to_base_norm((nx, ny));
             let reference = &self.workspace.overlay().overlay_ref.as_ref().expect("range reference cached").1;
             let Some(smp) = sample_5x5_mean(reference, bx, by) else { return };
             smp
         };
-        self.apply_actions(vec![logic::Action::Pick(logic::pick::PickAction::RangeColor {
+        let effects = self.apply_pick(logic::pick::PickAction::RangeColor {
             mask: mi,
             rgb: smp,
             px: nx,
             py: ny,
-        })]);
+        });
+                self.run_effects(effects);
     }
 
     /// Point Color eyedropper (v1.5.0): click a colour and a swatch keyed to
@@ -753,22 +710,23 @@ impl AutoShadeApp {
         let px = {
             let Some(base) = self.editor.photo().base_preview.clone() else { return };
             let reference = autoshade::render::point_color_sampling_recipe(&self.editor.doc().recipe);
-            let film = self.film_short_edge();
+            let film = self.editor.film_short_edge();
             let raw_source = self.editor.source_is_raw();
             let composed = autoshade::render::geometry_profile(&self.editor.doc().recipe);
             let img = autoshade::render::develop_preview_framed(
                 &base,
                 &reference,
                 &autoshade::diag::pixels(),
-                self.sampled_frame(&composed),
+                self.editor.sampled_frame(&composed),
                 film,
                 raw_source,
             );
-            let (bx, by) = self.orig_to_base_norm((nx, ny));
+            let (bx, by) = self.editor.orig_to_base_norm((nx, ny));
             let Some(px) = sample_5x5_mean(&img, bx, by) else { return };
             px
         };
-        self.apply_actions(vec![logic::Action::Pick(logic::pick::PickAction::PointColor(px))]);
+        let effects = self.apply_pick(logic::pick::PickAction::PointColor(px));
+                self.run_effects(effects);
     }
 
 
@@ -785,7 +743,7 @@ impl AutoShadeApp {
         if self.workspace.overlay().region_drag.is_some() {
             return false;
         }
-        let Some(target_geom) = self.editor.sel_target_geometry(&self.workspace).cloned() else {
+        let Some(target_geom) = self.editor.sel_target_geometry(self.workspace).cloned() else {
             self.workspace.masks_mut().mask_drag = None;
             return false;
         };
@@ -838,7 +796,7 @@ impl AutoShadeApp {
             let cur = orig_at(p);
             // The knob's geometry is the logic layer's (`logic/mask_edit`).
             if let Some(mask) = self.workspace.masks().sel_mask {
-                self.apply_actions(vec![logic::Action::MaskEdit(
+                let effects = self.apply_mask_edit(
                     logic::mask_edit::MaskEditAction::Drag {
                         mask,
                         component: self.workspace.masks().sel_component,
@@ -846,7 +804,8 @@ impl AutoShadeApp {
                         last,
                         cur,
                     },
-                )]);
+                );
+                self.run_effects(effects);
             }
             self.workspace.masks_mut().mask_drag = Some((h, cur));
             // Masks are develop stages: the preview follows every drag frame.
@@ -901,7 +860,8 @@ impl AutoShadeApp {
                     map(egui::pos2(s.x, e.y)),
                     map(egui::pos2(e.x, s.y)),
                 ];
-                self.apply_actions(vec![logic::Action::Region(logic::region::RegionAction::Select(corners))]);
+                let effects = self.apply_region(logic::region::RegionAction::Select(corners));
+                self.run_effects(effects);
             }
         } else if resp.clicked() && !resp.double_clicked() {
             // Remember what this click cleared: if it turns out to be the
@@ -948,11 +908,12 @@ impl AutoShadeApp {
             // The box is the logic layer's geometry (`logic::crop`); this view
             // keeps the pick, the handles and the overlay.
             let current = self.editor.doc().recipe.crop.map(|c| [c.left, c.top, c.right, c.bottom]);
-            self.apply_actions(vec![logic::Action::Crop(logic::crop::CropAction::Preset {
+            let effects = self.apply_crop(logic::crop::CropAction::Preset {
                 current,
                 aspect_px: aspect,
                 tex: (tex_size.x, tex_size.y),
-            })]);
+            });
+            self.run_effects(effects);
         }
         let cur = self.editor.doc().recipe
             .crop
@@ -1037,19 +998,21 @@ impl AutoShadeApp {
                 let centre = egui::pos2((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
                 let ang = |q: egui::Pos2| (q.y - centre.y).atan2(q.x - centre.x);
                 let raw_delta_deg = (ang(p) - ang(start)).to_degrees();
-                self.apply_actions(vec![logic::Action::Crop(logic::crop::CropAction::Rotate {
+                let effects = self.apply_crop(logic::crop::CropAction::Rotate {
                     base_deg: deg0,
                     raw_delta_deg,
-                })]);
+                });
+            self.run_effects(effects);
             } else {
                 let (sn, pn) = (xf.to_norm(start), xf.to_norm(p));
-                self.apply_actions(vec![logic::Action::Crop(logic::crop::CropAction::Drag {
+                let effects = self.apply_crop(logic::crop::CropAction::Drag {
                     handle: h,
                     start: orig,
                     delta: (pn.0 - sn.0, pn.1 - sn.1),
                     aspect_px: aspect,
                     tex: (tex_size.x, tex_size.y),
-                })]);
+                });
+            self.run_effects(effects);
             }
         }
         if resp.drag_stopped() {

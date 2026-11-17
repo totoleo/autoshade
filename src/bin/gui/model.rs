@@ -603,6 +603,7 @@ impl Default for ShellState {
 /// warnings (the shown flag, the last pixels and their texture). The status
 /// line itself stays on the app — it is a per-frame read for nearly every
 /// action.
+#[derive(Default)]
 pub(crate) struct ChromeState {
     pub(crate) startup_note: Option<String>,
     pub(crate) toasts: Vec<Toast>,
@@ -632,24 +633,12 @@ impl ChromeState {
     }
 }
 
-impl Default for ChromeState {
-    fn default() -> Self {
-        Self {
-            startup_note: None,
-            toasts: Vec::new(),
-            histogram: None,
-            last_title: String::new(),
-            show_clipping: false,
-            last_rgb: None,
-            clip_tex: None,
-        }
-    }
-}
 
 /// The named-recipe library panel: whether it is open, the loaded list and its
 /// read/filter/selection, the name field, the inline rename and delete-armed
 /// rows, and the preview pane's texture. Extracted from `AutoShadeApp` so
 /// recipe-library work does not add fields to the app struct.
+#[derive(Default)]
 pub(crate) struct RecipeLibraryState {
     pub(crate) show_recipes: bool,
     pub(crate) recipes: Vec<autoshade::recipe_library::Stored>,
@@ -662,21 +651,6 @@ pub(crate) struct RecipeLibraryState {
     pub(crate) recipe_preview: Option<RecipePreview>,
 }
 
-impl Default for RecipeLibraryState {
-    fn default() -> Self {
-        Self {
-            show_recipes: false,
-            recipes: Vec::new(),
-            recipes_loaded: false,
-            recipes_filter: String::new(),
-            recipe_sel: None,
-            recipe_name_buf: String::new(),
-            recipe_rename: None,
-            recipe_delete_armed: None,
-            recipe_preview: None,
-        }
-    }
-}
 
 /// The reverse-fit state: the persisted dials (zoned fit, the four-region
 /// expansion, the AI judge, deep think, reimagine retry, ask-after-generate)
@@ -714,6 +688,7 @@ impl Default for FitState {
 /// the version name dialog and its filter, the variant name/delete dialogs and
 /// the one-shot keep-recipe flag a preview re-decode sets. The variant list
 /// itself stays on the app (it is the open photo's core state).
+#[derive(Default)]
 pub(crate) struct CardsState {
     pub(crate) keep_recipe: bool,
     pub(crate) versions: Vec<u32>,
@@ -724,19 +699,6 @@ pub(crate) struct CardsState {
     pub(crate) variant_delete_confirm: Option<usize>,
 }
 
-impl Default for CardsState {
-    fn default() -> Self {
-        Self {
-            keep_recipe: false,
-            versions: Vec::new(),
-            version_meta: HashMap::new(),
-            version_name_buf: None,
-            versions_current_only: false,
-            variant_name_buf: None,
-            variant_delete_confirm: None,
-        }
-    }
-}
 
 /// The persisted AI preferences, mirrored on the app so the panels read them
 /// without loading `Prefs`: the guide, the three strengths, the adherence dial
@@ -780,6 +742,7 @@ impl Default for AiPrefs {
 /// facts, the Before baseline, the open window's flags and the discard request.
 /// Extracted from `AutoShadeApp` so open-path work does not add fields to the
 /// app struct.
+#[derive(Default)]
 pub(crate) struct OpenState {
     pub(crate) nav_stash: HashMap<PathBuf, StashEntry>,
     pub(crate) master_loads: std::collections::HashSet<(PathBuf, PathBuf)>,
@@ -799,33 +762,12 @@ pub(crate) struct OpenState {
     pub(crate) discard_requested: bool,
 }
 
-impl Default for OpenState {
-    fn default() -> Self {
-        Self {
-            nav_stash: HashMap::new(),
-            master_loads: std::collections::HashSet::new(),
-            master_cache: Vec::new(),
-            open_unresolved: false,
-            pasted_open: None,
-            photo_start: Default::default(),
-            source_part: Default::default(),
-            source_part_inflight: None,
-            photo_lens: Default::default(),
-            photo_as_shot: None,
-            before_start: EditRecipe::default(),
-            base_cache: Vec::new(),
-            open_in_flight: false,
-            open_same_path: false,
-            edge_before_flight: None,
-            discard_requested: false,
-        }
-    }
-}
 
 /// The AI section's non-persisted state: the reference library's summary and
 /// build flight, the free-text direction, and the Color Mixer / grade tab
 /// indices the panel remembers. Extracted from `AutoShadeApp` so AI-panel work
 /// does not add fields to the app struct.
+#[derive(Default)]
 pub(crate) struct AiState {
     pub(crate) style_info: Option<autoshade::library::Summary>,
     pub(crate) style_info_loading: bool,
@@ -836,19 +778,6 @@ pub(crate) struct AiState {
     pub(crate) grade_region: usize,
 }
 
-impl Default for AiState {
-    fn default() -> Self {
-        Self {
-            style_info: None,
-            style_info_loading: false,
-            style_build_inflight: false,
-            style_build_progress: None,
-            guidance: String::new(),
-            hsl_tab: 0,
-            grade_region: 0,
-        }
-    }
-}
 
 /// Layout/behaviour seams the window tests read: measured rects and the
 /// actual enabled state of gated buttons. Compiled only under `cfg(test)`, so
@@ -869,6 +798,8 @@ pub(crate) struct TestSeams {
     pub(crate) adjust_btn_enabled: Option<bool>,
     pub(crate) brush_slider_rect: Option<egui::Rect>,
     pub(crate) analysis_box_rect: Option<egui::Rect>,
+    /// The last denoise strength a verb captured: (on_export, strength).
+    pub(crate) denoise_strength_asked: Option<(bool, f32)>,
     pub(crate) histogram_rect: Option<egui::Rect>,
     pub(crate) prompt_rects: Vec<egui::Rect>,
     pub(crate) ai_gate_enabled: Option<bool>,
@@ -883,6 +814,7 @@ pub(crate) struct TestSeams {
 /// The crop tool's state: whether the overlay is armed, the preset index and
 /// its pending re-derive, the guide style and the drag in flight. Extracted
 /// from `AutoShadeApp` so crop work does not add fields to the app struct.
+#[derive(Default)]
 pub(crate) struct CropState {
     pub(crate) mode: bool,
     pub(crate) aspect: usize,
@@ -891,17 +823,6 @@ pub(crate) struct CropState {
     pub(crate) drag: Option<(u8, egui::Pos2, [f32; 4], f32)>,
 }
 
-impl Default for CropState {
-    fn default() -> Self {
-        Self {
-            mode: false,
-            aspect: 0,
-            aspect_pending: false,
-            grid: 0,
-            drag: None,
-        }
-    }
-}
 
 /// The canvas's view state: zoom and pan (their glide target and the 1:1 scale),
 /// the controls-panel rect the arrow keys read, the latched Before view and the
@@ -2186,6 +2107,24 @@ pub(crate) const BASE_CACHE_CAP: usize = 4;
 /// px preference.
 pub(crate) const MASTER_CACHE_CAP: usize = 3;
 
+impl AiPrefs {
+    /// The Analysis fold's Strength dial as the typed axis the develop request
+    /// reads (R23-3). Nothing else reads it.
+    pub(crate) fn analysis_strength(&self) -> autoshade::recipe::GradeStrength {
+        autoshade::recipe::GradeStrength::new(self.grade_strength)
+    }
+
+    /// The Reverse-fit fold's OWN Strength dial as the fit's honesty budget
+    /// (F1). Separate from [`Self::analysis_strength`] on purpose — user
+    /// decision 2026-09-12: the two functions live in two folds, so each has
+    /// its own control and neither reading reaches the other. Through v1.3.1
+    /// both read one `panel_strength()`, and the fit's budget was a dial two
+    /// folds above the fit's own row.
+    pub(crate) fn fit_strength(&self) -> autoshade::recipe::GradeStrength {
+        autoshade::recipe::GradeStrength::new(self.fit_strength)
+    }
+}
+
 #[cfg(test)]
 mod pixel_identity_tests {
     use super::*;
@@ -2223,23 +2162,5 @@ mod pixel_identity_tests {
         assert!(a.same_pixels(&b));
         let c = step("out/_other.png", None);
         assert!(!a.same_pixels(&c));
-    }
-}
-
-impl AiPrefs {
-    /// The Analysis fold's Strength dial as the typed axis the develop request
-    /// reads (R23-3). Nothing else reads it.
-    pub(crate) fn analysis_strength(&self) -> autoshade::recipe::GradeStrength {
-        autoshade::recipe::GradeStrength::new(self.grade_strength)
-    }
-
-    /// The Reverse-fit fold's OWN Strength dial as the fit's honesty budget
-    /// (F1). Separate from [`Self::analysis_strength`] on purpose — user
-    /// decision 2026-09-12: the two functions live in two folds, so each has
-    /// its own control and neither reading reaches the other. Through v1.3.1
-    /// both read one `panel_strength()`, and the fit's budget was a dial two
-    /// folds above the fit's own row.
-    pub(crate) fn fit_strength(&self) -> autoshade::recipe::GradeStrength {
-        autoshade::recipe::GradeStrength::new(self.fit_strength)
     }
 }

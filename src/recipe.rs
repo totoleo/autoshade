@@ -10,6 +10,8 @@
 //!   * `exposure_ev`: stops of exposure, typically -5.0..=5.0, 0.0 = no change
 //!   * `temperature_k`: absolute white-balance target in Kelvin (None = as-shot)
 
+#![deny(clippy::print_stderr)]
+
 use serde::{Deserialize, Serialize};
 
 /// A complete, self-describing set of develop adjustments for one image.

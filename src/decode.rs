@@ -593,6 +593,7 @@ pub fn load_image_for_develop(path: &Path) -> Result<DynamicImage> {
 /// The 65,536-px dimension bounds and the 4 GiB allocation bound below are the
 /// ones that gate's doc argues for; they live here so neither consumer can
 /// drift off them.
+#[allow(clippy::disallowed_methods)] // the one baked-image construction door
 fn baked_reader(
     path: &Path,
 ) -> Result<image::ImageReader<std::io::BufReader<std::fs::File>>> {
@@ -2015,6 +2016,7 @@ fn describe_decoder_failure(path: &Path, e: &rawler::RawlerError) -> anyhow::Err
 /// path, `frame_size`, `raw_orientation`, the CR3/RAF XMP-packet read and the
 /// full-res render cannot answer the same file three different ways (they did:
 /// "no rawler decoder for …", "no decoder for …", and rawler's raw Display).
+#[allow(clippy::disallowed_methods)] // the one decoder construction door
 pub(crate) fn decoder_for<'a>(
     path: &Path,
     src: &'a RawSource,
@@ -2811,30 +2813,6 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// Two doors, one construction each: every `get_decoder` in this file goes
-    /// through `decoder_for` (the one wording for a refusal — the CR3/RAF
-    /// XMP-packet read had its own), and every baked `ImageReader` is
-    /// `baked_reader`'s (the one set of limits — `source_window` opened its
-    /// own, under the crate's 512 MB default). A second direct call of either
-    /// is the drift this pins against.
-    ///
-    /// MUTATION: call `rawler::get_decoder` or `image::ImageReader::open`
-    /// directly anywhere above the tests.
-    #[test]
-    fn decoder_and_baked_reader_construction_each_have_one_door() {
-        let src = crate::source_before_tests(include_str!("decode.rs"));
-        assert_eq!(
-            src.matches("get_decoder(").count(),
-            1,
-            "a `get_decoder` call outside `decoder_for`"
-        );
-        assert_eq!(
-            src.matches("ImageReader::open(").count(),
-            1,
-            "an `ImageReader` opened outside `baked_reader`"
-        );
     }
 
     /// The TIFF path is the one README's LR/Topaz round-trip actually takes,

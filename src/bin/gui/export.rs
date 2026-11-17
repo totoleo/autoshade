@@ -276,7 +276,7 @@ pub(crate) fn paste_payload(src: EditRecipe, paste_geometry: bool) -> PastePaylo
     }
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 
@@ -296,10 +296,14 @@ impl AutoShadeApp {
         // A ◈ card's master IS the denoised negative: the export-time denoise
         // would run SCUNet over it a second time, so it sits out and the
         // status says so (`export_denoise_applies`, 2026-09-15).
-        let denoise = self.editor.export_denoise_applies(&self.workspace);
+        let denoise = self.editor.export_denoise_applies(self.workspace);
         // The Export fold's OWN dial (the Detail fold's 「AI Denoise now」 has
         // its own), captured at the click like every other export input.
-        let denoise_strength = self.editor.selected_denoise_strength(&self.workspace, true);
+        let denoise_strength = self.editor.selected_denoise_strength(self.workspace, true);
+        #[cfg(test)]
+        {
+            self.seams.denoise_strength_asked = Some((true, denoise_strength));
+        }
         let export = self.workspace.export_opts();
         self.start_render_with(out, export, denoise.then_some(denoise_strength), self.workspace.exp().save_denoise, OutName::Guarded)
     }
@@ -795,7 +799,7 @@ impl AutoShadeApp {
     /// toolbar buttons differed only in where the path came from, so "ask"
     /// became a value of the setting instead of a second button.
     pub(crate) fn start_export(&mut self) {
-        match self.editor.export_route(&self.workspace, ) {
+        match self.editor.export_route(self.workspace, ) {
             ExportRoute::Render(out) => {
                 self.start_render_to(out);
             }
@@ -811,7 +815,7 @@ impl AutoShadeApp {
     pub(crate) fn export_to_chosen_path(&mut self) {
         let ext = self.workspace.exp().format.ext();
         let mut dlg =
-            rfd::FileDialog::new().add_filter(ext, &[ext]).set_file_name(self.editor.export_file_name(&self.workspace, ));
+            rfd::FileDialog::new().add_filter(ext, &[ext]).set_file_name(self.editor.export_file_name(self.workspace, ));
         // Reopen where the last export landed (阶段4) — persisted in Prefs, so
         // it survives restarts.
         if let Some(d) = self.workspace.exp().last_dir.clone().filter(|d| d.is_dir()) {
@@ -888,7 +892,7 @@ impl AutoShadeApp {
                     self.editor.session_mut().hist.pixels_on_disk = None;
                     self.editor.session_mut().hist.saved_strip = None;
                     self.workspace.open_mut().nav_stash.remove(&path);
-                    self.editor.forget_open_base(&mut self.workspace);
+                    self.editor.forget_open_base(self.workspace);
                     match o.marker_warning {
                         // NEVER a plain success: the store copies are gone, but
                         // without the marker a projection copied beside the RAW
@@ -1197,7 +1201,7 @@ impl AutoShadeApp {
                         )
                     ));
                 }
-                self.editor.forget_open_base(&mut self.workspace);
+                self.editor.forget_open_base(self.workspace);
                 self.workspace.set_status(s);
             }
             Err(e) => {
@@ -1282,7 +1286,7 @@ impl AutoShadeApp {
         // "Keep skin natural" (Portraits) holds each target's write where it
         // is written, by that target's own switch (`skin_held_for`).
         let skin_held: std::collections::HashSet<PathBuf> =
-            targets.iter().filter(|t| self.skin_held_for(t)).cloned().collect();
+            targets.iter().filter(|t| self.editor.skin_held_for(self.workspace, t)).cloned().collect();
         if n_raster > 0 && has_foreign_target {
             self.workspace.toast(
                 ToastKind::Error,
@@ -1355,7 +1359,7 @@ impl AutoShadeApp {
             self.fork_edited_card();
             // Wholesale recipe replacement: disarm index-carrying tools and
             // refresh derived display, like every other whole-swap path.
-            self.resync_recipe_display();
+            self.editor.resync_recipe_display(self.workspace);
             self.workspace.open_mut().pasted_open = Some((open, live));
         }
         let lang = self.lang; // pre-spawn UI statuses only; results land as FACTS (L12#4)

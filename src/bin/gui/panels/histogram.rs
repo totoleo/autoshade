@@ -2,7 +2,7 @@
 
 use crate::*;
 
-impl PanelView<'_, '_> {
+impl PanelView<'_> {
     /// Draw the live histogram (R/G/B filled, luma outline; one bin per 8-bit
     /// code value on ONE shared vertical scale) — the tone readout a photo
     /// editor is expected to have. Sqrt-scaled so shadow detail reads.

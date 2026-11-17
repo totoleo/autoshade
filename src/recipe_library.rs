@@ -423,8 +423,7 @@ mod tests {
 
     #[test]
     fn a_zone_mask_without_its_raster_travels_and_one_with_it_does_not() {
-        let mut zone = LocalAdjustment::default();
-        zone.role = MaskRole::ZoneSky;
+        let mut zone = LocalAdjustment { role: MaskRole::ZoneSky, ..Default::default() };
         zone.mask = MaskGeometry::AiMask {
             name: "Sky 1".into(),
             subtype: 2,

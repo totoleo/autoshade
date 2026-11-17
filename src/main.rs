@@ -1316,6 +1316,7 @@ fn session_replay_cmd(
     println!("recipe <- {}", recipe_from.display());
     Ok(())
 }
+#[allow(clippy::disallowed_methods)] // the CLI harness runner, not the desktop app
 fn pi_analyze_cmd(photo: &Path, harness: Option<PathBuf>) -> Result<()> {
     let cfg = Config::load();
     let photo = photo

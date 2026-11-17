@@ -7767,7 +7767,7 @@ fn one_sided_band_pair() -> (DynamicImage, DynamicImage) {
     )
 }
 
-fn hsl_note<'a>(report: &'a FitReport, key: crate::text::Key) -> Option<&'a crate::rationale::Note> {
+fn hsl_note(report: &FitReport, key: crate::text::Key) -> Option<&crate::rationale::Note> {
     report.notes.iter().find(|n| n.key == key)
 }
 

@@ -57,7 +57,7 @@ fn platform_modifier(s: &'static str) -> &'static str {
         std::sync::OnceLock::new();
     let mut cache =
         CACHE.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
-    *cache
+    cache
         .entry(s)
         .or_insert_with(|| Box::leak(s.replace("Ctrl+", "Cmd+").into_boxed_str()))
 }

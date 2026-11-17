@@ -690,6 +690,7 @@ fn a_locked_touch_finishes_a_pending_adoption_first() {
 /// A fenced dir with the marker naming `old`, and a second thread holding
 /// `old`'s develop lock the way a resume in another process would — the
 /// fixture both Wait-mode resume tests share.
+#[allow(clippy::disallowed_methods)] // the fixture models another process with a thread
 fn fenced_dir_with_held_source(
     tag: &str,
     hold: impl FnOnce(&Path, &Path) + Send + 'static,
@@ -3454,6 +3455,7 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
     }
 
     #[test]
+    #[allow(clippy::disallowed_methods)] // contention needs a second thread
     fn a_nonblocking_develop_lock_reports_contention_and_recovers_after_drop() {
         let root = std::env::temp_dir().join(format!("autoshade-store-test-lock-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
@@ -3489,6 +3491,7 @@ fn backup_snapshot_is_a_copy_and_freezes_rasters() {
     /// thread (a writer's cycle contains the loader's rescue), and
     /// NoWait-refusing while held.
     #[test]
+    #[allow(clippy::disallowed_methods)] // contention needs a second thread
     fn a_settings_lock_serializes_writers_and_reenters_on_its_thread() {
         let root = std::env::temp_dir().join(format!("autoshade-store-test-settings-lock-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);

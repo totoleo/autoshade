@@ -117,6 +117,7 @@ fn load_layer_image(path: &str, diag: &crate::diag::Diag<'_>) -> Option<std::syn
 /// what the canvas showed would be the wrong file; the preview skips it with
 /// one line on `diag` and gets `None`.
 #[allow(clippy::too_many_arguments)] // the budget's three, the policy's two, and the decode
+#[allow(clippy::disallowed_methods)] // header-only raster probe
 pub(super) fn load_budgeted<T>(
     path: &str,
     kind: &RasterKind,

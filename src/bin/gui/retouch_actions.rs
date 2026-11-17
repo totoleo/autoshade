@@ -46,7 +46,7 @@ fn developed_card_pixels(
     autoshade::render::Master::of(image, &frame, &part)
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 pub(crate) fn start_fill(&mut self) {
@@ -87,7 +87,7 @@ pub(crate) fn start_fill(&mut self) {
         // The card's live develop, captured at the click like every other
         // input the worker reads; the source kind decides the working size.
         let recipe = self.editor.doc().recipe.clone();
-        let edge = self.editor.canvas_edge(&self.workspace); // show at the CANVAS's res (canvas_edge)
+        let edge = self.editor.canvas_edge(self.workspace); // show at the CANVAS's res (canvas_edge)
         let out_claim = out.clone(); // release the claim on failure (worker tail)
         let out_panic = out.clone(); // …and on a worker panic (see the error closure)
         let (epoch, flag) = self.workspace.arm_cancel();
@@ -161,7 +161,7 @@ pub(crate) fn start_fill(&mut self) {
 pub(crate) fn start_adjust(&mut self) {
         let Some(src) = self.editor.photo().src_path.clone() else { return };
         let Some(path) = self.editor.active_source_path() else { return };
-        if !self.editor.can_adjust(&self.workspace, ) || self.refuse_pixel_work_on_a_turned_photo() {
+        if !self.editor.can_adjust(self.workspace, ) || self.refuse_pixel_work_on_a_turned_photo() {
             return;
         }
         let lang = self.lang;
@@ -176,7 +176,7 @@ pub(crate) fn start_adjust(&mut self) {
         self.workspace.set_status(tr(lang, K_ACTIONS_ADJUSTING_GENERATED_IMAGE_VIA_GPT_IMAGE_HIGH_QUA).into());
         let quality = ["high", "medium", "low"][self.workspace.genai().adjust_quality.min(2)].to_string();
         let recipe = self.editor.doc().recipe.clone();
-        let edge = self.editor.canvas_edge(&self.workspace);
+        let edge = self.editor.canvas_edge(self.workspace);
         let out_claim = out.clone();
         let out_panic = out.clone();
         let (epoch, flag) = self.workspace.arm_cancel();
@@ -271,7 +271,7 @@ pub(crate) fn start_heal(&mut self, use_mask: bool, limit: Option<PathBuf>) {
         let runner: Option<crate::panels::portrait::HealRunner> = None;
         let in_face = limit.is_some();
         let full_res = self.workspace.genai().heal_fullres;
-        let edge = self.editor.canvas_edge(&self.workspace); // bake at the CANVAS's res (canvas_edge)
+        let edge = self.editor.canvas_edge(self.workspace); // bake at the CANVAS's res (canvas_edge)
         let out_claim = out.clone(); // release the claim on failure (worker tail)
         let out_panic = out.clone(); // …and on a worker panic (see the error closure)
         // The master is baked over the canvas's own base (v1.17.0): its
@@ -356,8 +356,12 @@ pub(crate) fn start_ai_denoise(&mut self) {
         let on_mosaic = autoshade::decode::is_raw(&path);
         // This fold's OWN dial (the Export fold's 「on export」 has its own):
         // captured at the click, like every other input the worker reads.
-        let strength = self.editor.selected_denoise_strength(&self.workspace, false);
-        let edge = self.editor.canvas_edge(&self.workspace); // show at the CANVAS's res (canvas_edge)
+        let strength = self.editor.selected_denoise_strength(self.workspace, false);
+        #[cfg(test)]
+        {
+            self.seams.denoise_strength_asked = Some((false, strength));
+        }
+        let edge = self.editor.canvas_edge(self.workspace); // show at the CANVAS's res (canvas_edge)
         let out_claim = out.clone(); // release the claim on failure (worker tail)
         let out_panic = out.clone(); // …and on a worker panic (see the error closure)
         // The master is baked over the canvas's own base (v1.17.0): its
@@ -416,7 +420,7 @@ pub(crate) fn start_stack(&mut self, extra: Vec<PathBuf>) {
             K_ACTIONS_STACKING_FRAMES_LOCAL_PIXEL_COMPUTE_MINUTES_AT_F,
             &[("n", &frames.to_string())],
         );
-        let edge = self.editor.canvas_edge(&self.workspace); // show at the CANVAS's res (canvas_edge)
+        let edge = self.editor.canvas_edge(self.workspace); // show at the CANVAS's res (canvas_edge)
         let out_claim = out.clone(); // release the claim on failure (worker tail)
         let out_panic = out.clone(); // …and on a worker panic (see the error closure)
         // The master is baked over the canvas's own base (v1.17.0): its
@@ -499,7 +503,7 @@ pub(crate) fn start_clone(&mut self) {
         self.workspace.set_busy(true);
         self.workspace.set_status(tr(lang, K_ACTIONS_CLONING_LOCAL_PIXEL_COMPUTE).into());
         let full_res = self.workspace.tools().clone_fullres;
-        let edge = self.editor.canvas_edge(&self.workspace); // bake at the CANVAS's res (canvas_edge)
+        let edge = self.editor.canvas_edge(self.workspace); // bake at the CANVAS's res (canvas_edge)
         let out_claim = out.clone(); // release the claim on failure (worker tail)
         let out_panic = out.clone(); // …and on a worker panic (see the error closure)
         // The master is baked over the canvas's own base (v1.17.0): its
@@ -642,7 +646,7 @@ pub(crate) fn start_reimagine(&mut self) {
     }
 
 pub(crate) fn start_style_prompt(&mut self) {
-        let (Some(base), Some(tgt)) = (self.editor.photo().source_preview.clone(), self.editor.fit_target(&self.workspace))
+        let (Some(base), Some(tgt)) = (self.editor.photo().source_preview.clone(), self.editor.fit_target(self.workspace))
         else {
             return;
         };

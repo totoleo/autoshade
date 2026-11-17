@@ -365,6 +365,7 @@ pub fn dead_bitmap_rasters(m: &crate::recipe::LocalAdjustment) -> Vec<String> {
 /// heal/clone plan masks, generative fill masks, reverse-fit sky masks.
 /// (The probe and the decode are two opens; a file swapped between them is
 /// the develop-store TOCTOU boundary, not this size gate's.)
+#[allow(clippy::disallowed_methods)] // the bounded mask raster door
 pub fn open_mask_bounded(path: &std::path::Path) -> anyhow::Result<image::DynamicImage> {
     let (w, h) = image::ImageReader::open(path)?.into_dimensions()?;
     check_mask_dims(w, h, &path.display().to_string())?;
@@ -405,6 +406,7 @@ fn raster_bytes(w: u32, h: u32) -> usize {
 /// Charged BEFORE the decode on purpose: the budget used to be spent only after
 /// `image::open` had allocated the full raster, so one compressed large file
 /// drove peak memory far past the advertised cap before being rejected.
+#[allow(clippy::disallowed_methods)] // header-only raster probe
 fn raster_projected_bytes(path: &str) -> Option<usize> {
     let reader = image::ImageReader::open(std::path::Path::new(path)).ok()?;
     let (w, h) = reader.into_dimensions().ok()?;
@@ -615,6 +617,7 @@ pub(super) fn load_mask_raster_snapshot_with_budget(
 ///
 /// The file is read through THE mask-raster entry ([`super::open_mask_raster`]),
 /// so the bitmap carries the frame its marker names (v1.17.0).
+#[allow(clippy::disallowed_methods)] // header-only budget precheck
 pub(super) fn load_mask_bitmap(
     g: &MaskGeometry,
     diag: &crate::diag::Diag<'_>,

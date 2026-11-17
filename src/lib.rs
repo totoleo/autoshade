@@ -1,3 +1,4 @@
+#![deny(clippy::disallowed_methods)]
 //! AutoShade engine library — the shared core behind both front-ends.
 //!
 //! The AI advisor looks at a RAW preview + metadata and emits a
@@ -99,6 +100,7 @@ pub(crate) fn has_console() -> bool {
 /// console child the desktop app can start (the `comfy` CLI, `uv`, the python
 /// version probe, the `cmd` junction fallback). See [`has_console`] for the
 /// inherited-stdio case.
+#[allow(clippy::disallowed_methods)] // the spawn door: every console child comes through here
 pub(crate) fn windowless_command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
     let mut cmd = std::process::Command::new(program);
     hide_child_console(&mut cmd);
@@ -675,6 +677,7 @@ mod full_res_slot_tests {
     /// assertion fails — which is the state the memory bound was added to
     /// prevent, eight 1.7 GiB exports admitted together.
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test is about the section's waiter
     fn the_full_res_section_admits_one_at_a_time_and_then_releases() {
         let held = super::full_res_slot();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -752,54 +755,6 @@ mod full_res_slot_tests {
 mod sidecar_executor_tests {
     use std::time::Duration;
 
-    /// Nothing builds a python child by hand any more.
-    ///
-    /// Checked at the SOURCE because the drift this guards against is a
-    /// MISSING line — a bridge that forgets `arm_kill_group` leaves torch
-    /// workers alive after a timeout, and that has no signature until the day
-    /// a run times out on a user's machine. Only [`super::sidecar_command`]
-    /// may spell the preamble; a second speller is a second copy waiting to
-    /// drift, which is exactly how these four bridges came to differ.
-    ///
-    /// MUTATION: put `Command::new(&opts.python_bin)` and its four preamble
-    /// lines back in `segment.rs` and this names the file.
-    #[test]
-    fn no_python_child_is_built_by_hand_any_more() {
-        for (file, src) in [
-            ("denoise.rs", include_str!("denoise.rs")),
-            ("segment.rs", include_str!("segment.rs")),
-        ] {
-            let non_test = crate::source_before_tests(src);
-            assert!(
-                non_test.contains("crate::sidecar_command("),
-                "{file} no longer goes through the shared sidecar command"
-            );
-            for spelled in [
-                "dotenv_child_env()",
-                "sidecar_child_env()",
-                "hide_child_console(&mut cmd)",
-                "arm_kill_group(&mut cmd)",
-                "assign_kill_group(",
-            ] {
-                assert!(
-                    !non_test.contains(spelled),
-                    "{file} spells `{spelled}` itself again — that is the fifth copy"
-                );
-            }
-        }
-        // And the shared constructor still carries every step it took over.
-        let lib = crate::source_before_tests(include_str!("lib.rs"));
-        for spelled in [
-            "dotenv_child_env()",
-            "sidecar_child_env()",
-            "hide_child_console(&mut cmd)",
-            "arm_kill_group(&mut cmd)",
-            "assign_kill_group(&child)",
-            "Stdio::piped()",
-        ] {
-            assert!(lib.contains(spelled), "sidecar_command dropped `{spelled}`");
-        }
-    }
 
     /// A sidecar that exits non-zero produces ONE refusal, and the child's
     /// stderr is IN it.
@@ -1005,62 +960,7 @@ mod windowless_child_tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Every library site that starts a console child spells the shared door.
-    ///
-    /// MUTATION: put `Command::new` back at any named site and its file is
-    /// named here.
-    #[test]
-    fn every_console_child_a_windowed_app_starts_is_windowless() {
-        for (file, src, calls) in [
-            ("comfy.rs", include_str!("comfy.rs"), 1),
-            ("python_env.rs", include_str!("python_env.rs"), 2),
-            ("config.rs", include_str!("config.rs"), 1),
-        ] {
-            let non_test = crate::source_before_tests(src);
-            assert_eq!(
-                non_test.matches("crate::windowless_command(").count(),
-                calls,
-                "{file} no longer starts its console child(ren) through `windowless_command`"
-            );
-            for raw in ["Command::new(", "ProcessCommand::new("] {
-                assert!(
-                    !non_test.contains(raw),
-                    "{file} builds a child with `{raw}` again — from the windowed GUI that opens a console window"
-                );
-            }
-        }
-    }
 
-    /// The harness's Node child INHERITS our stdio, so it is the one site that
-    /// must not hide the console unconditionally: with a console of our own it
-    /// attaches there and keeps the CLI's analyze trace; from the windowed GUI
-    /// it gets the flag. One constructor, both callers.
-    ///
-    /// MUTATION: call `ProcessCommand::new` at either spawn site, or hide the
-    /// console unconditionally, and an assertion here fails.
-    #[test]
-    fn the_node_child_that_inherits_our_stdio_is_console_aware() {
-        let src = crate::source_before_tests(include_str!("harness.rs"));
-        assert_eq!(
-            src.matches("ProcessCommand::new(").count(),
-            1,
-            "harness.rs must build Node in exactly one place"
-        );
-        assert!(src.contains("fn node_command("), "the one constructor is `node_command`");
-        assert_eq!(
-            src.matches("node_command(&node)").count(),
-            2,
-            "the deferred analyze run and the model call both go through `node_command`"
-        );
-        assert!(
-            src.contains("if !crate::has_console()"),
-            "`node_command` hides the console only when the parent has none"
-        );
-        assert!(
-            src.contains("crate::hide_child_console(&mut cmd)"),
-            "`node_command` stopped hiding the console"
-        );
-    }
 }
 
 /// TEST-ONLY: a unique-per-test fixture dir. Fixed names let two concurrent

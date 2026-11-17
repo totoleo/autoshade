@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 pub(crate) fn on_style_built(&mut self, lang: Lang, outcome: StyleBuildOutcome) {
     self.workspace.ai_mut().style_build_inflight = false;
     self.workspace.ai_mut().style_build_progress = None;
@@ -132,7 +132,7 @@ pub(crate) fn on_folder(&mut self, lang: Lang, res: anyhow::Result<(PathBuf, Vec
                     // no installed face covers renders as boxes — say
                     // so ONCE per script per session, at folder open
                     // (the one cheap point; never per frame).
-                    crate::actions::disclose_undrawable_names(&mut self.editor, &mut self.workspace, self.lang);
+                    crate::actions::disclose_undrawable_names(self.editor, self.workspace, self.lang);
                 }
                 Err(e) => {
                     self.workspace.fail(tr(lang, K_LANDING_SCAN_FAILED), e);
@@ -140,6 +140,7 @@ pub(crate) fn on_folder(&mut self, lang: Lang, res: anyhow::Result<(PathBuf, Vec
             }
 }
 
+#[allow(clippy::too_many_arguments)] // the landing's facts: frame, language, master identity, its stamp and pixels
 pub(crate) fn on_master_loaded(&mut self, ctx: &egui::Context, lang: Lang, photo: PathBuf, origin: PathBuf, edge: u32, stamp: FileStamp, img: anyhow::Result<image::DynamicImage>) {
                 // The in-flight marker clears on EVERY outcome — photo
                 // mismatch included — or one failed decode would block
@@ -157,7 +158,7 @@ pub(crate) fn on_master_loaded(&mut self, ctx: &egui::Context, lang: Lang, photo
                             // current preference may have moved while
                             // this decoded, and these pixels are the
                             // spawn's, not the preference's.
-                            self.remember_master(&origin, edge, stamp, arc.clone());
+                            self.workspace.remember_master(&origin, edge, stamp, arc.clone());
                             self.install_master(ctx, &photo, &origin, arc);
                         }
                         Err(e) => {
@@ -223,200 +224,128 @@ pub(crate) fn render_retouch_note(lang: Lang, n: &RetouchNote) -> String {
 }
 
 pub(crate) fn on_retouched(&mut self, ctx: &egui::Context, lang: Lang, epoch: u64, done: RetouchDone) {
-                if epoch != self.workspace.tools().gen_epoch {
-                    // A cancelled task's late result: the user already
-                    // moved on — never let it mutate the canvas. And the
-                    // cancel toast PROMISES "the late result is
-                    // discarded" (L12-7): a late SUCCESS's pixel master
-                    // is unreferenced by construction (unique_out claimed
-                    // a fresh name; nothing installed it), so it is
-                    // removed instead of accumulating one orphan
-                    // full-res file per cancel. Err stays silent.
-                    if let Ok((_, _, saved, _)) = &done {
-                        let _ = std::fs::remove_file(saved);
-                    }
-                    return; // was `continue` — the match was the loop's last statement
-                }
-                self.workspace.tools_mut().gen_cancel = None;
-                match done {
-                Ok((img, note, saved, kind)) => {
-                    let msg = Self::render_retouch_note(lang, &note);
-                    // The tool this result consumed starts clean; the
-                    // other tools' areas are theirs to keep (2026-09-27).
-                    if let Some(owner) = note.consumed_area() {
-                        self.workspace.clear_area(owner);
-                    }
-                    match kind {
-                        RetouchKind::NewGenerated => {
-                            // Whole-frame reimagine → a NEW「AI 生成」variant
-                            // whose base IS this raster. Auto-switch to it, so
-                            // editing works on the generated pixels — a slider
-                            // no longer reverts to the source develop. Its path
-                            // is the reverse-fit / full-res export source.
-                            self.push_variant(
-                                Variant {
-                                    kind: VariantKind::Generated,
-                                    id: new_variant_id(),
-                                    name: None,
-                                    recipe: EditRecipe::default(),
-                                    base: Some(Arc::new(img)),
-                                    origin: Some(saved),
-                                    thumb: None,
-                                },
-                                ctx,
-                            );
-                        }
-                        RetouchKind::Layer => {
-                            // A fill layer (2026-10-01): the patch joins
-                            // THIS card's develop as one undo step, the
-                            // Analyze landing's order — commit what was
-                            // there first, so Ctrl+Z takes the layer off
-                            // and keeps a slider moved while it ran. On a
-                            // pristine ✨ card the first edit continues on
-                            // an ✎ card, as every edit there does.
-                            self.commit_pending_names();
-                            self.commit_now();
-                            self.fork_from_generated();
-                            // Absolute, so the saved recipe finds it from
-                            // any working directory.
-                            let path = std::path::absolute(&saved).unwrap_or(saved);
-                            self.editor.doc_mut().recipe.pixel_layers.push(autoshade::render::PixelLayer {
-                                path: path.display().to_string(),
-                                ..Default::default()
-                            });
-                            self.editor.session_mut().dirty = true;
-                            self.commit_now();
-                            drop(img);
-                        }
-                        RetouchKind::NewDenoised | RetouchKind::NewStacked => {
-                            // A REMADE NEGATIVE — an AI denoise (◈,
-                            // 2026-09-15) or a stack (▦, v1.5.0) — lands
-                            // the same way, because it is the same idea:
-                            // the saved master is its pixel source, the
-                            // develop it was made from is its recipe (the
-                            // LIVE one — a slider moved while the job ran
-                            // is what the user sees), and the card it was
-                            // made from keeps its pixels. push_variant
-                            // saves that card's recipe and switches here,
-                            // exactly like a reimagine landing. Nothing
-                            // enters the outgoing card's undo history — a
-                            // card is deleted, not undone.
-                            let mut recipe = self.editor.doc().recipe.clone();
-                            let stacked = kind == RetouchKind::NewStacked;
-                            // An HDR merge hands over stops of highlight
-                            // above the reference frame's white. They are
-                            // only reachable through the SDR rendition
-                            // stage, so the card arrives with that stage
-                            // ON and told how much room it has — the same
-                            // recipe the CLI writes beside its master.
-                            if let RetouchNote::Stacked { headroom_ev, .. } = &note
-                                && *headroom_ev > 0.0
-                            {
-                                recipe.hdr_edit = true;
-                                recipe.hdr_max_ev = *headroom_ev;
-                            }
-                            self.push_variant(
-                                Variant {
-                                    kind: if stacked {
-                                        VariantKind::Stacked
-                                    } else {
-                                        VariantKind::Denoised
-                                    },
-                                    id: new_variant_id(),
-                                    name: None,
-                                    recipe,
-                                    base: Some(Arc::new(img)),
-                                    origin: Some(saved),
-                                    thumb: None,
-                                },
-                                ctx,
-                            );
-                        }
-                        RetouchKind::InPlace => {
-                            // heal/clone: a pixel touch-up of the
-                            // NEUTRAL-DEVELOP base (never the developed
-                            // rendition — the recipe keeps rendering ON TOP,
-                            // so baking developed pixels would cook the tone
-                            // twice). Bake it into the active variant's base
-                            // AND repoint its origin at the saved full-res
-                            // artifact, so export / reverse-fit / a further
-                            // retouch all follow the retouched pixels.
-                            //
-                            // Sliders stay live while a retouch runs (minutes
-                            // for a generative fill) and `current_step` reads
-                            // the variant's base — committing only AFTER the
-                            // swap below folded a mid-flight recipe edit into
-                            // the pixel step, so one Ctrl+Z reverted both and
-                            // there was no way to keep the slider move while
-                            // dropping the retouch. Same rule, same reason as
-                            // the Analyze landing: commit (and flush every
-                            // typed name) BEFORE the state swap.
-                            self.commit_pending_names();
-                            self.commit_now();
-                            // The immutability rule for PIXELS: a retouch
-                            // on the pristine ✨ card bakes into a new ✎
-                            // card on the same raster, and the ✨ card
-                            // keeps its pixels. Asked directly — the
-                            // recipe may well be neutral here.
-                            self.fork_from_generated();
-                            let img = Arc::new(img);
-                            let (mw, mh) = img.dimensions();
-                            if let Some(v) = self.editor.active_variant_mut() {
-                                v.base = Some(img.clone());
-                                v.origin = Some(saved);
-                            }
-                            // The InPlace master is a NEUTRAL develop (see
-                            // above) — Before shows it under the recipe's
-                            // own camera curve, exactly like the source
-                            // compare; an empty curve here sat 0.6–1.4 EV
-                            // under After's starting point.
-                            let start = self.editor.doc().recipe.start_only();
-                            self.editor.set_before(&mut self.workspace, ctx, &img, &start);
-                            // New baked base ⇒ the cached masks-cleared
-                            // reference develop no longer matches it.
-                            self.workspace.overlay_mut().overlay_ref = None;
-                            self.workspace.overlay_mut().overlay_stale = true;
-                            self.editor.photo_mut().base_preview = Some(img);
-                            // Keep the paint canvas sized to the new base (the
-                            // retouch result can differ in dimensions — e.g. a
-                            // non-square reimagine origin) — and end a brush
-                            // session armed on the replaced plate.
-                            self.workspace.rebind_paint_canvas(self.lang, mw, mh);
-                            self.editor.session_mut().dirty = true;
-                            // The pixel swap must enter history THIS frame
-                            // — a same-frame Ctrl+Z otherwise undoes an
-                            // older recipe step over the new pixels.
-                            self.commit_now();
-                            // The decoded-base cache now describes pixels
-                            // this photo no longer shows.
-                            self.editor.forget_open_base(&mut self.workspace);
-                        }
-                    }
-                    self.workspace.done(msg);
-                    // A whole-frame reimagine asks whether to reverse-fit
-                    // it (v1.17.0) — after `done`, so its job is over. An
-                    // adjust lands a ✨ card too, but it edits a look
-                    // already generated; the question follows 「AI
-                    // generate」.
-                    if let RetouchNote::Reimagined { divergence, .. } = &note {
-                        self.offer_fit_prompt(ctx, *divergence);
-                    }
-                }
-                Err(e) => {
-                    // The face-held heal found spots, none on the face:
-                    // nothing was changed, and that is an answer, not a
-                    // failure (typed, never matched by its English).
-                    if let Some(none) = e.downcast_ref::<autoshade::retouch::NoSpotInsideLimit>() {
-                        self.workspace.done(trf(
-                            lang,
-                            K_LANDING_NO_SPOTS_ON_THE_FACE_TO_HEAL_NOTHING_WAS_CHANGED,
-                            &[("n", &none.found.to_string())],
-                        ));
-                    } else {
-                        self.workspace.fail(tr(lang, K_LANDING_RETOUCH_FAILED), e);
-                    }
-                }
-                }
+    let landing = retouch_workflow::land(
+        epoch,
+        self.workspace.tools().gen_epoch,
+        done,
+        &self.editor.doc().recipe,
+    );
+    if !matches!(&landing, retouch_workflow::RetouchLanding::Ignore { .. }) {
+        // A current result frees the wire; a cancelled task's late result
+        // must leave it alone.
+        self.workspace.tools_mut().gen_cancel = None;
+    }
+    match landing {
+        retouch_workflow::RetouchLanding::Ignore { discard } => {
+            if let Some(saved) = discard {
+                // A late success's pixel master is unreferenced by
+                // construction; remove it so a cancel leaves no orphan.
+                let _ = std::fs::remove_file(saved);
+            }
+        }
+        retouch_workflow::RetouchLanding::Failed(e) => {
+            // The face-held heal found spots, none on the face: nothing was
+            // changed, and that is an answer, not a failure (typed, never
+            // matched by its English).
+            if let Some(none) = e.downcast_ref::<autoshade::retouch::NoSpotInsideLimit>() {
+                self.workspace.done(trf(
+                    lang,
+                    K_LANDING_NO_SPOTS_ON_THE_FACE_TO_HEAL_NOTHING_WAS_CHANGED,
+                    &[("n", &none.found.to_string())],
+                ));
+            } else {
+                self.workspace.fail(tr(lang, K_LANDING_RETOUCH_FAILED), e);
+            }
+        }
+        retouch_workflow::RetouchLanding::NewVariant { kind, recipe, image, origin, note } => {
+            let msg = Self::render_retouch_note(lang, &note);
+            // The tool this result consumed starts clean; the other tools'
+            // areas are theirs to keep (2026-09-27).
+            if let Some(owner) = note.consumed_area() {
+                self.workspace.clear_area(owner);
+            }
+            self.push_variant(
+                Variant {
+                    kind,
+                    id: new_variant_id(),
+                    name: None,
+                    recipe: *recipe,
+                    base: Some(image),
+                    origin: Some(origin),
+                    thumb: None,
+                },
+                ctx,
+            );
+            self.workspace.done(msg);
+            // A whole-frame reimagine asks whether to reverse-fit it — after
+            // `done`, so its job is over.
+            if let RetouchNote::Reimagined { divergence, .. } = &note {
+                self.offer_fit_prompt(ctx, *divergence);
+            }
+        }
+        retouch_workflow::RetouchLanding::Layer { path, note } => {
+            let msg = Self::render_retouch_note(lang, &note);
+            if let Some(owner) = note.consumed_area() {
+                self.workspace.clear_area(owner);
+            }
+            // A fill layer joins THIS card's develop as one undo step: commit
+            // what was there first, so Ctrl+Z takes the layer off and keeps a
+            // slider moved while it ran. On a pristine ✨ card the first edit
+            // continues on an ✎ card, as every edit there does.
+            self.commit_pending_names();
+            self.editor.commit_now(self.workspace);
+            self.fork_from_generated();
+            self.editor.doc_mut().recipe.pixel_layers.push(autoshade::render::PixelLayer {
+                path: path.display().to_string(),
+                ..Default::default()
+            });
+            self.editor.session_mut().dirty = true;
+            self.editor.commit_now(self.workspace);
+            self.workspace.done(msg);
+            if let RetouchNote::Reimagined { divergence, .. } = &note {
+                self.offer_fit_prompt(ctx, *divergence);
+            }
+        }
+        retouch_workflow::RetouchLanding::InPlace { image, origin, note } => {
+            let msg = Self::render_retouch_note(lang, &note);
+            if let Some(owner) = note.consumed_area() {
+                self.workspace.clear_area(owner);
+            }
+            // Commit (and flush every typed name) BEFORE the state swap, so a
+            // slider moved while the retouch ran stays its own undo step.
+            self.commit_pending_names();
+            self.editor.commit_now(self.workspace);
+            // The immutability rule for PIXELS: a retouch on the pristine ✨
+            // card bakes into a new ✎ card on the same raster, and the ✨ card
+            // keeps its pixels.
+            self.fork_from_generated();
+            let (mw, mh) = image.dimensions();
+            if let Some(v) = self.editor.active_variant_mut() {
+                v.base = Some(image.clone());
+                v.origin = Some(origin);
+            }
+            // The InPlace master is a NEUTRAL develop — Before shows it under
+            // the recipe's own camera curve, exactly like the source compare.
+            let start = self.editor.doc().recipe.start_only();
+            self.editor.set_before(self.workspace, ctx, &image, &start);
+            // New baked base ⇒ the cached masks-cleared reference develop no
+            // longer matches it.
+            self.workspace.overlay_mut().overlay_ref = None;
+            self.workspace.overlay_mut().overlay_stale = true;
+            self.editor.photo_mut().base_preview = Some(image);
+            // Keep the paint canvas sized to the new base — and end a brush
+            // session armed on the replaced plate.
+            self.workspace.rebind_paint_canvas(lang, mw, mh);
+            self.editor.session_mut().dirty = true;
+            // The pixel swap must enter history THIS frame.
+            self.editor.commit_now(self.workspace);
+            self.editor.forget_open_base(self.workspace);
+            self.workspace.done(msg);
+            if let RetouchNote::Reimagined { divergence, .. } = &note {
+                self.offer_fit_prompt(ctx, *divergence);
+            }
+        }
+    }
 }
 
 pub(crate) fn render_fit_note(lang: Lang, n: &FitNote) -> String {
@@ -433,81 +362,71 @@ pub(crate) fn render_fit_note(lang: Lang, n: &FitNote) -> String {
 }
 
 pub(crate) fn on_fitted(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<anyhow::Result<FitOutcome>>) {
-            match *boxed {
-                // Either way the worker may have persisted a recipe.json
-                // (an Err can land after that write) — recompute badges.
-                Ok(out) => {
-                    self.workspace.gal_mut().edited_badge.clear();
-                    // Advance the ● baseline ONLY when the store actually
-                    // holds the fit. A backup-gate refusal means nothing
-                    // was written: leaving the baseline alone keeps
-                    // ● unsaved lit and lets nav_stash protect the fit —
-                    // the ordinary unsaved-edit path takes over.
-                    if out.persisted {
-                        self.editor.session_mut().hist.saved_recipe = out.recipe.clone();
-                        self.workspace.open_mut().nav_stash.remove(
-                            &self.editor.photo().src_path.clone().unwrap_or_default(),
-                        );
-                        // The pixel link the worker committed beside the
-                        // recipe — the negative's in-place master when
-                        // the ▣ card carries one (the ◭ card below hangs
-                        // off it), cleared otherwise (a fit is
-                        // source-based) — so the per-frame ● pixel
-                        // comparison's disk mirror stays in step with it.
-                        self.editor.session_mut().hist.pixels_on_disk = out.negative.clone();
-                    }
-                    self.refresh_versions();
-                    // The landing's words are the logic layer's
-                    // (`logic/fit.rs`); the variant work below is this
-                    // landing's.
-                    let mut note = crate::i18n::text(
-                        lang,
-                        &logic::fit::done_words(out.err_before, out.err_after),
-                    );
-                    for n in &out.status {
-                        note.push_str(&Self::render_fit_note(lang, n));
-                    }
-                    // The generated look, solved back into an editable recipe,
-                    // becomes a NEW「反推」variant: base = the source neutral
-                    // (same negative as Original), look carried by the recipe —
-                    // so it is fully editable, exports XMP and renders at full
-                    // resolution. Auto-switch to it.
-                    // SAME negative includes its in-place master
-                    // (2026-09-13): the card hangs off the file the fit
-                    // was solved on, sharing the ▣ card's decoded pixels
-                    // when it has them (a cold ▣ card leaves `base` None
-                    // and `load_active` decodes the master, as for any
-                    // restored baked card).
-                    let base = out.negative.as_deref().and_then(|m| {
-                        let i = self.original_index()?;
-                        let v = &self.editor.doc().variants[i];
-                        (v.origin.as_deref() == Some(m)).then(|| v.base.clone()).flatten()
-                    });
-                    self.push_variant(
-                        Variant {
-                            kind: VariantKind::Fitted,
-                            id: new_variant_id(),
-                            name: None,
-                            recipe: out.recipe,
-                            base,
-                            origin: out.negative,
-                            thumb: None,
-                        },
-                        ctx,
-                    );
-                    // AFTER the variant load (which cleared them): the
-                    // fit rationale's typed copy, for draw-time zh.
-                    self.editor.analysis_mut().rationale_notes = out.rationale_notes;
-                    self.workspace.done(note);
-                }
-                Err(e) => {
-                    self.workspace.gal_mut().edited_badge.clear();
-                    // The pre-fit snapshot may exist even when the fit
-                    // errored — keep the Versions list truthful.
-                    self.refresh_versions();
-                    self.workspace.fail(tr(lang, K_LANDING_REVERSE_FIT_FAILED), e);
-                }
+    // Either way the worker may have persisted a recipe.json (an Err can land
+    // after that write) — recompute badges.
+    self.workspace.gal_mut().edited_badge.clear();
+    let original = self.editor.original_index().and_then(|i| self.editor.doc().variants.get(i));
+    match fit_workflow::land(*boxed, original) {
+        fit_workflow::FitLanding::Failed(e) => {
+            // The pre-fit snapshot may exist even when the fit errored — keep
+            // the Versions list truthful.
+            self.refresh_versions();
+            self.workspace.fail(tr(lang, K_LANDING_REVERSE_FIT_FAILED), e);
+        }
+        fit_workflow::FitLanding::Install {
+            persisted,
+            recipe,
+            err_before,
+            err_after,
+            status,
+            rationale_notes,
+            negative,
+            base,
+        } => {
+            // Advance the ● baseline ONLY when the store actually holds the
+            // fit. A backup-gate refusal means nothing was written: leaving
+            // the baseline alone keeps ● unsaved lit and lets nav_stash
+            // protect the fit — the ordinary unsaved-edit path takes over.
+            if persisted {
+                self.editor.session_mut().hist.saved_recipe = (*recipe).clone();
+                self.workspace.open_mut().nav_stash.remove(
+                    &self.editor.photo().src_path.clone().unwrap_or_default(),
+                );
+                // The pixel link the worker committed beside the recipe — the
+                // negative's in-place master when the ▣ card carries one (the
+                // ◭ card below hangs off it), cleared otherwise — so the
+                // per-frame ● pixel comparison's disk mirror stays in step.
+                self.editor.session_mut().hist.pixels_on_disk = negative.clone();
             }
+            self.refresh_versions();
+            // The landing's words are the logic layer's (`logic/fit.rs`); the
+            // variant work below is this landing's.
+            let mut note =
+                crate::i18n::text(lang, &logic::fit::done_words(err_before, err_after));
+            for n in &status {
+                note.push_str(&Self::render_fit_note(lang, n));
+            }
+            // The generated look, solved back into an editable recipe,
+            // becomes a NEW「反推」variant: base = the source neutral (same
+            // negative as Original), look carried by the recipe.
+            self.push_variant(
+                Variant {
+                    kind: VariantKind::Fitted,
+                    id: new_variant_id(),
+                    name: None,
+                    recipe: *recipe,
+                    base,
+                    origin: negative,
+                    thumb: None,
+                },
+                ctx,
+            );
+            // AFTER the variant load (which cleared them): the fit
+            // rationale's typed copy, for draw-time zh.
+            self.editor.analysis_mut().rationale_notes = rationale_notes;
+            self.workspace.done(note);
+        }
+    }
 }
 
 pub(crate) fn on_pasted(&mut self, lang: Lang, res: anyhow::Result<PasteOutcome>) {
@@ -524,10 +443,10 @@ pub(crate) fn on_pasted(&mut self, lang: Lang, res: anyhow::Result<PasteOutcome>
             self.workspace.open_mut().nav_stash.remove(p);
         }
     }
-    match res {
+    match paste_workflow::land(res) {
         // A partial failure keeps the error channel — it must never read as
         // a clean success, and the ● baseline must not advance.
-        Ok(out) if out.errs.is_empty() => {
+        paste_workflow::PasteLanding::Clean(out) => {
             // The open photo's paste is on disk: advance the ● baseline so
             // the marker doesn't cry wolf. Only on FULL success — a partial
             // failure could be exactly the open photo, which must keep
@@ -550,52 +469,14 @@ pub(crate) fn on_pasted(&mut self, lang: Lang, res: anyhow::Result<PasteOutcome>
             }
             self.workspace.done(s);
         }
-        Ok(out) => {
+        paste_workflow::PasteLanding::Partial(out) => {
             self.workspace.open_mut().pasted_open = None;
             let msg = crate::i18n::text(lang, &logic::paste::partial_words(out.ok, &out.errs));
             self.workspace.fail(tr(lang, K_LANDING_BATCH_PASTE), anyhow::anyhow!("{}", msg));
         }
-        Err(e) => {
+        paste_workflow::PasteLanding::Failed(e) => {
             self.workspace.open_mut().pasted_open = None;
             self.workspace.fail(tr(lang, K_LANDING_BATCH_PASTE), e);
-        }
-    }
-}
-
-pub(crate) fn on_models(
-    &mut self,
-    lang: Lang,
-    role: ModelRole,
-    generation: u64,
-    res: anyhow::Result<Vec<autoshade::openai_models::ModelInfo>>,
-) {
-    // Single-flight per role (`fetch_models` refuses to start a second
-    // while one flies), so whatever lands, THE flight for this role is
-    // over — stale or not, the flag must clear or the fetch button and
-    // the auto-probe stay disarmed for the rest of the session.
-    self.workspace.catalogue_mut(role).fetching = false;
-    // …but the ids belong to the world the fetch was LAUNCHED in. A key
-    // replaced or a URL swapped mid-flight bumped `gen` (via `clear`);
-    // installing this completion would resurrect the ids the OLD
-    // credential could see and offer them under the new one's name.
-    if generation != self.workspace.catalogue_mut(role).generation {
-        self.workspace.ui_mut().settings.status = crate::i18n::text(lang, &logic::models::discarded_words());
-        return;
-    }
-    match res {
-        Ok(models) => {
-            // The classification and the line are the logic layer's.
-            let cat = logic::models::catalogue(&models, role == ModelRole::Image);
-            self.workspace.ui_mut().settings.status = crate::i18n::text(lang, &logic::models::installed_words(&cat));
-            let slot = self.workspace.catalogue_mut(role);
-            slot.chat = cat.chat;
-            slot.image_gen = cat.image;
-            slot.efforts = cat.efforts;
-            slot.vision = cat.vision;
-        }
-        Err(e) => {
-            self.workspace.ui_mut().settings.status =
-                crate::i18n::text(lang, &logic::models::failed_words(&e.to_string()));
         }
     }
 }

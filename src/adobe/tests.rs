@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_methods)] // tests own the process environment
+
 use super::*;
 
 /// The override leads, and only directories that EXIST survive.

@@ -51,7 +51,7 @@
     /// canvas: the one workspace draws its marks.
     fn app_in(lang: Lang) -> AutoShadeApp {
         let mut app = app_with_every_button(lang);
-        app.start_mask_brush(None);
+        app.commands().start_mask_brush(None);
         app.workspace.normal_mut().key_present = Some(false);
         app
     }
@@ -150,7 +150,7 @@
                 texts.iter().any(|x| x.ends_with('%') && x[..x.len() - 1].parse::<f32>().is_ok()),
                 "{lang:?}: the zoom readout"
             );
-            assert_eq!(app.workspace.masks().paint_mode, true, "{lang:?}: the armed brush stays armed");
+            assert!(app.workspace.masks().paint_mode, "{lang:?}: the armed brush stays armed");
             assert!(has_text(&app.workspace.status()), "{lang:?}: the status bar is in the frame's texts");
             assert!(has_text(tr(lang, K_GUI_ORIGINAL__2)), "{lang:?}: the variant strip");
             if let Some(dir) = &shots {
@@ -173,7 +173,7 @@
                 ..Default::default()
             };
             out = Some(ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| app.normal_panel(ui));
+                egui::CentralPanel::default().show(ctx, |ui| app.commands().normal_panel(ui));
             }));
         }
         drawn_texts(&out.unwrap().shapes)
@@ -316,12 +316,12 @@
             app.workspace.set_busy(true);
         };
         building(&mut app);
-        app.on_one_click_built(Lang::En, Err("no photos in that folder".into()));
+        app.commands().on_one_click_built(Lang::En, Err("no photos in that folder".into()));
         assert!(app.workspace.normal_mut().last_request.is_none(), "a failed build asks nothing");
         assert!(!app.workspace.normal_mut().building);
         assert!(matches!(&app.workspace.normal_mut().line, crate::panels::normal::NormalLine::Failed(t) if t.contains("no photos")));
         building(&mut app);
-        app.on_one_click_built(Lang::En, Ok(3));
+        app.commands().on_one_click_built(Lang::En, Ok(3));
         let (req, text, library) = app.workspace.normal_mut().last_request.clone().expect("the build handed over to the analysis");
         assert_eq!(req.guide, autoshade::pipeline::Guide::Library);
         assert_eq!(req.style, 1.0);
@@ -343,9 +343,9 @@
         let (mut app, _src, _scrub) = normal_photo("nokey");
         let ctx = egui::Context::default();
         assert_eq!(app.editor.doc().recipe.exposure_ev, 0.0);
-        app.apply_actions(vec![logic::Action::Look(logic::look::LookIntent::of(
+        app.commands().start_look(logic::look::LookIntent::of(
             logic::look::LookKind::OneClick(crate::logic::look::OneClick::Preset("natural")),
-        ))]);
+        ));
         assert!(app.workspace.busy() && app.workspace.tools().analyze_inflight);
         land_analysis(&mut app, &ctx);
         assert!(!app.workspace.busy());
@@ -357,8 +357,8 @@
         assert_eq!(Some(photo), app.editor.photo().src_path);
         assert_eq!(kept.exposure_ev, app.editor.doc().recipe.exposure_ev);
         // Undoable, like every analysis landing.
-        app.commit_now();
-        app.undo(&ctx);
+        app.editor.commit_now(&app.workspace);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.exposure_ev, 0.0, "Ctrl+Z goes back");
     }
 
@@ -420,7 +420,7 @@
         }];
         app.editor.doc_mut().active = 0;
         app.editor.photo_mut().base_preview = Some(b0);
-        app.reset_history();
+        app.editor.reset_history(&app.workspace);
         app.editor.doc_mut().recipe.exposure_ev = 0.4;
         assert!(app.editor.unsaved_marker_dirty(), "the edit is unsaved before Ctrl+S");
         let ctx = egui::Context::default();
@@ -445,13 +445,13 @@
         app.workspace.exp_mut().dest = ExportDest::Ask;
         app.workspace.set_status("Recipe pasted onto 1 photo".into());
         app.workspace.normal_mut().folder_pick = Some(None);
-        app.start_apply_to_folder();
+        app.commands().start_apply_to_folder();
         assert_eq!(app.workspace.status(), "", "a cancelled dialog leaves nothing on the line");
         assert!(!app.workspace.busy() && app.workspace.normal_mut().apply_all.is_none(), "and nothing was pasted");
         let out = std::env::temp_dir().join(format!("autoshade-gui-normal-applyall-out-{}", std::process::id()));
         let _scrub_out = Scrub(vec![out.clone()]);
         app.workspace.normal_mut().folder_pick = Some(Some(out.clone()));
-        app.start_apply_to_folder();
+        app.commands().start_apply_to_folder();
         assert!(app.workspace.busy(), "the paste runs");
         assert_eq!(app.workspace.normal_mut().apply_all.as_deref(), Some(out.as_path()), "into the folder picked first");
         land_all(&mut app, &ctx);
@@ -568,18 +568,18 @@
         }];
         app.editor.doc_mut().active = 0;
         app.editor.photo_mut().base_preview = Some(b0);
-        app.reset_history();
+        app.editor.reset_history(&app.workspace);
         // The Retouch door's own gate answers: a turned photo is refused
         // before any worker, with that door's words.
         app.editor.doc_mut().recipe.quarter_turns = 1;
-        app.set_normal_denoise(true);
+        app.commands().set_normal_denoise(true);
         assert!(!app.workspace.busy(), "refused before a worker");
         assert!(app.workspace.status().contains("this photo is turned"), "{}", app.workspace.status());
         assert!(app.workspace.normal_mut().denoise_pair.is_none(), "a refused run remembers nothing");
         app.editor.doc_mut().recipe.quarter_turns = 0;
         // The door's worker runs: this photo has no file, so it fails fast at
         // the decode — through `Msg::Retouched`, the Retouch button's message.
-        app.set_normal_denoise(true);
+        app.commands().set_normal_denoise(true);
         assert!(app.workspace.busy(), "the denoise worker runs: {}", app.workspace.status());
         assert_eq!(app.workspace.status(), tr(Lang::En, K_ACTIONS_REMOVING_THE_GRAIN_THIS_TAKES_A_MOMENT));
         assert!(app.editor.normal_denoise_on(&app.workspace), "the switch reads on while it runs");
@@ -602,7 +602,7 @@
         assert_eq!(app.workspace.status(), tr(Lang::En, K_ACTIONS_AI_DENOISE_DONE_TURN_THE_SWITCH_OFF_TO_SEE_THE_P));
         // Off: the card it was made from, the look kept.
         app.editor.doc_mut().recipe.exposure_ev = 0.7;
-        app.set_normal_denoise(false);
+        app.commands().set_normal_denoise(false);
         assert!(!app.workspace.busy());
         assert_eq!(app.editor.doc().variants[app.editor.doc().active].id, ORIGINAL_VARIANT_ID, "back to the un-denoised card");
         assert_eq!(app.editor.active_source_path().as_deref(), Some(src.as_path()));
@@ -611,7 +611,7 @@
         assert_eq!(app.workspace.status(), tr(Lang::En, K_ACTIONS_AI_DENOISE_OFF));
         // On again: the same ◈ card, no second run.
         app.editor.doc_mut().recipe.contrast = 12.0;
-        app.set_normal_denoise(true);
+        app.commands().set_normal_denoise(true);
         assert!(!app.workspace.busy(), "no second sidecar run");
         assert_eq!(app.editor.doc().variants.len(), 2, "no second card");
         assert_eq!(app.editor.doc().variants[app.editor.doc().active].id, made, "the master already made");
@@ -655,7 +655,7 @@
         let mut sizes = Vec::new();
         for (i, name) in names.iter().enumerate() {
             app.editor.doc_mut().recipe.exposure_ev = 0.2 * (i + 1) as f32;
-            app.start_normal_save();
+            app.commands().start_normal_save();
             assert!(app.workspace.busy(), "save {}: {}", i + 1, app.workspace.status());
             assert!(app.workspace.status().contains(name), "save {}: the line names the file: {}", i + 1, app.workspace.status());
             land_all(&mut app, &ctx);
@@ -670,7 +670,7 @@
         app.workspace.exp_mut().dest = ExportDest::Ask;
         app.workspace.normal_mut().file_pick = Some(Some(picked.clone()));
         app.editor.doc_mut().recipe.exposure_ev = -1.5;
-        app.start_normal_save();
+        app.commands().start_normal_save();
         assert!(app.workspace.busy(), "the picked save runs: {}", app.workspace.status());
         land_all(&mut app, &ctx);
         let folder = out.file_name().unwrap().to_string_lossy().into_owned();
@@ -682,7 +682,7 @@
         app.workspace.exp_mut().dest = ExportDest::LastUsed;
         app.workspace.exp_mut().last_dir = Some(out.clone());
         app.editor.doc_mut().recipe.exposure_ev = 0.9;
-        app.start_normal_save();
+        app.commands().start_normal_save();
         land_all(&mut app, &ctx);
         assert!(fourth.is_file(), "the app-made name steps on to -4: {}", app.workspace.status());
         // The whole folder, twice: the second run numbers every photo.
@@ -692,7 +692,7 @@
         app.workspace.exp_mut().last_dir = Some(all.clone());
         for run in 0..2 {
             app.editor.doc_mut().recipe.contrast = 10.0 * (run + 1) as f32;
-            app.start_apply_to_folder();
+            app.commands().start_apply_to_folder();
             land_all(&mut app, &ctx);
             let folder = all.file_name().unwrap().to_string_lossy().into_owned();
             let saved = trf(Lang::En, K_ACTIONS_PHOTOS_SAVED_TO, &[("n", "2"), ("folder", &folder)]);
@@ -718,7 +718,7 @@
         );
         // The workspace's render path keeps the library's refusal (outside
         // its output areas).
-        app.start_render_to(out.join(names[0]));
+        app.commands().start_render_to(out.join(names[0]));
         assert!(!app.workspace.busy());
         assert!(app.workspace.status().contains("refusing to overwrite"), "{}", app.workspace.status());
     }
@@ -738,7 +738,7 @@
         app.workspace.exp_mut().last_dir = Some(own.clone());
         let ctx = egui::Context::default();
         app.editor.doc_mut().recipe.exposure_ev = 0.3;
-        app.start_normal_save();
+        app.commands().start_normal_save();
         land_all(&mut app, &ctx);
         let landed: Vec<String> = std::fs::read_dir(&own)
             .unwrap()
@@ -754,7 +754,7 @@
         // image is refused, and that file keeps its bytes.
         let victim = own.join("_gui_normal_ownfolder_existing.jpg");
         image::RgbImage::from_pixel(32, 24, image::Rgb([10, 20, 30])).save(&victim).unwrap();
-        app.start_render_to(victim.clone());
+        app.commands().start_render_to(victim.clone());
         assert!(app.workspace.status().contains("refusing to overwrite"), "{}", app.workspace.status());
         let back = image::open(&victim).unwrap().to_rgb8();
         assert_eq!(back.get_pixel(0, 0).0, [10, 20, 30], "the existing photo is untouched");
@@ -806,7 +806,7 @@
         app.workspace.normal_mut().folder_pick = Some(Some(out.clone()));
         app.workspace.gal_mut().gallery = vec![src.clone(), other.clone()];
         let ctx = egui::Context::default();
-        app.start_apply_to_folder();
+        app.commands().start_apply_to_folder();
         land_all(&mut app, &ctx);
         assert!(app.workspace.status().contains('2'), "both photos saved: {}", app.workspace.status());
         assert!(!app.workspace.open().nav_stash.contains_key(&other), "the paste replaced the unsaved work, so reopening reads the paste");
@@ -843,14 +843,14 @@
         app.workspace.gal_mut().gallery = vec![src.clone()];
         app.workspace.exp_mut().dest = ExportDest::LastUsed;
         app.workspace.exp_mut().last_dir = Some(refs.clone());
-        app.apply_actions(vec![logic::Action::References(refs.clone())]);
+        app.commands().apply_references(refs.clone());
         assert!(app.workspace.normal_mut().building);
         assert!(app.workspace.busy(), "the build is work: the buttons that start work wait for it");
-        app.start_normal_save();
+        app.commands().start_normal_save();
         assert!(!app.workspace.normal_mut().delivering, "no save starts under the build");
-        app.start_apply_to_folder();
+        app.commands().start_apply_to_folder();
         assert!(app.workspace.normal_mut().apply_all.is_none(), "no folder delivery either");
-        app.set_normal_denoise(true);
+        app.commands().set_normal_denoise(true);
         assert!(app.workspace.normal_mut().denoise_pair.is_none(), "nor the noise switch");
         // The empty folder's build lands (an error) and frees the buttons.
         let ctx = egui::Context::default();
@@ -867,7 +867,7 @@
         app.workspace.normal_mut().build_photo = Some(src.clone());
         app.workspace.set_busy(true);
         app.editor.photo_mut().src_path = Some(src.with_file_name("_gui_normal_buildbusy_other.jpg"));
-        app.on_one_click_built(Lang::En, Ok(3));
+        app.commands().on_one_click_built(Lang::En, Ok(3));
         assert!(!app.workspace.busy() && !app.workspace.normal_mut().building);
         assert!(app.workspace.normal_mut().last_request.is_none(), "no look for a photo the folder was not picked for");
         let said = tr(Lang::En, K_LOGIC_YOUR_REFERENCE_PHOTOS_ARE_READ_BUT_THE_LOOK_COUL);
@@ -878,7 +878,7 @@
         app.workspace.normal_mut().building = true;
         app.workspace.normal_mut().build_photo = Some(src.clone());
         app.workspace.set_busy(true);
-        app.on_one_click_built(Lang::En, Ok(3));
+        app.commands().on_one_click_built(Lang::En, Ok(3));
         assert!(app.workspace.normal_mut().last_request.is_some(), "the look starts for the photo the folder was picked for");
         land_analysis(&mut app, &ctx);
     }
@@ -909,10 +909,10 @@
         }];
         app.editor.doc_mut().active = 0;
         app.editor.photo_mut().base_preview = Some(b0.clone());
-        app.reset_history();
+        app.editor.reset_history(&app.workspace);
         // A look, then the switch on: its ◈ card lands.
         app.editor.doc_mut().recipe.exposure_ev = 0.5;
-        app.commit_now();
+        app.editor.commit_now(&app.workspace);
         app.workspace.normal_mut().denoise_pair =
             Some(DenoisePair { photo: src.clone(), plain: ORIGINAL_VARIANT_ID.into(), denoised: None });
         let master = std::path::PathBuf::from("out/_gui_normal_denoise_undo.denoise.png");
@@ -922,22 +922,22 @@
         app.poll_workers(&ctx);
         assert_eq!(app.editor.doc().variants[app.editor.doc().active].kind, VariantKind::Denoised, "the ◈ card is on the canvas");
         let denoised = app.editor.doc().variants[app.editor.doc().active].base.clone().unwrap();
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.exposure_ev, 0.0, "Ctrl+Z goes back to the look before");
         assert_eq!(app.editor.doc().variants[app.editor.doc().active].kind, VariantKind::Denoised, "on the card on screen");
         assert!(std::sync::Arc::ptr_eq(app.editor.doc().variants[app.editor.doc().active].base.as_ref().unwrap(), &denoised), "its pixels kept");
-        app.redo(&ctx);
+        app.editor.redo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.exposure_ev, 0.5, "and forward again");
         // Another look, then the switch off: back on the plain card, the
         // history still there.
         app.editor.doc_mut().recipe.contrast = 10.0;
-        app.commit_now();
-        app.set_normal_denoise(false);
+        app.editor.commit_now(&app.workspace);
+        app.commands().set_normal_denoise(false);
         assert_eq!(app.editor.doc().variants[app.editor.doc().active].id, ORIGINAL_VARIANT_ID);
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!((app.editor.doc().recipe.exposure_ev, app.editor.doc().recipe.contrast), (0.5, 0.0), "Ctrl+Z after the switch went off");
         assert!(std::sync::Arc::ptr_eq(app.editor.doc().variants[app.editor.doc().active].base.as_ref().unwrap(), &b0), "the plain card's pixels kept");
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.exposure_ev, 0.0, "all the way back");
     }
 
@@ -958,7 +958,7 @@
         app.workspace.exp_mut().last_dir = None;
         assert_eq!(app.workspace.export_dest_dir(), None, "nothing saved yet: the save window asks");
         app.workspace.normal_mut().file_pick = Some(Some(out.join("picked.jpg")));
-        app.start_normal_save();
+        app.commands().start_normal_save();
         assert!(app.workspace.busy(), "the save runs: {}", app.workspace.status());
         let ctx = egui::Context::default();
         land_all(&mut app, &ctx);

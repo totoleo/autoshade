@@ -6,7 +6,7 @@
 use autoshade::advisor::{hint_action, FitAction};
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
     /// The status-bar ✕: stop the running retouch/generative task. The UI
     /// unblocks NOW; the worker sees the flag at its next checkpoint and its
@@ -60,7 +60,7 @@ impl AutoShadeApp {
         }
         // The ▣ original first (the user's wording: 默认原图), not Automatic,
         // which solves from a ◈ / ▦ master whenever the strip holds one.
-        let from = self.original_index().map(|i| self.editor.doc().variants[i].id.clone()).filter(|id| !id.is_empty());
+        let from = self.editor.original_index().map(|i| self.editor.doc().variants[i].id.clone()).filter(|id| !id.is_empty());
         self.workspace.fit_mut().fit_prompt = Some(FitPrompt { target, divergence, from, dont_ask: false });
         // The layer's Enter waits for "no widget focused" — surrendered now,
         // as the quit layer does when it opens.
@@ -246,7 +246,7 @@ impl AutoShadeApp {
         // variants.json beside the develop. The count still gates the
         // empty-pending close below (defence-in-depth — a strip-dirty photo
         // is also pushed into `pending` above).
-        let orphan_variants = self.editor.inactive_dirty_variants(&self.workspace, );
+        let orphan_variants = self.editor.inactive_dirty_variants(self.workspace, );
         if pending.is_empty() && orphan_variants == 0 {
             // Saved (or discarded) since the guard fired — nothing to protect.
             self.workspace.ui_mut().confirm_quit = false;
@@ -586,7 +586,7 @@ impl AutoShadeApp {
                     // anything is STILL dirty (logic drift, a future writer
                     // this loop misses), the bounce must be SAID: a silently
                     // re-armed dialog is the v0.21 dead-button livelock.
-                    let residue = self.editor.inactive_dirty_variants(&self.workspace, );
+                    let residue = self.editor.inactive_dirty_variants(self.workspace, );
                     if residue > 0 {
                         let t = trf(
                             lang,
@@ -814,7 +814,7 @@ impl AutoShadeApp {
     /// active variant's base IS the generated raster, and fitting a rendition
     /// onto itself would recover ~neutral. Fit must map the negative → the look.
     pub(crate) fn start_fit(&mut self) {
-        let (Some(base), Some(tgt)) = (self.editor.photo().source_preview.clone(), self.editor.fit_target(&self.workspace))
+        let (Some(base), Some(tgt)) = (self.editor.photo().source_preview.clone(), self.editor.fit_target(self.workspace))
         else {
             return;
         };

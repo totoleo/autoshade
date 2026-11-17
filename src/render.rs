@@ -24,6 +24,8 @@
 //! calibration, Adobe's being unpublished, but now one calibration instead of
 //! a local-only one with nothing to align against.
 
+#![deny(clippy::print_stderr)]
+
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -306,6 +308,7 @@ pub(crate) fn engine_source() -> String {
 mod lr_pack;
 
 #[cfg(test)]
+#[allow(clippy::print_stderr)] // calibration tests print their measurements
 mod tests;
 
 #[cfg(test)]

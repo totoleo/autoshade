@@ -538,7 +538,7 @@
     fn a_deep_fit_that_could_not_run_its_action_does_not_claim_the_review_was_empty() {
         for lang in [Lang::En, Lang::Zh] {
             let render = |outcome| {
-                AutoShadeApp::render_fit_note(
+                Commands::render_fit_note(
                     lang,
                     &FitNote::DeepFit { action: "zoned sky/land pass", outcome },
                 )

@@ -269,6 +269,7 @@ impl Plan {
     }
 
     /// Run one `uv` step, streaming its stderr.
+    #[allow(clippy::disallowed_methods)] // drains one child's stdout while the other pipe is read
     fn run(
         &self,
         args: &[OsString],

@@ -29,6 +29,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: doc drift
         run: python3 scripts/check_doc_drift.py
+      - name: GUI font subsets
+        run: |
+          python3 -m pip install --quiet fonttools
+          python3 scripts/subset_gui_fonts.py --check
   build:
     strategy:
       fail-fast: false

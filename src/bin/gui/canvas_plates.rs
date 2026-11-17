@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use egui::TextureHandle;
 
 /// The canvas's uploaded textures and their identity.
+#[derive(Default)]
 pub(crate) struct CanvasPlates {
     pub(crate) before_tex: Option<TextureHandle>,
     pub(crate) after_tex: Option<TextureHandle>,
@@ -16,10 +17,4 @@ pub(crate) struct CanvasPlates {
     /// Which photo and version `after_tex` shows, so a landing frame can tell a
     /// slider re-render (no fade) from a swap (fade).
     pub(crate) after_shows: Option<(PathBuf, usize)>,
-}
-
-impl Default for CanvasPlates {
-    fn default() -> Self {
-        Self { before_tex: None, after_tex: None, canvas_fade: None, after_shows: None }
-    }
 }

@@ -131,7 +131,7 @@ pub(crate) type AnalyzeRunner = fn(
     &GradeRequest,
 ) -> anyhow::Result<(EditRecipe, autoshade::advisor::Verdict, Vec<autoshade::rationale::Note>)>;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
     /// The sidebar: the four groups, behind the same mid-open gate as the
@@ -215,16 +215,12 @@ impl AutoShadeApp {
             );
         }
         if let Some(ask) = asked {
-            self.apply_actions(vec![logic::Action::Look(logic::look::LookIntent::of(
-                logic::look::LookKind::OneClick(ask),
-            ))]);
+            self.start_look(logic::look::LookIntent::of(logic::look::LookKind::OneClick(ask)));
         }
         // The dialog after the group is laid out: it is modal and blocks, so
         // the runtime opens it and starts the build/look.
         if pick {
-            self.apply_actions(vec![logic::Action::Normal(
-                logic::normal::NormalAction::PickReferencesFolder,
-            )]);
+            self.apply_normal(logic::normal::NormalAction::PickReferencesFolder,);
         }
     }
 
@@ -283,7 +279,7 @@ impl AutoShadeApp {
             self.workspace.normal_mut().denoise_pair = None;
         }
         let helper = denoise_helper_available();
-        let mut on = self.editor.normal_denoise_on(&self.workspace);
+        let mut on = self.editor.normal_denoise_on(self.workspace);
         let toggled = ui
             .add_enabled(helper && !self.workspace.busy(), egui::Checkbox::new(&mut on, tr(lang, K_NORMAL_AI_DENOISE)))
             .on_hover_text(tr(lang, K_NORMAL_CLEANS_THE_GRAIN_OUT_OF_THE_PHOTO_AND_THE_PREVIE))
@@ -294,11 +290,9 @@ impl AutoShadeApp {
             self.workspace.normal_mut().denoise_ready = Some(weight.is_file());
         }
         if toggled {
-            self.apply_actions(vec![logic::Action::Normal(
-                logic::normal::NormalAction::SetDenoise(on),
-            )]);
+            self.apply_normal(logic::normal::NormalAction::SetDenoise(on),);
         }
-        for line in self.editor.noise_lines(&self.workspace, lang, helper) {
+        for line in self.editor.noise_lines(self.workspace, lang, helper) {
             ui.label(egui::RichText::new(line).weak().small());
         }
     }
@@ -348,12 +342,10 @@ impl AutoShadeApp {
             .on_disabled_hover_text(tr(lang, K_NORMAL_OPEN_A_FOLDER_FIRST_THE_LIBRARY_ON_THE_LEFT))
             .clicked();
         if save {
-            self.apply_actions(vec![logic::Action::Normal(logic::normal::NormalAction::SaveJpg)]);
+            self.apply_normal(logic::normal::NormalAction::SaveJpg);
         }
         if all {
-            self.apply_actions(vec![logic::Action::Normal(
-                logic::normal::NormalAction::ApplyToFolder,
-            )]);
+            self.apply_normal(logic::normal::NormalAction::ApplyToFolder,);
         }
     }
 }

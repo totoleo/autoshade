@@ -196,7 +196,7 @@
                 preview_edge: 1280,
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.switch_variant(1, &ctx);
+        app.commands().switch_variant(1, &ctx);
         assert_eq!(app.editor.canvas_edge(&app.workspace), 800, "premise: the canvas is below the preference");
         assert!(
             !app.workspace.status().contains("baked"),
@@ -226,7 +226,7 @@
                 preview_edge: 1280,
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.switch_variant(1, &ctx);
+        app.commands().switch_variant(1, &ctx);
         assert!(
             app.workspace.status().contains("640px"),
             "a baked canvas says which resolution it kept: {}",
@@ -257,7 +257,7 @@
                 preview_edge: 1280,
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.switch_variant(1, &ctx);
+        app.commands().switch_variant(1, &ctx);
         assert!(
             !app.workspace.status().contains("800px"),
             "a bake at the delivered resolution is not a stale bake: {}",
@@ -290,7 +290,7 @@
                 preview_edge: 1280,
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.switch_variant(1, &ctx);
+        app.commands().switch_variant(1, &ctx);
         assert!(
             !app.workspace.status().contains("1280px"),
             "a canvas at the preference is not a stale bake either: {}",
@@ -354,7 +354,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
                 ..Default::default()
             }; view } , ..Default::default() };
         app.editor.session_mut().hist.undo_stack.push(step(&superseded, "superseded"));
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert!(
             app.editor.photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &superseded)),
             "premise: the superseded raster is back on the canvas"
@@ -366,7 +366,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
         );
         // ...and REDOING back to a reachable canvas must RETRACT it: a
         // disclosure left standing is false in both halves.
-        app.redo(&ctx);
+        app.editor.redo(&mut app.workspace, app.lang, &ctx);
         assert!(
             app.editor.photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &current)),
             "premise: the matching-edge raster is back"
@@ -421,7 +421,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
             }; view } , ..Default::default() };
         // R24-4: the ✕ ARMS first — a deleted card cannot be brought back, so
         // the first call asks and changes nothing about the strip.
-        app.delete_variant(1, &ctx);
+        app.commands().delete_variant(1, &ctx);
         assert_eq!(app.editor.doc().variants.len(), 2, "the arming click deletes nothing");
         assert_eq!(app.editor.doc().active, 1, "…and does not re-anchor the strip either");
         assert_eq!(
@@ -429,7 +429,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
             Some(1),
             "the arming click names the card the next one deletes"
         );
-        app.delete_variant(1, &ctx);
+        app.commands().delete_variant(1, &ctx);
         assert_eq!(app.editor.doc().active, 0, "premise: the strip re-anchored");
         assert_eq!(app.workspace.cards().variant_delete_confirm, None, "the arm is spent");
         assert!(
@@ -471,8 +471,8 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
                 preview_edge: 1280,
                 ..Default::default()
             }; view } , ..Default::default() };
-        app.delete_variant(1, &ctx); // arm
-        app.delete_variant(1, &ctx); // …and confirm
+        app.commands().delete_variant(1, &ctx); // arm
+        app.commands().delete_variant(1, &ctx); // …and confirm
         assert!(
             app.workspace.status().contains("variant removed"),
             "no disagreement, no claim: {}",
@@ -518,7 +518,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
             "the dead photo's history goes with it"
         );
         // …so an undo here cannot reinstate the recipe of a photo that is gone.
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.contrast, 0.0, "nothing left to restore");
         assert!(app.editor.doc().variants.is_empty(), "…and no canvas to restore it onto");
     }
@@ -589,24 +589,24 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
         let mut app = AutoShadeApp::default();
         let master = Arc::new(image::DynamicImage::new_rgb8(6, 4));
         let p = &std::env::temp_dir().join(format!("autoshade-nonexistent-{}/master.tif", std::process::id()));
-        app.remember_master(p, 1280, file_stamp(p), master.clone());
-        let hit = app.cached_master(p, 1280).expect("same path + edge hits");
+        app.workspace.remember_master(p, 1280, file_stamp(p), master.clone());
+        let hit = app.workspace.cached_master(p, 1280).expect("same path + edge hits");
         assert_eq!(hit.dimensions(), (6, 4), "the decoded pixels ride the entry");
         assert!(
-            app.cached_master(p, 4096).is_none(),
+            app.workspace.cached_master(p, 4096).is_none(),
             "a different edge must MISS — the entry holds 1280-edge pixels"
         );
         // Re-remembering the same (path, edge) replaces rather than stacks.
-        app.remember_master(p, 1280, file_stamp(p), master.clone());
+        app.workspace.remember_master(p, 1280, file_stamp(p), master.clone());
         assert_eq!(app.workspace.open().master_cache.len(), 1, "same key replaces its entry");
         let others: Vec<std::path::PathBuf> = (0..MASTER_CACHE_CAP)
             .map(|i| std::env::temp_dir().join(format!("autoshade-nonexistent-{}/m{i}.tif", std::process::id())))
             .collect();
         for o in &others {
-            app.remember_master(o, 1280, file_stamp(o), master.clone());
+            app.workspace.remember_master(o, 1280, file_stamp(o), master.clone());
         }
-        assert!(app.cached_master(p, 1280).is_none(), "least-recent evicted at cap");
-        assert!(app.cached_master(&others[1], 1280).is_some(), "newer entries survive");
+        assert!(app.workspace.cached_master(p, 1280).is_none(), "least-recent evicted at cap");
+        assert!(app.workspace.cached_master(&others[1], 1280).is_some(), "newer entries survive");
         assert!(app.workspace.open().master_cache.len() <= MASTER_CACHE_CAP, "cap holds");
     }
 
@@ -670,7 +670,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
         // push_variant auto-switches: the switch's M15 boundary clear used to
         // discard the buffer, and the outgoing variant snapshotted "old".
         app.workspace.masks_mut().mask_name_buf = Some((0, "old".into(), "sky gradient".into()));
-        app.push_variant(
+        app.commands().push_variant(
             Variant {
                 id: String::new(),
                 name: None,
@@ -844,7 +844,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
             autoshade::rationale::keys::FIT_NOTE_SAT_PEGGED,
         )];
         app.editor.doc_mut().recipe = EditRecipe { rationale: "a different develop".into(), ..Default::default() };
-        app.resync_recipe_display();
+        app.editor.resync_recipe_display(&mut app.workspace);
         assert_eq!(app.editor.analysis().rationale, "a different develop");
         assert!(
             app.editor.analysis().rationale_notes.is_empty(),

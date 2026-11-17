@@ -180,7 +180,7 @@
             let style = ctx.style();
             // The panel frame's own right margin, then the bar inside it.
             let content_right = panel.right() - f32::from(egui::Frame::side_top_panel(&style).inner_margin.right);
-            let bar_left = content_right - f32::from(style.spacing.scroll.bar_width);
+            let bar_left = content_right - style.spacing.scroll.bar_width;
             let mut past = Vec::new();
             for c in out.shapes.iter().filter(|c| c.clip_rect.right() <= panel.right() + 0.5) {
                 walk(&c.shape, c.clip_rect, bar_left, &mut past);
@@ -359,19 +359,18 @@
         // "unreadable" where the preview belongs.
         let names = ["Warm late sun", "Cool portrait", "DSC02258"];
         let _scrub = Scrub(names.iter().map(|n| autoshade::recipe_library::entry_path(n)).collect());
-        let mut mask = autoshade::recipe::LocalAdjustment::default();
-        mask.exposure_ev = 0.25;
+        let mask = autoshade::recipe::LocalAdjustment { exposure_ev: 0.25, ..Default::default() };
         let warm = EditRecipe { exposure_ev: 0.35, contrast: 14.0, temperature_k: Some(5200.0), ..Default::default() };
-        let _ = autoshade::recipe_library::delete(&names[0]);
-        let _ = autoshade::recipe_library::delete(&names[1]);
-        let _ = autoshade::recipe_library::delete(&names[2]);
-        autoshade::recipe_library::create(&names[0], &EditRecipe { masks: vec![mask.clone()], ..warm.clone() }).unwrap();
+        let _ = autoshade::recipe_library::delete(names[0]);
+        let _ = autoshade::recipe_library::delete(names[1]);
+        let _ = autoshade::recipe_library::delete(names[2]);
+        autoshade::recipe_library::create(names[0], &EditRecipe { masks: vec![mask.clone()], ..warm.clone() }).unwrap();
         autoshade::recipe_library::create(
-            &names[1],
+            names[1],
             &EditRecipe { temperature_k: Some(7200.0), tint: -8.0, vibrance: -12.0, ..Default::default() },
         )
         .unwrap();
-        autoshade::recipe_library::create(&names[2], &EditRecipe::default()).unwrap();
+        autoshade::recipe_library::create(names[2], &EditRecipe::default()).unwrap();
         let rows = || {
             vec![
                 autoshade::recipe_library::Stored {

@@ -17,16 +17,16 @@
         // "inflight cleared" assertion below non-vacuous (develop_inflight
         // used to be false from construction to the end).
         app.editor.session_mut().dirty = true;
-        app.start_redevelop();
+        app.commands().start_redevelop();
         assert!(app.editor.scheduler().inflight, "dispatch arms the in-flight flag");
         assert!(!app.editor.session().dirty, "dispatch consumes the pending edit");
         app.editor.session_mut().dirty = true;
-        app.start_redevelop();
+        app.commands().start_redevelop();
         assert!(app.editor.session().dirty, "the in-flight guard swallows a second dispatch (edit stays armed)");
 
         // A matching frame is accepted and bumps the counter + sets the texture.
         let good = build_preview(base.clone(), app.editor.doc().recipe.clone(), false, None, autoshade::render::SourceFrame::Baked(None));
-        app.finish_redevelop(&ctx, Ok(good));
+        app.commands().finish_redevelop(&ctx, Ok(good));
         assert_eq!(app.editor.scheduler().count, 1, "matching frame accepted");
         assert!(app.editor.plates().after_tex.is_some(), "after texture set");
         assert!(!app.editor.scheduler().inflight, "inflight cleared on completion");
@@ -39,7 +39,7 @@
         let stale = build_preview(base, app.editor.doc().recipe.clone(), false, None, autoshade::render::SourceFrame::Baked(None));
         app.editor.doc_mut().recipe.masks[0].exposure_ev = 1.9; // user kept dragging
         app.editor.session_mut().dirty = false;
-        app.finish_redevelop(&ctx, Ok(stale));
+        app.commands().finish_redevelop(&ctx, Ok(stale));
         assert_eq!(app.editor.scheduler().count, 1, "stale frame (recipe moved) discarded");
         assert!(app.editor.session().dirty, "a discarded stale frame re-arms the pending edit");
 
@@ -63,17 +63,17 @@
             build_preview(base.clone(), app.editor.doc().recipe.clone(), false, None, autoshade::render::SourceFrame::Baked(None))
         };
 
-        app.finish_redevelop(&ctx, Ok(frame(&app)));
+        { let f = frame(&app); app.commands().finish_redevelop(&ctx, Ok(f)); }
         assert!(app.editor.plates().canvas_fade.is_some(), "the first frame fades in from the empty canvas");
         let first = app.editor.plates().after_tex.as_ref().unwrap().id();
         app.editor.plates_mut().canvas_fade = None;
 
-        app.finish_redevelop(&ctx, Ok(frame(&app)));
+        { let f = frame(&app); app.commands().finish_redevelop(&ctx, Ok(f)); }
         assert!(app.editor.plates().canvas_fade.is_none(), "a re-render of the same version must not fade");
         assert_eq!(app.editor.plates().after_tex.as_ref().unwrap().id(), first, "…and updates the texture in place");
 
         app.editor.doc_mut().active += 1; // the version the frame is for changed
-        app.finish_redevelop(&ctx, Ok(frame(&app)));
+        { let f = frame(&app); app.commands().finish_redevelop(&ctx, Ok(f)); }
         let (old, _) = app.editor.plates().canvas_fade.as_ref().expect("a swap fades");
         assert_eq!(old.as_ref().map(|t| t.id()), Some(first), "the outgoing frame is the one faded out");
         assert_ne!(app.editor.plates().after_tex.as_ref().unwrap().id(), first, "the new frame gets its own texture");
@@ -81,7 +81,7 @@
         // Past the fade, the canvas drops the outgoing frame.
         app.editor.plates_mut().canvas_fade = Some((None, Instant::now() - Duration::from_secs(1)));
         let _ = ctx.run(Default::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| app.after_view(ui, 400.0, 300.0, false));
+            egui::CentralPanel::default().show(ctx, |ui| app.commands().after_view(ui, 400.0, 300.0, false));
         });
         assert!(app.editor.plates().canvas_fade.is_none(), "a finished fade is cleared");
     }
@@ -103,7 +103,7 @@
         app.editor.photo_mut().src_path = Some(old.clone());
         app.workspace.masks_mut().mask_name_buf = Some((0, "sky".into(), "sky gradient".into()));
 
-        app.open_path(std::path::PathBuf::from("out/_rename_new.arw"));
+        app.commands().open_path(std::path::PathBuf::from("out/_rename_new.arw"));
         assert_eq!(
             app.editor.doc().recipe.masks[0].name, "sky gradient",
             "open_path itself must flush the pending rename"
@@ -124,7 +124,7 @@
         // other — so the empty-path return is the disk-free door).
         app.editor.photo_mut().src_path = None;
         app.workspace.masks_mut().mask_name_buf = Some((0, "sky gradient".into(), "sky gradient 2".into()));
-        app.save_xmp();
+        app.commands().save_xmp();
         assert_eq!(
             app.editor.doc().recipe.masks[0].name, "sky gradient 2",
             "save_xmp itself must flush the pending rename"
@@ -171,7 +171,7 @@
             app.editor.inactive_dirty_variants(&app.workspace, ) > 0,
             "the quit surfaces still see the other photo's work"
         );
-        app.open_path(std::env::temp_dir().join(format!("autoshade-chain-{}/next.ARW", std::process::id())));
+        app.commands().open_path(std::env::temp_dir().join(format!("autoshade-chain-{}/next.ARW", std::process::id())));
         assert!(
             !app.workspace.open().nav_stash.contains_key(&clean),
             "a clean photo must not be stashed for another photo's background work"
@@ -208,7 +208,7 @@
         app.editor.photo_mut().src_path = Some(old.clone());
         assert_eq!(app.editor.inactive_dirty_variants(&app.workspace, ), 1, "premise: background dirty");
         // Navigate away — the stash snapshot is written synchronously.
-        app.open_path(std::env::temp_dir().join(format!("autoshade-h4-{}/__autoshade_h4_b__.ARW", std::process::id())));
+        app.commands().open_path(std::env::temp_dir().join(format!("autoshade-h4-{}/__autoshade_h4_b__.ARW", std::process::id())));
         {
             let st = app.workspace.open().nav_stash.get(&old).expect("background work must stash the strip");
             assert_eq!(st.others.len(), 1);
@@ -270,27 +270,27 @@
         let (mut app, _scrub) = app_with_masked_photo("overlay");
         let ctx = egui::Context::default();
 
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         assert_eq!(app.workspace.overlay().overlay_build_count, 1, "first coverage build");
         assert!(app.workspace.overlay().mask_overlay_tex.is_some());
 
         // Local effect sliders: no rebuild.
         app.editor.doc_mut().recipe.masks[0].exposure_ev = -2.0;
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         app.editor.doc_mut().recipe.masks[0].temperature = 55.0;
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         app.editor.doc_mut().recipe.masks[0].color_gains = Some([1.6, 0.8, 0.5]);
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         assert_eq!(app.workspace.overlay().overlay_build_count, 1, "local effect sliders must not rebuild coverage");
 
         // Amount is coverage-relevant: rebuild.
         app.editor.doc_mut().recipe.masks[0].amount = 0.5;
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         assert_eq!(app.workspace.overlay().overlay_build_count, 2, "amount change rebuilds coverage");
 
         // Inversion is coverage-relevant: rebuild.
         app.editor.doc_mut().recipe.masks[0].inverted = true;
-        app.refresh_mask_overlay(&ctx);
+        app.commands().refresh_mask_overlay(&ctx);
         assert_eq!(app.workspace.overlay().overlay_build_count, 3, "inversion rebuilds coverage");
 
     }
@@ -799,7 +799,7 @@
 
 
             }; editor } , ..Default::default() };
-        app.save_xmp();
+        app.commands().save_xmp();
         assert!(autoshade::store::recipe_target(src).exists(), "{}", app.workspace.status());
         let back = autoshade::xmp::xmp_to_recipe(&std::fs::read_to_string(&xp).unwrap());
         assert_eq!(back.contrast, 7.0, "the projection is this generation's");

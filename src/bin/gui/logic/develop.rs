@@ -26,4 +26,8 @@ pub(crate) enum DevelopAction {
     LoadVersion(u32),
     /// Delete this snapshot and its frozen rasters.
     DeleteVersion(u32),
+    /// Snapshot the live canvas as the next numbered version.
+    SaveVersion,
+    /// Commit the version row's typed name to the store.
+    CommitVersionName,
 }

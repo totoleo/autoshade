@@ -8,13 +8,8 @@ use crate::model::HistoryState;
 /// The per-photo editing session. `hist` is the history model the undo/redo
 /// verbs write; `dirty` says the recipe moved since the last develop was
 /// dispatched (the preview scheduler's input).
+#[derive(Default)]
 pub(crate) struct EditorSession {
     pub(crate) hist: HistoryState,
     pub(crate) dirty: bool,
-}
-
-impl Default for EditorSession {
-    fn default() -> Self {
-        Self { hist: HistoryState::default(), dirty: false }
-    }
 }

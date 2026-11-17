@@ -408,7 +408,7 @@ pub(crate) fn references_built(
     let kind = LookKind::OneClick(OneClick::References);
     match res {
         Ok(_) if built_photo.is_some() && built_photo == current_photo && !inflight => {
-            vec![Effect::StartLook(LookIntent::of(kind))]
+            vec![Effect::StartLook(Box::new(LookIntent::of(kind)))]
         }
         Ok(_) => vec![
             // Status FIRST: the failure line shows the status the landing wrote.

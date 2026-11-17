@@ -24,6 +24,7 @@ pub fn as_shot_wb(raw_path: &Path) -> Option<(f32, f32)> {
 /// A RAW's metadata-only decode (`dummy`: no pixel data, no demosaic), with
 /// every guard the open path needs and `None` on any trouble; `what` names
 /// the caller for the parser-panic guard.
+#[allow(clippy::disallowed_methods)] // the metadata-only decode door
 fn metadata(raw_path: &Path, what: &str) -> Option<(RawSource, rawler::RawImage)> {
     if !crate::decode::is_raw(raw_path) {
         return None;

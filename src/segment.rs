@@ -2019,6 +2019,7 @@ mod tests {
 
     #[cfg_attr(not(feature = "slow-tests"), ignore = "slow raster/engine tier: real frames or segmentation; --features slow-tests or --ignored")]
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test owns the process environment
     fn subtype_and_empty_dab_gates_preserve_every_legacy_prompt_path() {
         let hostile = gesture("d NaN 0.5");
         assert!(

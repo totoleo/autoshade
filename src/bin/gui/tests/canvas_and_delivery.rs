@@ -78,7 +78,7 @@
         let ctx = egui::Context::default();
         // The cancel already bumped past this task's epoch 6.
         let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.tools_mut() = ToolsState { gen_epoch: 7, ..Default::default() }; view } , ..Default::default() };
-        app.on_retouched(
+        app.commands().on_retouched(
             &ctx,
             Lang::En,
             6,
@@ -236,9 +236,9 @@
 
         let mut app = AutoShadeApp::default();
         let pixels = std::sync::Arc::new(image::DynamicImage::ImageRgba8(image::RgbaImage::new(2, 2)));
-        app.remember_master(&p, 1280, spawn_stamp, pixels);
+        app.workspace.remember_master(&p, 1280, spawn_stamp, pixels);
         assert!(
-            app.cached_master(&p, 1280).is_none(),
+            app.workspace.cached_master(&p, 1280).is_none(),
             "the old pixels were filed under the OLD identity, so the rewritten file misses"
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -538,8 +538,8 @@
                     let (rect, resp) = ui.allocate_exact_size(egui::vec2(1024.0, 768.0), egui::Sense::click_and_drag());
                     canvas = rect;
                     let xf = ViewXform { rect, uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)) };
-                    app.handle_paint(&resp, xf);
-                    app.draw_brush_cursor(ui, &resp, rect);
+                    app.commands().handle_paint(&resp, xf);
+                    app.commands().draw_brush_cursor(ui, &resp, rect);
                 });
             },
         );
@@ -851,7 +851,7 @@
                 app.poll_workers(&ctx);
             }
         };
-        app.open_path(src.clone());
+        app.commands().open_path(src.clone());
         land(&mut app);
         let alpha = |r: &EditRecipe| match &r.masks.first().map(|m| &m.mask) {
             Some(autoshade::recipe::MaskGeometry::AiMask { raster, .. }) => raster.clone(),
@@ -868,7 +868,7 @@
         };
         let export = |app: &mut AutoShadeApp, recipe: EditRecipe, name: &str| {
             app.editor.doc_mut().recipe = recipe;
-            assert!(app.start_render_to(out.join(name)), "{}", app.workspace.status());
+            assert!(app.commands().start_render_to(out.join(name)), "{}", app.workspace.status());
             land(app);
             mean(&out.join(name))
         };
@@ -920,7 +920,7 @@
                 app.poll_workers(&ctx);
             }
         };
-        app.open_path(src.clone());
+        app.commands().open_path(src.clone());
         land(&mut app);
         let raster = |r: &EditRecipe| match r.masks.first().map(|m| (&m.mask, m.role)) {
             Some((autoshade::recipe::MaskGeometry::Bitmap { path }, autoshade::recipe::MaskRole::Face)) => path.clone(),
@@ -938,7 +938,7 @@
         };
         let export = |app: &mut AutoShadeApp, recipe: EditRecipe, name: &str| {
             app.editor.doc_mut().recipe = recipe;
-            assert!(app.start_render_to(out.join(name)), "{}", app.workspace.status());
+            assert!(app.commands().start_render_to(out.join(name)), "{}", app.workspace.status());
             land(app);
             mean(&out.join(name))
         };
@@ -947,7 +947,7 @@
         assert!(face > plain + 30.0, "the export carries the face mask, two stops up: {face} vs {plain}");
         // No face found: the intent is taken out and the line says why.
         let mut app = AutoShadeApp { seams: TestSeams { ai_mask_stub: Some(no_face_runner), ..Default::default() }, ..Default::default() };
-        app.open_path(bare.clone());
+        app.commands().open_path(bare.clone());
         land(&mut app);
         assert!(app.editor.doc().recipe.masks.is_empty(), "a face mask with no face to stand on is taken out: {:?}", app.editor.doc().recipe.masks);
         assert!(app.editor.session().hist.saved_recipe.masks.is_empty(), "from the saved mark too, so ● stays dark");

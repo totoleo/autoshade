@@ -23,7 +23,7 @@
             "two masks with every adjustment at neutral do nothing — no ●"
         );
         let seen = tall_frame(&mut app, |a, ui| {
-            a.develop_panel(ui);
+            a.commands().develop_panel(ui);
         });
         assert!(
             seen.iter().any(|t| t == "Local Masks (2)"),
@@ -38,7 +38,7 @@
         assert!(mask_active(&app.editor.doc().recipe.masks[1]), "premise: the row dot lights here");
         assert!(app.editor.masks_section_active(), "the header must agree with the row");
         let seen = tall_frame(&mut app, |a, ui| {
-            a.develop_panel(ui);
+            a.commands().develop_panel(ui);
         });
         assert!(
             seen.iter().any(|t| t == "Local Masks (2)  ●"),
@@ -96,7 +96,7 @@
                 .unwrap_or_else(|| panic!("{family} is not a declared family"));
             let mut app = AutoShadeApp::default();
             assert!(!family_is_active(f, &app.editor.doc().recipe), "{family}: a fresh recipe is neutral");
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == header),
                 "{family}: the {header} header was not drawn — this test proves nothing: {seen:?}"
@@ -107,7 +107,7 @@
             );
             mutate(&mut app.editor.doc_mut().recipe);
             assert!(family_is_active(f, &app.editor.doc().recipe), "premise: the move woke the family up");
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == &format!("{header}  ●")),
                 "{family}: a moved control must light {header}: {seen:?}"
@@ -134,20 +134,20 @@
             (crate::i18n::Lang::Zh, ["参数曲线", "亮调", "暗调", "阴影分界", "中间调分界", "高光分界"]),
         ] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             for row in rows {
                 assert!(seen.iter().any(|t| t == row), "{lang:?}: Curves has no {row:?} row: {seen:?}");
             }
         }
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(seen.iter().any(|t| t == "Curves"), "premise: the header is drawn: {seen:?}");
         assert!(!seen.iter().any(|t| t == "Curves  ●"), "premise: a rest recipe lights nothing");
         app.editor.doc_mut().recipe.param_midtone_split = 60.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(!seen.iter().any(|t| t == "Curves  ●"), "a split alone renders nothing: {seen:?}");
         app.editor.doc_mut().recipe.param_darks = 30.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(seen.iter().any(|t| t == "Curves  ●"), "a moved region must light Curves: {seen:?}");
     }
 
@@ -166,7 +166,7 @@
     fn the_color_mixer_draws_the_bw_mix_the_point_colours_and_calibration() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             let drawn = |seen: &[String], want: &str| seen.iter().any(|t| t == want);
             // Each key spelt AT its `tr` (the i18n audit reads call sites, and
             // a loop variable is a site it cannot read).
@@ -194,7 +194,7 @@
             // the tabs were, and the swatch brings its four sliders with it.
             app.editor.doc_mut().recipe.convert_to_grayscale = true;
             app.editor.doc_mut().recipe.point_colors.push(autoshade::recipe::PointColor::sampled(0.9, 0.7, 0.5));
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             for want in [
                 tr(lang, K_DEVELOP_B_W_MIX).to_string(),
                 trf(lang, K_DEVELOP_SWATCH, &[("n", "1")]),
@@ -235,12 +235,13 @@
         use autoshade::recipe::MAX_POINT_COLORS;
         let mut app = AutoShadeApp::default();
         let pick = |app: &mut AutoShadeApp, px: [f32; 3]| {
-            app.apply_actions(vec![logic::Action::Pick(logic::pick::PickAction::PointColor(px))]);
+            let effects = app.commands().apply_pick(logic::pick::PickAction::PointColor(px));
+            app.commands().run_effects(effects);
         };
         assert!(!app.workspace.tool_armed(), "premise: a fresh app has no tool armed");
         app.workspace.tools_mut().point_color_picking = true;
         assert!(app.workspace.tool_armed(), "an armed eyedropper is an armed canvas tool");
-        app.panel_view(&mut Vec::new()).disarm_tools();
+        app.panel_view().disarm_tools();
         assert!(!app.workspace.tools().point_color_picking, "Esc's disarm puts it down with the rest");
 
         app.workspace.tools_mut().point_color_picking = true;
@@ -284,7 +285,7 @@
     fn texture_lights_the_presence_dot() {
         let mut app = AutoShadeApp::default();
         assert_eq!(app.editor.doc().recipe.texture, 0.0, "premise: a fresh recipe is neutral");
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Presence"),
             "the Presence header was not drawn — this test proves nothing: {seen:?}"
@@ -297,7 +298,7 @@
         // reachable only by the AI and the XMP reader).
         assert!(seen.iter().any(|t| t == "Texture"), "no Texture slider in Presence: {seen:?}");
         app.editor.doc_mut().recipe.texture = 26.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Presence  ●"),
             "a moved Texture must light Presence: {seen:?}"
@@ -353,7 +354,7 @@
             ),
         ] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == header),
                 "{lang:?}: the {header} section was not drawn: {seen:?}"
@@ -382,7 +383,7 @@
                 "{lang:?}: a neutral Effects section must claim nothing: {seen:?}"
             );
             app.editor.doc_mut().recipe.grain = 30.0;
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == &format!("{header}  ●")),
                 "{lang:?}: an imported Lightroom grain must light Effects: {seen:?}"
@@ -403,7 +404,7 @@
             (crate::i18n::Lang::Zh, "镜头暗角", "暗角", "裁剪后暗角"),
         ] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == renamed),
                 "{lang:?}: the renamed lens slider was not drawn — this proves nothing: {seen:?}"
@@ -426,7 +427,7 @@
             (crate::i18n::Lang::Zh, "去紫边留待后续批次"),
         ] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             let lens_header = if lang == crate::i18n::Lang::En { "Lens" } else { "镜头 · Lens" };
             assert!(
                 seen.iter().any(|t| t == lens_header),
@@ -454,7 +455,7 @@
         let mut app = AutoShadeApp::default();
         app.editor.doc_mut().recipe.lens_vignette_mid = 90.0;
         assert_eq!(app.editor.doc().recipe.lens_vignette, 0.0, "premise: the amount is at rest");
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Lens"),
             "the Lens header was not drawn — this test proves nothing: {seen:?}"
@@ -465,7 +466,7 @@
         );
         // …and the amount, which DOES render, still lights it.
         app.editor.doc_mut().recipe.lens_vignette = -35.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Lens  ●"),
             "a real vignette correction must light the section: {seen:?}"
@@ -538,7 +539,7 @@
             ),
         ] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             for row in rows {
                 assert!(
                     seen.iter().any(|t| t == row),
@@ -549,11 +550,11 @@
         // …and the eight detail axes light the Detail ● (the section holds two
         // families since B3, and its dot is the OR of them).
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(seen.iter().any(|t| t == "Detail"), "premise: the header is drawn: {seen:?}");
         assert!(!seen.iter().any(|t| t == "Detail  ●"), "premise: a rest recipe lights nothing");
         app.editor.doc_mut().recipe.color_nr = 25.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Detail  ●"),
             "a detail axis must not be an invisible adjustment: {seen:?}"
@@ -562,7 +563,7 @@
         // number is the rest recipe's, its render is not.
         let mut app = AutoShadeApp::default();
         app.editor.doc_mut().recipe.set_resolved("sharpen_detail", 0.0);
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Detail  ●"),
             "Detail 0 renders differently from an absent Detail: {seen:?}"
@@ -570,7 +571,7 @@
         // The same for the Lens section and the de-fringe half of its family.
         let mut app = AutoShadeApp::default();
         app.editor.doc_mut().recipe.defringe_purple = 3.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Lens  ●"),
             "a de-fringe value must light the Lens dot: {seen:?}"
@@ -594,7 +595,7 @@
     fn the_transform_section_has_sliders_and_a_verbatim_tail() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             // The section is ALWAYS there now: it holds controls, not a
             // read-out of something the file may or may not have carried.
             assert!(
@@ -652,7 +653,7 @@
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             for want in [
                 tr(lang, K_DEVELOP_UPRIGHT_SOLVER_BOOKKEEPING),
                 tr(lang, K_DEVELOP_CAMERA_PROFILE),
@@ -684,7 +685,7 @@
         // And the section's ● lights from its own family, like every other.
         let mut app = AutoShadeApp::default();
         app.editor.doc_mut().recipe.perspective_vertical = -35.0;
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Transform  ●"),
             "a keystone must light the Transform dot: {seen:?}"
@@ -725,7 +726,7 @@
                 ],
                 ..Default::default()
             });
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             for want in [
                 tr(lang, K_DEVELOP_CREATIVE_PROFILE),
                 tr(
@@ -767,13 +768,13 @@
                 if let Some(look) = app.editor.doc_mut().recipe.look.as_mut() {
                     look.table = "E1095149FDB39D7A057BAB208837E2E1".to_string();
                 }
-                let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+                let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
                 assert!(seen.iter().any(|t| t == renders), "{lang:?}: {seen:?}");
                 assert!(!seen.iter().any(|t| t == not), "{lang:?}: {seen:?}");
                 if let Some(look) = app.editor.doc_mut().recipe.look.as_mut() {
                     look.amount = 0.5;
                 }
-                let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+                let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
                 assert!(seen.iter().any(|t| t == not), "{lang:?}: half a Look: {seen:?}");
                 if let Some(look) = app.editor.doc_mut().recipe.look.as_mut() {
                     look.amount = 1.0;
@@ -784,7 +785,7 @@
             if let Some(look) = app.editor.doc_mut().recipe.look.as_mut() {
                 look.table.clear();
             }
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_DEVELOP_CREATIVE_PROFILE)),
                 "{lang:?}: the name still shows: {seen:?}"
@@ -829,7 +830,7 @@
                 ..Default::default()
             });
             assert!(!app.editor.doc().recipe.convert_to_grayscale, "{lang:?}: the checkbox stays off");
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             // The B&W mixer's own caption is up, in place of the three
             // Hue/Saturation/Luminance tabs the colour mixer draws.
             assert!(
@@ -847,7 +848,7 @@
                 amount: 1.0,
                 ..Default::default()
             });
-            let colour_seen = tall_frame(&mut colour, |a, ui| a.develop_panel(ui));
+            let colour_seen = tall_frame(&mut colour, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 !colour_seen.iter().any(|t| t == tr(lang, K_DEVELOP_B_W_MIX)),
                 "{lang:?}: a COLOUR profile leaves the colour mixer alone: {colour_seen:?}"
@@ -855,7 +856,7 @@
             // …and the photographer's own switch still does it on its own.
             let mut own = AutoShadeApp { lang, ..Default::default() };
             own.editor.doc_mut().recipe.convert_to_grayscale = true;
-            let seen = tall_frame(&mut own, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut own, |a, ui| a.commands().develop_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_DEVELOP_B_W_MIX)),
                 "{lang:?}: either switch, not both: {seen:?}"
@@ -1049,7 +1050,7 @@
                     let mut app = AutoShadeApp { lang, ..Default::default() };
                     app.editor.doc_mut().recipe.lens_profile = profile.clone();
                     change(&mut app.editor.doc_mut().recipe);
-                    let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+                    let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
                     let headers: Vec<&str> = seen.iter().map(String::as_str)
                         .filter(|t| *t == title || *t == lit).collect();
                     assert_eq!(
@@ -1078,7 +1079,7 @@
                 }; view } , lang, ..Default::default() };
             let title = tr(lang, K_APP_EXPORT);
             let lit = format!("{title}  ●");
-            let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+            let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
             let headers: Vec<&str> = seen.iter().map(String::as_str)
                 .filter(|t| *t == title || *t == lit).collect();
             assert_eq!(headers, vec![title], "{lang:?}: delivery preferences must leave the Export title plain");

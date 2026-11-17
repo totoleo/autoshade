@@ -129,6 +129,7 @@ impl AppState {
     }
 }
 
+#[allow(clippy::disallowed_methods)] // the HTTP server's request threads
 pub fn serve(dir: &Path, port: u16) -> Result<()> {
     // Sources = RAWs + already-baked PNG/TIFF/JPEG (the PNG-source edit mode).
     let raws = pipeline::find_sources(dir)?;
@@ -1821,6 +1822,7 @@ fn unwarp_mask(bytes: &[u8], view: Option<&EditRecipe>, raw: &Path) -> Option<Ve
 /// DIFFER from the develop output (a small-preview camera's 1616×1080
 /// ≈ 1.496 vs the sensor's 3:2), and the maps must consume exactly the
 /// frame the user pointed at. Baked sources: a header-only dimension read.
+#[allow(clippy::disallowed_methods)] // header-only dimension probe
 fn source_dims(raw: &Path) -> Option<(f32, f32)> {
     if decode::is_raw(raw) {
         // Any part's base has the frame's dims; the photo's own is the one
@@ -4131,6 +4133,7 @@ mod tests {
     /// and reads until the server answers (or drops the request), so joining
     /// it never hangs; the `Server` rides along so the connection outlives
     /// the request.
+    #[allow(clippy::disallowed_methods)] // the fixture drives a loopback client
     fn loopback_request(raw_http: Vec<u8>) -> (Server, Request, std::thread::JoinHandle<()>) {
         let server = Server::http("127.0.0.1:0").unwrap();
         let port = server_port(&server).unwrap();
@@ -4396,6 +4399,7 @@ mod tests {
     /// it after the call unwound past the release, and eight panics wedged the
     /// accept loop forever with no error anywhere.
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test needs real panicking threads
     fn a_panicking_handler_still_gives_its_request_slot_back() {
         let gate = std::sync::Arc::new((std::sync::Mutex::new(0usize), std::sync::Condvar::new()));
         let count = || *gate.0.lock().unwrap_or_else(|p| p.into_inner());

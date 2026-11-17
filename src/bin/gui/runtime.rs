@@ -6,144 +6,180 @@
 //! those three crossings live here, on purpose.
 
 use crate::logic::look::{AnalysisJob, LookIntent, LookKind, LookLine, OneClick};
-use crate::logic::{self, Action, Effect};
+use crate::logic::{self, Effect};
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Apply what the view saw the user do. One arm per domain; each arm ends
     /// in `logic::<domain>`, and the effects run at the end, in the order the
     /// logic asked for them.
-    pub(crate) fn apply_actions(&mut self, actions: Vec<Action>) {
-        let mut effects = Vec::new();
-        for action in actions {
-            match action {
-                Action::Look(intent) => self.start_look(intent),
-                Action::References(dir) => {
-                    let photo = self.editor.photo().src_path.clone();
-                    let started = logic::look::references_start(
-                        photo.as_deref(),
-                        dir,
-                        self.workspace.busy(),
-                        self.workspace.tools().analyze_inflight,
-                        self.workspace.normal().building,
-                    );
-                    self.run_effects(started);
+    /// The Develop panel's list and mask verbs.
+    pub(crate) fn apply_develop(&mut self, action: logic::develop::DevelopAction) {
+    match action {
+                logic::develop::DevelopAction::AiDenoise => self.start_ai_denoise(),
+                logic::develop::DevelopAction::Stack(extra) => self.start_stack(extra),
+                logic::develop::DevelopAction::MaskBrush(target) => self.start_mask_brush(target),
+                logic::develop::DevelopAction::Segment { target, label } => {
+                    self.start_segment(target, label)
                 }
-                Action::Lens(action) => {
-                    let start = match action {
-                        logic::lens_blur::LensAction::EstimateDepth => {
-                            self.editor.photo().src_path.clone().zip(self.original_frame_base()).map(|(photo, base)| (photo, base))
-                        }
-                        _ => None,
-                    };
-                    effects.extend(logic::lens_blur::apply(&mut self.editor.doc_mut().recipe, action, start, self.workspace.busy()));
+                logic::develop::DevelopAction::MaskRefine(i) => self.start_mask_refine(i),
+                logic::develop::DevelopAction::MoveMaskUp(i) => self.editor.move_mask(self.workspace, i, true),
+                logic::develop::DevelopAction::MoveMaskDown(i) => self.editor.move_mask(self.workspace, i, false),
+                logic::develop::DevelopAction::DuplicateMask(i) => self.duplicate_mask(self.lang, i),
+                logic::develop::DevelopAction::LoadVersion(n) => self.load_version(n),
+            logic::develop::DevelopAction::SaveVersion => self.save_version(),
+            logic::develop::DevelopAction::CommitVersionName => {
+                self.editor.commit_version_name_buf(self.workspace, self.lang)
+            }
+                logic::develop::DevelopAction::DeleteVersion(n) => {
+                    if let Some(src) = self.editor.photo().src_path.clone() {
+                        self.delete_version_clicked(self.lang, src, n);
+                    }
                 }
-                Action::Gallery(action) => self.apply_gallery(action),
-                Action::Pick(action) => {
-                    effects.extend(logic::pick::apply(&mut self.editor.doc_mut().recipe, action));
+            }
+    }
+
+    /// An on-canvas eyedropper sample.
+    pub(crate) fn apply_pick(&mut self, action: logic::pick::PickAction) -> Vec<logic::Effect> {
+        logic::pick::apply(&mut self.editor.doc_mut().recipe, action)
+    }
+
+    /// A crop gesture.
+    pub(crate) fn apply_crop(&mut self, action: logic::crop::CropAction) -> Vec<logic::Effect> {
+        logic::crop::apply(&mut self.editor.doc_mut().recipe, action)
+    }
+
+    /// A knob drag on the selected mask's geometry.
+    pub(crate) fn apply_mask_edit(&mut self, action: logic::mask_edit::MaskEditAction) -> Vec<logic::Effect> {
+        logic::mask_edit::apply(&mut self.editor.doc_mut().recipe, action)
+    }
+
+    /// A box-selected AI region.
+    pub(crate) fn apply_region(&mut self, action: logic::region::RegionAction) -> Vec<logic::Effect> {
+        logic::region::apply(action)
+    }
+
+    /// Read this folder as the reference library, then look at the photo that
+    /// was open when it was picked.
+    pub(crate) fn apply_references(&mut self, dir: std::path::PathBuf) {
+        let photo = self.editor.photo().src_path.clone();
+        let started = logic::look::references_start(
+            photo.as_deref(),
+            dir,
+            self.workspace.busy(),
+            self.workspace.tools().analyze_inflight,
+            self.workspace.normal().building,
+        );
+        self.run_effects(started);
+    }
+
+    /// The AI panel's folder and generative verbs.
+    pub(crate) fn apply_ai(&mut self, action: logic::ai::AiAction) {
+    match action {
+                logic::ai::AiAction::PickRawFolder => {
+                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                        self.aip.style_raw_dir = Some(dir);
+                    }
                 }
-                Action::Crop(action) => {
-                    effects.extend(logic::crop::apply(&mut self.editor.doc_mut().recipe, action));
+                logic::ai::AiAction::RefreshLibraryStatus => {
+                    // Not in tests: a headless frame would spawn a worker
+                    // reading the developer's own store.
+                    if !cfg!(test) && self.workspace.ai().style_info.is_none() && !self.workspace.ai().style_info_loading {
+                        self.start_style_info();
+                    }
                 }
-                Action::MaskEdit(action) => {
-                    effects.extend(logic::mask_edit::apply(&mut self.editor.doc_mut().recipe, action));
+                logic::ai::AiAction::BuildReferenceLibrary => {
+                    if let Some(dir) = self.aip.style_src_dir.clone().filter(|d| d.is_dir()) {
+                        self.start_style_build(dir);
+                    }
                 }
-                Action::Region(action) => effects.extend(logic::region::apply(action)),
-                Action::Portrait(action) => match action {
-                    logic::portrait::PortraitAction::FindPeople => self.start_find_people(),
-                    logic::portrait::PortraitAction::RemoveBlemishes => self.start_remove_blemishes(),
-                    logic::portrait::PortraitAction::KeepPersonSharp(on) => {
-                        if self.set_keep_person_sharp(on) {
-                            self.editor.session_mut().dirty = true;
-                        }
+                logic::ai::AiAction::Reimagine => self.start_reimagine(),
+                logic::ai::AiAction::AdjustGenerated => self.start_adjust(),
+                logic::ai::AiAction::ReverseFit => self.start_fit(),
+                logic::ai::AiAction::StylePrompt => self.start_style_prompt(),
+                logic::ai::AiAction::PickReferenceFolder => {
+                    let mut dialog = rfd::FileDialog::new();
+                    // Reopen where the last build ran, when it still exists.
+                    if let Some(d) = self.aip.style_src_dir.clone().filter(|d| d.is_dir()) {
+                        dialog = dialog.set_directory(d);
                     }
-                    logic::portrait::PortraitAction::SetKeepSkin(on) => self.set_keep_skin(on),
-                },
-                Action::Develop(action) => match action {
-                    logic::develop::DevelopAction::AiDenoise => self.start_ai_denoise(),
-                    logic::develop::DevelopAction::Stack(extra) => self.start_stack(extra),
-                    logic::develop::DevelopAction::MaskBrush(target) => self.start_mask_brush(target),
-                    logic::develop::DevelopAction::Segment { target, label } => {
-                        self.start_segment(target, label)
+                    if let Some(dir) = dialog.pick_folder() {
+                        // Remembered on the PICK: a build that then fails must
+                        // not lose the folder the rebuild button needs.
+                        self.aip.style_src_dir = Some(dir.clone());
+                        self.start_style_build(dir);
                     }
-                    logic::develop::DevelopAction::MaskRefine(i) => self.start_mask_refine(i),
-                    logic::develop::DevelopAction::MoveMaskUp(i) => self.editor.move_mask(&mut self.workspace, i, true),
-                    logic::develop::DevelopAction::MoveMaskDown(i) => self.editor.move_mask(&mut self.workspace, i, false),
-                    logic::develop::DevelopAction::DuplicateMask(i) => self.duplicate_mask(self.lang, i),
-                    logic::develop::DevelopAction::LoadVersion(n) => self.load_version(n),
-                    logic::develop::DevelopAction::DeleteVersion(n) => {
-                        if let Some(src) = self.editor.photo().src_path.clone() {
-                            self.delete_version_clicked(self.lang, src, n);
-                        }
-                    }
-                },
-                Action::Recipe(action) => match action {
-                    logic::recipes::RecipeAction::ImportFile => self.import_recipe(),
-                    logic::recipes::RecipeAction::Refresh => self.workspace.refresh_recipes(),
-                    logic::recipes::RecipeAction::SaveCurrent => self.save_current_recipe(),
-                    logic::recipes::RecipeAction::ApplyToOpen(name) => self.apply_recipe_to_open(&name),
-                    logic::recipes::RecipeAction::ApplyToSelection(name) => {
-                        self.apply_recipe_to_selection(&name)
-                    }
-                    logic::recipes::RecipeAction::UpdateFromOpen(name) => {
-                        self.update_recipe_from_open(&name)
-                    }
-                    logic::recipes::RecipeAction::Rename { from, to } => self.rename_recipe(&from, &to),
-                    logic::recipes::RecipeAction::Delete(name) => self.delete_recipe(&name),
-                },
-                Action::Ai(action) => match action {
-                    logic::ai::AiAction::PickRawFolder => {
-                        if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                            self.aip.style_raw_dir = Some(dir);
-                        }
-                    }
-                    logic::ai::AiAction::RefreshLibraryStatus => {
-                        // Not in tests: a headless frame would spawn a worker
-                        // reading the developer's own store.
-                        if !cfg!(test) && self.workspace.ai().style_info.is_none() && !self.workspace.ai().style_info_loading {
-                            self.start_style_info();
-                        }
-                    }
-                    logic::ai::AiAction::BuildReferenceLibrary => {
-                        if let Some(dir) = self.aip.style_src_dir.clone().filter(|d| d.is_dir()) {
-                            self.start_style_build(dir);
-                        }
-                    }
-                    logic::ai::AiAction::Reimagine => self.start_reimagine(),
-                    logic::ai::AiAction::AdjustGenerated => self.start_adjust(),
-                    logic::ai::AiAction::ReverseFit => self.start_fit(),
-                    logic::ai::AiAction::StylePrompt => self.start_style_prompt(),
-                    logic::ai::AiAction::PickReferenceFolder => {
-                        let mut dialog = rfd::FileDialog::new();
-                        // Reopen where the last build ran, when it still exists.
-                        if let Some(d) = self.aip.style_src_dir.clone().filter(|d| d.is_dir()) {
-                            dialog = dialog.set_directory(d);
-                        }
-                        if let Some(dir) = dialog.pick_folder() {
-                            // Remembered on the PICK: a build that then fails must
-                            // not lose the folder the rebuild button needs.
-                            self.aip.style_src_dir = Some(dir.clone());
-                            self.start_style_build(dir);
-                        }
-                    }
-                },
-                Action::Normal(action) => match action {
-                    logic::normal::NormalAction::SaveJpg => self.start_normal_save(),
-                    logic::normal::NormalAction::ApplyToFolder => self.start_apply_to_folder(),
-                    logic::normal::NormalAction::SetDenoise(on) => self.set_normal_denoise(on),
-                    logic::normal::NormalAction::PickReferencesFolder => {
-                        let mut dialog = rfd::FileDialog::new();
-                        if let Some(d) = self.workspace.normal().ref_dir.clone().filter(|d| d.is_dir()) {
-                            dialog = dialog.set_directory(d);
-                        }
-                        if let Some(dir) = dialog.pick_folder() {
-                            // The known folder goes through the same landing
-                            // the view's own `References` action uses.
-                            self.apply_actions(vec![Action::References(dir)]);
-                        }
-                    }
-                },
-                Action::Settings(action) => match action {
+                }
+            }
+    }
+
+    /// The recipe-library window's verbs.
+    pub(crate) fn apply_recipe(&mut self, action: logic::recipes::RecipeAction) {
+        match action {
+            logic::recipes::RecipeAction::ImportFile => self.import_recipe(),
+            logic::recipes::RecipeAction::Refresh => self.workspace.refresh_recipes(),
+            logic::recipes::RecipeAction::SaveCurrent => self.save_current_recipe(),
+            logic::recipes::RecipeAction::ApplyToOpen(name) => self.apply_recipe_to_open(&name),
+            logic::recipes::RecipeAction::ApplyToSelection(name) => self.apply_recipe_to_selection(&name),
+            logic::recipes::RecipeAction::UpdateFromOpen(name) => self.update_recipe_from_open(&name),
+            logic::recipes::RecipeAction::Rename { from, to } => self.rename_recipe(&from, &to),
+            logic::recipes::RecipeAction::Delete(name) => self.delete_recipe(&name),
+        }
+    }
+
+    /// The Normal panel's Save group and reference folder.
+    pub(crate) fn apply_normal(&mut self, action: logic::normal::NormalAction) {
+        match action {
+            logic::normal::NormalAction::SaveJpg => self.start_normal_save(),
+            logic::normal::NormalAction::ApplyToFolder => self.start_apply_to_folder(),
+            logic::normal::NormalAction::SetDenoise(on) => self.set_normal_denoise(on),
+            logic::normal::NormalAction::PickReferencesFolder => {
+                let mut dialog = rfd::FileDialog::new();
+                if let Some(d) = self.workspace.normal().ref_dir.clone().filter(|d| d.is_dir()) {
+                    dialog = dialog.set_directory(d);
+                }
+                if let Some(dir) = dialog.pick_folder() {
+                    // The known folder goes through the same landing the
+                    // view's own reference pick uses.
+                    self.apply_references(dir);
+                }
+            }
+        }
+    }
+
+    /// The Portraits panel's verbs.
+    pub(crate) fn apply_portrait(&mut self, action: logic::portrait::PortraitAction) {
+        match action {
+            logic::portrait::PortraitAction::FindPeople => self.start_find_people(),
+            logic::portrait::PortraitAction::RemoveBlemishes => self.start_remove_blemishes(),
+            logic::portrait::PortraitAction::KeepPersonSharp(on) => {
+                if self.editor.set_keep_person_sharp(on) {
+                    self.editor.session_mut().dirty = true;
+                }
+            }
+            logic::portrait::PortraitAction::SetKeepSkin(on) => {
+                self.editor.set_keep_skin(self.workspace, self.lang, on)
+            }
+        }
+    }
+
+    /// The Lens Blur section's verbs.
+    pub(crate) fn apply_lens(&mut self, action: logic::lens_blur::LensAction) -> Vec<logic::Effect> {
+        let start = match action {
+            logic::lens_blur::LensAction::EstimateDepth => self
+                .editor
+                .photo()
+                .src_path
+                .clone()
+                .zip(self.editor.original_frame_base()),
+            _ => None,
+        };
+        logic::lens_blur::apply(&mut self.editor.doc_mut().recipe, action, start, self.workspace.busy())
+    }
+
+    /// The settings panel's folder and form verbs.
+    pub(crate) fn apply_settings(&mut self, action: logic::settings::SettingsAction) {
+        match action {
                     logic::settings::SettingsAction::ImportLegacyFolder => {
                         if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                             self.start_import_legacy(dir);
@@ -163,10 +199,7 @@ impl AutoShadeApp {
                         self.fetch_models(role);
                     }
                     logic::settings::SettingsAction::InstallPython => self.start_python_env_install(),
-                },
-            }
         }
-        self.run_effects(effects);
     }
 
     /// Execute the effects the logic asked for: worker spawns, lines, flags.
@@ -182,7 +215,7 @@ impl AutoShadeApp {
                 Effect::RememberOneClick { photo, fine } => {
                     self.workspace.normal_mut().result = Some((photo, fine));
                 }
-                Effect::StartLook(intent) => self.start_look(intent),
+                Effect::StartLook(intent) => self.start_look(*intent),
                 Effect::ReferenceBuild { photo, dir } => self.start_reference_build(photo, dir),
                 Effect::ArmFocusPick(on) => self.workspace.tools_mut().lens_focus_picking = on,
                 Effect::SetRegion(region) => self.workspace.overlay_mut().region = region,
@@ -191,7 +224,7 @@ impl AutoShadeApp {
                     logic::pick::Picker::Range => self.workspace.tools_mut().range_picking = None,
                     logic::pick::Picker::PointColor => self.workspace.tools_mut().point_color_picking = false,
                 },
-                Effect::DisarmTools => self.panel_view(&mut Vec::new()).disarm_tools(),
+                Effect::DisarmTools => self.workspace.disarm_tools(self.editor),
                 Effect::MarkDirty => self.editor.session_mut().dirty = true,
             }
         }
@@ -260,7 +293,7 @@ impl AutoShadeApp {
 
     /// Plan and start one AI look: snapshot the panel prefs on this thread, let
     /// `logic::look::plan` decide, store the pending look and run the worker.
-    fn start_look(&mut self, intent: LookIntent) {
+    pub(crate) fn start_look(&mut self, intent: LookIntent) {
         let prefs = logic::look::LookPrefs {
             guide: self.aip.guide,
             style: self.aip.style_strength,
@@ -297,7 +330,7 @@ impl AutoShadeApp {
 
     /// Apply one gallery action: the folder dialog, the open/toggle decision,
     /// the thumbnail worker and the bounded texture window are the runtime's.
-    fn apply_gallery(&mut self, action: logic::gallery::GalleryAction) {
+    pub(crate) fn apply_gallery(&mut self, action: logic::gallery::GalleryAction) {
         use logic::gallery::{Click, GalleryAction};
         match action {
             GalleryAction::OpenFolder => {

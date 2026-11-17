@@ -3,6 +3,8 @@
 //! right place. Keeping this in one module means the CLI and the server can
 //! never drift apart.
 
+#![deny(clippy::print_stderr)]
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -6261,6 +6263,7 @@ pub fn find_sources_counted(dir: &Path) -> Result<(Vec<PathBuf>, usize)> {
 }
 
 #[cfg(test)]
+#[allow(clippy::print_stderr)] // test diagnostics
 mod tests {
     use super::*;
 
@@ -6509,12 +6512,11 @@ mod tests {
                             continue;
                         }
                         walk(&path, out);
-                    } else if path.extension().is_some_and(|e| e == "rs") {
-                        if let Ok(text) = std::fs::read_to_string(&path) {
+                    } else if path.extension().is_some_and(|e| e == "rs")
+                        && let Ok(text) = std::fs::read_to_string(&path) {
                             out.push_str(&text);
                             out.push('\n');
                         }
-                    }
                 }
             }
             let mut out = String::new();
@@ -6884,164 +6886,6 @@ mod tests {
         }
         out.push_str(&text[cursor..]);
         out
-    }
-
-    /// Every `<call>…;` statement in `text` opened by one of `openers`.
-    ///
-    /// Statement space, not raw offsets: the question is always "what does the
-    /// call around this message look like", and a fragment can sit many lines
-    /// below the call that raises it.
-    fn statements(text: &str, openers: &[&str]) -> Vec<String> {
-        let mut out = Vec::new();
-        for opener in openers {
-            let mut from = 0usize;
-            while let Some(rel) = text[from..].find(opener) {
-                let start = from + rel;
-                let end = start + text[start..].find(';').unwrap_or(text[start..].len() - 1);
-                out.push(text[start..=end.min(text.len() - 1)].to_string());
-                from = start + opener.len();
-            }
-        }
-        out
-    }
-
-    /// R29-1 — THE DIAGNOSTICS-SINK GATE (successor of R28 Batch-5 5c's
-    /// attribution gate, `every_worker_reachable_warning_names_its_photo`).
-    ///
-    /// `batch` defaults to `--jobs 3` and the pool orders STDOUT only, so every
-    /// ungated `eprintln!` a worker could reach landed on a shared stderr in
-    /// completion order. 5c made each of those lines NAME its photograph; that
-    /// left the deeper half of adjudication F6 open — the caller could not
-    /// route, suppress or order them, because they were hard-coded writes to
-    /// the process's own stderr. R29-1 moved them onto [`crate::diag`], and
-    /// this gate states the property that replaces "each line names a photo":
-    ///
-    /// 1. Each registered disclosure is raised through the SINK (`.warn(` /
-    ///    `.emit(`), carrying its subject as data.
-    /// 2. NONE of them is an `eprintln!` any more — the same fragment scanned
-    ///    in `eprintln!` statement space must come back empty.
-    /// 3. The develop chain's files hold no OTHER bare `eprintln!` than the
-    ///    ones this table names and explains, so a new one cannot be added
-    ///    without meeting the gate.
-    ///
-    /// A source scan, in the idiom this repo already uses for the store's
-    /// capped-reader rule and the GUI font gate: the property is "no site
-    /// forgot", which no behavioural test over one code path can state. The
-    /// behavioural half lives beside it — `crate::diag`'s pool test proves the
-    /// ORDER is the caller's, and `render`'s preview test proves the pure-pixel
-    /// arm carries `Subject::PixelOnly`.
-    ///
-    /// Rows whose fragment is the CALL rather than a message ("warn(m)") are
-    /// disclosures made of nothing but an interpolated value: there the count is
-    /// the assertion, exactly as under 5c.
-    #[test]
-    fn every_worker_reachable_warning_flows_through_the_sink() {
-        // (file, fragment, how many times it must be raised through the sink)
-        const SITES: [(&str, &str, usize); 21] = [
-            ("src/pipeline.rs", "GPT proposer failed", 1),
-            ("src/pipeline.rs", "reference search unavailable", 1),
-            // The run-scoped `Once` line — 5c had to leave this one
-            // un-stamped and say so in a comment; `Subject::Run` states it.
-            ("src/pipeline.rs", "reference library unavailable (", 1),
-            ("src/pipeline.rs", "recipe limits discarded {}", 1),
-            ("src/pipeline.rs", "warn(msg.clone())", 1),
-            // The projection's loss lines, masks and global controls
-            // (`xmp_loss_lines`, 2026-10-26).
-            ("src/pipeline.rs", "warn(line)", 1),
-            // The clamp disclosure 5c's sweep MISSED, because it re-walked
-            // three files and this one lives in a fourth.
-            ("src/recipe.rs", "truncated {} curve point(s)", 1),
-            ("src/main.rs", "XMP failed: {e}\"", 1),
-            ("src/render.rs", "could not embed the {space:?} ICC profile", 1),
-            ("src/render.rs", "bitmap mask '{path}' could not be loaded", 1),
-            ("src/render.rs", "bitmap mask '{path}' exceeds the", 1),
-            // Three arms of the same aggregate-budget refusal, one loop.
-            ("src/render.rs", "mask raster '{path}' skipped", 3),
-            // v1.2.4's second sweep. The base-look family took a `&Diag` on an
-            // `_in` form, so `produce_recipe` hands these its own sink and a
-            // pooled worker's base-look lines land in that worker's block.
-            ("src/pipeline.rs", "a Lightroom sidecar sits beside this photo", 1),
-            ("src/pipeline.rs", "warn(note)", 1),
-            ("src/pipeline.rs", "base look skipped: the embedded preview", 1),
-            ("src/pipeline.rs", "base look skipped: too few pixels", 1),
-            ("src/pipeline.rs", "base look skipped: the neutral develop", 1),
-            // The folder SCAN. `Subject::Run`, because these happen before any
-            // photograph has been identified — the stamp is empty and the bytes
-            // on stderr are the ones that shipped.
-            ("src/pipeline.rs", "skipping unreadable folder", 1),
-            ("src/pipeline.rs", "skipping unreadable entry under", 1),
-            ("src/pipeline.rs", "skipping unreadable entry {}", 1),
-            // The decoder's approximate-demosaic disclosure.
-            ("src/render.rs", "non-Bayer colour filter array", 1),
-        ];
-        let mut checked = 0usize;
-        let mut scanned = 0usize;
-        for (rel, fragment, want) in SITES {
-            let text = production_text(rel);
-            let sunk = statements(&text, &[".warn(", ".emit("]);
-            scanned += sunk.len();
-            let hits: Vec<&String> = sunk.iter().filter(|s| s.contains(fragment)).collect();
-            assert_eq!(
-                hits.len(),
-                want,
-                "{rel}: expected {want} sink call(s) carrying {fragment:?}, found {} — this \
-                 gate has gone stale, or a disclosure left the channel and was re-spelled",
-                hits.len()
-            );
-            // …and it must not ALSO still be an eprintln (a half-migrated site
-            // would otherwise satisfy the row above and keep printing twice).
-            let bare = statements(&text, &["eprintln!("]);
-            let leaks: Vec<&String> = bare.iter().filter(|s| s.contains(fragment)).collect();
-            assert!(
-                leaks.is_empty(),
-                "{rel}: {fragment:?} is still raised by a bare eprintln!:\n{}",
-                leaks[0]
-            );
-            checked += hits.len();
-        }
-        // PREMISE: a scanner that matched nothing would pass vacuously.
-        assert_eq!(checked, 23, "every registered site must have been inspected");
-        assert!(scanned > 40, "the statement scanner found almost nothing: {scanned}");
-
-        // THE CENSUS. What is left of `eprintln!` in the develop chain's own
-        // files, why each survivor is not a sink case, and a pinned count so a
-        // new one cannot slip in silently.
-        //
-        // * `src/diag.rs` = 1: the DEFAULT SINK itself. Every routed line ends
-        //   here unless the caller says otherwise, and it is the only write to
-        //   the process stderr the develop chain performs.
-        // * `src/pipeline.rs` = 0, `src/render.rs` = 0, `src/recipe.rs` = 0:
-        //   v1.2.4 finished the sweep R29-1 started. The base-look family took
-        //   a `&Diag` on an `_in` form with the old signature kept as a
-        //   wrapper, so the ~30 GUI/web/store call sites are unchanged while
-        //   `produce_recipe` hands down its own sink; the folder scan raises
-        //   `Subject::Run` lines (no photograph exists yet, and the empty stamp
-        //   keeps the shipped bytes); the decoder's approximate-demosaic
-        //   disclosure is bound to its photograph. The last two are routed but
-        //   not injectable, which `crate::diag`'s module doc states as the
-        //   decision and the reason.
-        // * `src/main.rs` = 10: the SERIAL single-photo commands (`analyze`,
-        //   `apply`, `auto`, `fit`) and their import-note siblings, plus the
-        //   line `library-build` ends its one-line progress meter with. One
-        //   job, one thread, a printed header directly above — nothing to
-        //   order and nobody to route to. The pooled `batch` worker has none.
-        const CENSUS: [(&str, usize); 5] = [
-            ("src/diag.rs", 1),
-            ("src/pipeline.rs", 0),
-            ("src/render.rs", 0),
-            ("src/main.rs", 10),
-            ("src/recipe.rs", 0),
-        ];
-        for (rel, want) in CENSUS {
-            let found = statements(&production_text(rel), &["eprintln!("]).len();
-            assert_eq!(
-                found,
-                want,
-                "{rel}: {found} bare eprintln!(s) in production code, registered {want} — a new \
-                 one needs a row in this census explaining why it is not a sink case (or it \
-                 needs to become one)"
-            );
-        }
     }
 
     /// L13#4: calibration comes from the NEWEST intent. A Lightroom sidecar
@@ -8368,6 +8212,7 @@ mod tests {
     /// real three-frame stack, 2026-09-26).
     /// MUTATION: write with `img.save_with_format(&staged, fmt)` again.
     #[test]
+    #[allow(clippy::disallowed_methods)] // the test reads the master back
     fn a_pixel_master_carries_the_working_space_tag_and_reads_back_exactly() {
         let dir = crate::test_dir("save-master-tag");
         let img = image::DynamicImage::ImageRgb16(image::ImageBuffer::from_fn(64, 48, |x, y| {

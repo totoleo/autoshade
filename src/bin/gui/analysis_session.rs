@@ -9,6 +9,7 @@ use autoshade::advisor::Decision;
 use autoshade::rationale::Note;
 
 /// What the last analysis/reverse-fit produced and the panel is showing.
+#[derive(Default)]
 pub(crate) struct AnalysisSession {
     /// The decision word + reasons, typed so a language switch re-renders them.
     pub(crate) verdict: Option<(Decision, Vec<String>)>,
@@ -19,10 +20,4 @@ pub(crate) struct AnalysisSession {
     /// Scripts already disclosed as undrawable this session (the tofu warning
     /// fires once per script, not once per folder or frame).
     pub(crate) disclosed_scripts: HashSet<&'static str>,
-}
-
-impl Default for AnalysisSession {
-    fn default() -> Self {
-        Self { verdict: None, rationale: String::new(), rationale_notes: Vec::new(), disclosed_scripts: HashSet::new() }
-    }
 }

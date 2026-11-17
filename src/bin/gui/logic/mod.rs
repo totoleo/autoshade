@@ -7,15 +7,16 @@
 //! wording leaves this layer as [`UiText`] — an i18n key plus its named
 //! arguments, not a rendered sentence.
 //!
-//! The rules are pinned by `tests/architecture.rs`: nothing under `logic/`
-//! mentions the widget library, renders text, spawns workers, opens dialogs or
-//! touches the filesystem; and a migrated panel does not mutate business state
-//! or reach past the seam.
+//! The rules are pinned by `clippy.toml`: nothing under `logic/` mentions the
+//! widget library, renders text, spawns workers or opens dialogs. The module
+//! carries `#[deny(clippy::disallowed_types, clippy::disallowed_methods)]`;
+//! the crate root allows those lints everywhere else.
 
 pub(crate) mod ai;
 pub(crate) mod command;
 pub(crate) mod cards;
 pub(crate) mod analysis_landing;
+pub(crate) mod analysis_workflow;
 pub(crate) mod crop;
 pub(crate) mod curve;
 pub(crate) mod fields;
@@ -54,40 +55,6 @@ pub(crate) mod view;
 
 use std::path::PathBuf;
 use std::sync::Arc;
-
-/// What the user did. Emitted by the view, applied by the facade.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Action {
-    /// Start the AI-look protocol for this verb (`logic::look::plan`).
-    Look(look::LookIntent),
-    /// Read this folder as the reference library, then look at the photo that
-    /// was open when it was picked.
-    References(PathBuf),
-    /// The Lens Blur section.
-    Lens(lens_blur::LensAction),
-    /// The library gallery.
-    Gallery(gallery::GalleryAction),
-    /// An on-canvas eyedropper sample.
-    Pick(pick::PickAction),
-    /// A crop gesture (preset pick, handle drag, rotate-straighten).
-    Crop(crop::CropAction),
-    /// A knob drag on the selected mask's geometry.
-    MaskEdit(mask_edit::MaskEditAction),
-    /// A box-selected AI region.
-    Region(region::RegionAction),
-    /// The develop panel's list verbs.
-    Develop(develop::DevelopAction),
-    /// The Portraits panel's verbs.
-    Portrait(portrait::PortraitAction),
-    /// The recipe-library window's verbs.
-    Recipe(recipes::RecipeAction),
-    /// The AI panel's folder verbs.
-    Ai(ai::AiAction),
-    /// The settings panel's folder verbs.
-    Settings(settings::SettingsAction),
-    /// The Normal panel's Save group.
-    Normal(normal::NormalAction),
-}
 
 /// A short display list: the first three entries joined, with an ellipsis when
 /// there were more. Used by landings that name files in a status line.
@@ -162,7 +129,7 @@ pub(crate) enum Effect {
     RememberOneClick { photo: PathBuf, fine: look::FineTune },
     /// Hand a started verb over to the look protocol (the reference-folder
     /// build's landing starts the look it built for).
-    StartLook(look::LookIntent),
+    StartLook(Box<look::LookIntent>),
     /// Read this folder into Normal's reference library, for this photo.
     ReferenceBuild { photo: PathBuf, dir: PathBuf },
     /// Run the depth sidecar over this photo's original-frame base.

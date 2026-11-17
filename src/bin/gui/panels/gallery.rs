@@ -2,7 +2,7 @@
 
 use crate::*;
 
-impl PanelView<'_, '_> {
+impl PanelView<'_> {
     /// Left-most panel: the working-folder thumbnail gallery. Only visible rows
     /// are laid out (show_rows) and only their thumbnails are queued to decode.
     pub(crate) fn gallery_panel(&mut self, ui: &mut egui::Ui) {
@@ -16,9 +16,7 @@ impl PanelView<'_, '_> {
         ui.horizontal_wrapped(|ui| {
             ui.heading(tr(lang, K_GALLERY_LIBRARY));
             if action(ui, true, tr(lang, K_APP_OPEN_FOLDER)).clicked() {
-                self.act_all(vec![logic::Action::Gallery(
-                    logic::gallery::GalleryAction::OpenFolder,
-                )]);
+                self.act_gallery(logic::gallery::GalleryAction::OpenFolder,);
             }
         });
         if let Some(d) = &self.workspace.gal().gallery_dir {
@@ -48,7 +46,7 @@ impl PanelView<'_, '_> {
             .on_hover_text(tr(lang, K_GALLERY_COPY_EVERY_DEVELOP_SETTING_FROM_THE_CURRENT_PHOT))
             .clicked()
         {
-            self.act_all(vec![logic::Action::Gallery(logic::gallery::GalleryAction::CopyRecipe)]);
+            self.act_gallery(logic::gallery::GalleryAction::CopyRecipe);
         }
         let n = self.workspace.gal().multi_sel.len();
         let n_s = n.to_string();
@@ -56,9 +54,7 @@ impl PanelView<'_, '_> {
             .on_hover_text(tr(lang, K_GALLERY_WRITES_EACH_PHOTO_S_DEVELOP_INTO_YOUR_DEVELOP_ST))
             .clicked()
         {
-            self.act_all(vec![logic::Action::Gallery(
-                logic::gallery::GalleryAction::PasteToSelected,
-            )]);
+            self.act_gallery(logic::gallery::GalleryAction::PasteToSelected,);
         }
         ui.horizontal(|ui| {
             // The last row lends ✕ (clear the selection) one square of its
@@ -75,14 +71,10 @@ impl PanelView<'_, '_> {
                 ))
                 .clicked()
             {
-                self.act_all(vec![logic::Action::Gallery(
-                    logic::gallery::GalleryAction::RenderSelected,
-                )]);
+                self.act_gallery(logic::gallery::GalleryAction::RenderSelected,);
             }
             if n > 0 && glyph(ui, true, "✕").on_hover_text(tr(lang, K_GALLERY_CLEAR_SELECTION)).clicked() {
-                self.act_all(vec![logic::Action::Gallery(
-                    logic::gallery::GalleryAction::ClearSelection,
-                )]);
+                self.act_gallery(logic::gallery::GalleryAction::ClearSelection,);
             }
         });
         if self.workspace.genai().copied.is_some() {
@@ -97,9 +89,7 @@ impl PanelView<'_, '_> {
             ))
             .clicked()
         {
-            self.act_all(vec![logic::Action::Gallery(
-                logic::gallery::GalleryAction::OpenRecipeLibrary,
-            )]);
+            self.act_gallery(logic::gallery::GalleryAction::OpenRecipeLibrary,);
         }
         ui.separator();
         if self.workspace.gal().gallery.is_empty() {
@@ -276,25 +266,21 @@ impl PanelView<'_, '_> {
             }
         }
         if !to_request.is_empty() {
-            let asked: Vec<logic::Action> = to_request
+            let asked: Vec<logic::gallery::GalleryAction> = to_request
                 .into_iter()
-                .map(|i| logic::Action::Gallery(logic::gallery::GalleryAction::ThumbNeeded(i)))
+                .map(logic::gallery::GalleryAction::ThumbNeeded)
                 .collect();
-            self.act_all(asked);
+            self.gallery.extend(asked);
         }
         // Bounded GPU memory: the window is the logic layer's, the retains
         // are the runtime's (`GalleryAction::Trim`).
         if let Some(keep) =
             logic::gallery::trim_window(visible.clone(), self.workspace.gal().thumbs.len(), logic::gallery::THUMB_TEX_CAP)
         {
-            self.act_all(vec![logic::Action::Gallery(
-                logic::gallery::GalleryAction::Trim { start: keep.start, end: keep.end },
-            )]);
+            self.act_gallery(logic::gallery::GalleryAction::Trim { start: keep.start, end: keep.end },);
         }
         if let Some((index, multi)) = clicked {
-            self.act_all(vec![logic::Action::Gallery(
-                logic::gallery::GalleryAction::Click { index, multi },
-            )]);
+            self.act_gallery(logic::gallery::GalleryAction::Click { index, multi },);
         }
     }
 }

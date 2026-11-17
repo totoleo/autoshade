@@ -27,7 +27,7 @@
         app.editor.photo_mut().src_path = Some(src);
 
         assert!(app.editor.can_rotate(&app.workspace), "a parametric photo with a plate is rotatable");
-        app.rotate_photo(1, &ctx);
+        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
         assert_eq!(app.editor.doc().recipe.quarter_turns, 1);
         assert_eq!(app.editor.photo().base_turns, 1);
         assert_eq!(
@@ -38,22 +38,22 @@
         assert_eq!(app.editor.photo().source_preview.as_ref().unwrap().dimensions(), (6, 8));
 
         // A second turn moves by the DELTA, not by the running total.
-        app.rotate_photo(1, &ctx);
+        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
         assert_eq!(app.editor.doc().recipe.quarter_turns, 2);
         assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (8, 6));
 
         // An UNDO changes only the recipe; the per-frame reconciler is what
         // brings the plate back — one mover for both directions.
-        app.undo(&ctx);
+        app.editor.undo(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.doc().recipe.quarter_turns, 1, "one Ctrl+Z per turn (7.7)");
-        app.sync_base_turns(&ctx);
+        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
         assert_eq!(app.editor.photo().base_turns, 1);
 
         // Idempotent: the common per-frame call is a u8 compare that moves
         // nothing (a reconciler that turned on every frame would spin the
         // canvas).
-        app.sync_base_turns(&ctx);
+        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
 
         // BAKED PIXELS close the door, whole strip (a limitation by design):
@@ -62,7 +62,7 @@
         app.editor.doc_mut().variants[0].origin = Some("master.png".into());
         assert!(!app.editor.can_rotate(&app.workspace), "a baked master must block the turn, not be turned under");
         let before = app.editor.doc().recipe.quarter_turns;
-        app.rotate_photo(1, &ctx);
+        app.editor.rotate_photo(&mut app.workspace, app.lang, 1, &ctx);
         assert_eq!(app.editor.doc().recipe.quarter_turns, before, "a refused turn changes nothing");
     }
 
@@ -485,7 +485,7 @@
         // A histogram, so the readout's width can be pinned (2026-09-27).
         app.workspace.chrome_mut().histogram = Some(vec![[0.5; 4]; 256]);
         app.workspace.masks_mut().sel_mask = Some(0);
-        app.start_mask_brush(None);
+        app.commands().start_mask_brush(None);
         assert!(app.workspace.masks().mask_brush.is_some(), "{lang:?}: the brush session armed");
         app
     }
@@ -526,9 +526,9 @@
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             app.ai_panel(ui);
                             sections[0] = ui.min_rect().width();
-                            app.develop_panel(ui);
+                            app.commands().develop_panel(ui);
                             sections[1] = ui.min_rect().width();
-                            app.retouch_panel(ui);
+                            app.commands().retouch_panel(ui);
                             sections[2] = ui.min_rect().width();
                         });
                     });
@@ -679,7 +679,7 @@
             for turns in [1u8, 2, 3, 5] {
                 app.editor.doc_mut().recipe.quarter_turns = turns;
                 app.workspace.status_mut().clear();
-                app.start_clone();
+                app.commands().start_clone();
                 assert!(!app.workspace.busy(), "quarter_turns={turns}: a refused clone never reaches a worker");
                 assert_eq!(app.workspace.status(), refusal, "quarter_turns={turns}");
             }
@@ -688,7 +688,7 @@
             for turns in [0u8, 4] {
                 app.editor.doc_mut().recipe.quarter_turns = turns;
                 app.workspace.status_mut().clear();
-                app.start_clone();
+                app.commands().start_clone();
                 assert!(!app.workspace.busy());
                 assert_eq!(app.workspace.status(), ask, "quarter_turns={turns}");
             }
@@ -711,14 +711,14 @@
             for turns in [1u8, 2, 3] {
                 app.editor.doc_mut().recipe.quarter_turns = turns;
                 app.workspace.status_mut().clear();
-                app.start_mask_refine(0);
+                app.commands().start_mask_refine(0);
                 assert!(!app.workspace.busy(), "quarter_turns={turns}: a refused refine never reaches a worker");
                 assert_eq!(app.workspace.status(), refusal, "quarter_turns={turns}");
             }
             // Un-turned, with no mask at that index: the verb returns quietly.
             app.editor.doc_mut().recipe.quarter_turns = 0;
             app.workspace.status_mut().clear();
-            app.start_mask_refine(0);
+            app.commands().start_mask_refine(0);
             assert!(!app.workspace.busy());
             assert!(app.workspace.status().is_empty(), "{}", app.workspace.status());
         }
@@ -798,7 +798,6 @@
     /// with a fixed id, kept its own. Pinned in the source: a headless test
     /// cannot drive eframe's window memory. Each builder chain is located by
     /// its constructor, never by its title text. MUTATION: delete the
-
     /// R27, every door: each pixel worker that lands a BAKED master takes
     /// the turned-photo gate before any output claim or worker thread — the
     /// masked ones because their mask is in the turned frame, and the
@@ -817,10 +816,10 @@
         app.editor.doc_mut().recipe.quarter_turns = 1;
         type Door = fn(&mut AutoShadeApp, PathBuf);
         let doors: [(&str, Door); 4] = [
-            ("start_ai_denoise", |a, _| a.start_ai_denoise()),
-            ("start_clone", |a, _| a.start_clone()),
-            ("start_reimagine", |a, _| a.start_reimagine()),
-            ("start_stack", |a, p| a.start_stack(vec![p])),
+            ("start_ai_denoise", |a, _| a.commands().start_ai_denoise()),
+            ("start_clone", |a, _| a.commands().start_clone()),
+            ("start_reimagine", |a, _| a.commands().start_reimagine()),
+            ("start_stack", |a, p| a.commands().start_stack(vec![p])),
         ];
         for (name, door) in doors {
             app.workspace.set_busy(false);
@@ -846,7 +845,7 @@
         app.editor.photo_mut().base_turns = 0;
         app.workspace.masks_mut().mask_paint = Some(image::RgbaImage::new(8, 6));
         app.editor.doc_mut().recipe.quarter_turns = 1;
-        app.sync_base_turns(&ctx);
+        app.editor.sync_base_turns(&mut app.workspace, app.lang, &ctx);
         assert_eq!(app.editor.photo().base_preview.as_ref().unwrap().dimensions(), (6, 8));
         assert_eq!(
             app.workspace.masks().mask_paint.as_ref().unwrap().dimensions(),
@@ -921,9 +920,9 @@
                             let y0 = ui.min_rect().top();
                             app.ai_panel(ui);
                             let y1 = ui.min_rect().bottom();
-                            app.develop_panel(ui);
+                            app.commands().develop_panel(ui);
                             let y2 = ui.min_rect().bottom();
-                            app.retouch_panel(ui);
+                            app.commands().retouch_panel(ui);
                             let y3 = ui.min_rect().bottom();
                             inner = vec![("ai", y0, y1), ("develop", y1, y2), ("retouch", y2, y3)];
                         });
@@ -993,7 +992,7 @@
         app.workspace.rebind_paint_canvas(app.lang, 8, 6);
         assert_eq!(app.workspace.masks().paint_owner, BrushOwner::Fill, "Fill's area is the canvas by default");
 
-        app.arm_brush(BrushOwner::Heal);
+        app.commands().arm_brush(BrushOwner::Heal);
         assert!(app.workspace.masks().paint_mode && app.workspace.brush_armed(BrushOwner::Heal) && !app.workspace.brush_armed(BrushOwner::Fill));
         paint(&mut app);
         assert!(app.workspace.area_painted(BrushOwner::Heal));
@@ -1002,7 +1001,7 @@
         // Fill's turn: a blank canvas, and Heal's strokes wait in the store
         // with their memo — reading them back scans nothing.
         let scans = app.workspace.overlay().mask_presence_scans.get();
-        app.arm_brush(BrushOwner::Fill);
+        app.commands().arm_brush(BrushOwner::Fill);
         assert!(!app.workspace.has_painted_mask(), "Fill sees its own blank area, not Heal's strokes");
         assert!(app.workspace.area_painted(BrushOwner::Heal), "Heal's strokes survive off the canvas");
         assert_eq!(app.workspace.overlay().mask_presence_scans.get(), scans, "a stored memo answers without a scan");
@@ -1010,7 +1009,7 @@
         assert!(app.workspace.export_area_png(BrushOwner::Fill).is_none());
 
         // The Stamp arms through clone_mode and takes the paint flag down.
-        app.arm_brush(BrushOwner::Stamp);
+        app.commands().arm_brush(BrushOwner::Stamp);
         assert!(app.workspace.tools().clone_mode && !app.workspace.masks().paint_mode && app.workspace.brush_armed(BrushOwner::Stamp));
         paint(&mut app);
         assert!(app.workspace.area_painted(BrushOwner::Stamp) && app.workspace.area_painted(BrushOwner::Heal));
@@ -1018,13 +1017,13 @@
         // Clearing one tool's area leaves the others'.
         app.workspace.clear_area(BrushOwner::Heal);
         assert!(!app.workspace.area_painted(BrushOwner::Heal) && app.workspace.area_painted(BrushOwner::Stamp));
-        app.arm_brush(BrushOwner::Heal);
+        app.commands().arm_brush(BrushOwner::Heal);
         assert!(!app.workspace.has_painted_mask(), "Heal comes back blank");
 
         // A mask-brush session stashes the live area and gives it back.
-        app.arm_brush(BrushOwner::Adjust);
+        app.commands().arm_brush(BrushOwner::Adjust);
         paint(&mut app);
-        app.start_mask_brush(None);
+        app.commands().start_mask_brush(None);
         assert!(!app.workspace.has_painted_mask(), "the session starts on its own blank canvas");
         assert!(app.workspace.area_painted(BrushOwner::Adjust), "Adjust's strokes wait in the store");
         assert!(!app.workspace.brush_armed(BrushOwner::Adjust), "a session belongs to no tool");

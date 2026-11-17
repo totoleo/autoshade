@@ -98,7 +98,7 @@ mod tests {
         assert!(analysis.image.is_empty(), "an analysis role keeps no image list");
         assert_eq!(analysis.efforts.get("gpt-5").map(Vec::len), Some(2));
         assert_eq!(analysis.vision.get("gpt-5-vision"), Some(&true));
-        assert!(analysis.vision.get("gpt-5").is_none(), "nothing invented where the listing was silent");
+        assert!(!analysis.vision.contains_key("gpt-5"), "nothing invented where the listing was silent");
 
         let image = catalogue(&models, true);
         assert_eq!(image.image, vec!["gpt-image-1".to_string()]);

@@ -19,12 +19,9 @@ pub(crate) enum SectionKind {
     Custom,
 }
 
-/// Where a section's draw lives: still an app method, or already a
+/// Where a section's draw lives: still on the command context, or already a
 /// PanelView method. The table is the single place either is named.
-pub(crate) enum SectionDraw {
-    App(fn(&mut AutoShadeApp, &mut egui::Ui, bool) -> bool),
-    Panel(fn(&mut PanelView<'_, '_>, &mut egui::Ui, bool) -> bool),
-}
+pub(crate) type SectionDraw = fn(&mut PanelView<'_>, &mut egui::Ui, bool) -> bool;
 
 /// One row of the panel.
 #[allow(dead_code)] // `id`/`kind` are the registry contract read by the tests; `draw` is the dispatch
@@ -38,67 +35,71 @@ pub(crate) struct Section {
     pub draw: SectionDraw,
 }
 
-fn panel_dev_presence(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_presence(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_presence(ui, active)
 }
 
-fn panel_dev_calibration(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_calibration(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_calibration(ui, active)
 }
 
-fn panel_dev_effects(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_effects(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_effects(ui, active)
 }
 
-fn panel_dev_hdr(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_hdr(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_hdr(ui, active)
 }
 
-fn panel_dev_transform(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_transform(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_transform(ui, active)
 }
 
-fn panel_dev_lens(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_lens(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_lens(ui, active)
 }
 
-fn panel_dev_curves(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_curves(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_curves(ui, active)
 }
 
-fn panel_dev_grading(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_grading(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_grading(ui, active)
 }
 
-fn panel_dev_stack(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_stack(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_stack(ui, active)
 }
 
-fn panel_dev_lens_blur(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_lens_blur(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_lens_blur(ui, active)
 }
 
-fn panel_dev_detail(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_detail(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_detail(ui, active)
 }
 
-fn panel_dev_hsl(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_hsl(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_hsl(ui, active)
 }
 
-fn panel_dev_tone_wb(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_versions(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
+    view.dev_versions(ui, active)
+}
+
+fn panel_dev_tone_wb(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_tone_wb(ui, active)
 }
 
-fn panel_dev_crop(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_crop(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_crop(ui, active)
 }
 
-fn panel_dev_export(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_export(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_export(ui, active)
 }
 
-fn panel_dev_masks(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_masks(view: &mut PanelView<'_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_masks(ui, active)
 }
 
@@ -108,49 +109,49 @@ pub(crate) const SECTIONS: &[Section] = &[
         id: "tone_wb",
         families: &["tone", "white_balance"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_tone_wb),
+        draw: (panel_dev_tone_wb),
     },
     Section {
         id: "presence",
         families: &["presence"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_presence),
+        draw: (panel_dev_presence),
     },
     Section {
         id: "curves",
         families: &["curves", "parametric"],
         kind: SectionKind::Custom,
-        draw: SectionDraw::Panel(panel_dev_curves),
+        draw: (panel_dev_curves),
     },
     Section {
         id: "hsl",
         families: &["hsl", "black_white", "point_color"],
         kind: SectionKind::Custom,
-        draw: SectionDraw::Panel(panel_dev_hsl),
+        draw: (panel_dev_hsl),
     },
     Section {
         id: "grading",
         families: &["color_grade"],
         kind: SectionKind::Custom,
-        draw: SectionDraw::Panel(panel_dev_grading),
+        draw: (panel_dev_grading),
     },
     Section {
         id: "calibration",
         families: &["calibration"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_calibration),
+        draw: (panel_dev_calibration),
     },
     Section {
         id: "detail",
         families: &["detail", "detail_effects"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_detail),
+        draw: (panel_dev_detail),
     },
     Section {
         id: "effects",
         families: &["effects"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_effects),
+        draw: (panel_dev_effects),
     },
     // Lens Blur returns ACTIONS (its build is a worker verb): the row's draw
     // applies them, and the section has no ● of its own and no family.
@@ -158,19 +159,19 @@ pub(crate) const SECTIONS: &[Section] = &[
         id: "lens_blur",
         families: &[],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_lens_blur),
+        draw: (panel_dev_lens_blur),
     },
     Section {
         id: "lens",
         families: &["lens", "lens_effects"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_lens),
+        draw: (panel_dev_lens),
     },
     Section {
         id: "transform",
         families: &["transform"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_transform),
+        draw: (panel_dev_transform),
     },
     // Crop/straighten live in the `framing` family; the section derives that ●
     // itself (the same rule as the others).
@@ -178,37 +179,37 @@ pub(crate) const SECTIONS: &[Section] = &[
         id: "crop",
         families: &["framing"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_crop),
+        draw: (panel_dev_crop),
     },
     Section {
         id: "masks",
         families: &[],
         kind: SectionKind::Custom,
-        draw: SectionDraw::Panel(panel_dev_masks),
+        draw: (panel_dev_masks),
     },
     Section {
         id: "versions",
         families: &[],
         kind: SectionKind::Form,
-        draw: SectionDraw::App(AutoShadeApp::dev_versions),
+        draw: (panel_dev_versions),
     },
     Section {
         id: "stack",
         families: &[],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_stack),
+        draw: (panel_dev_stack),
     },
     Section {
         id: "hdr",
         families: &["hdr"],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_hdr),
+        draw: (panel_dev_hdr),
     },
     Section {
         id: "export",
         families: &[],
         kind: SectionKind::Form,
-        draw: SectionDraw::Panel(panel_dev_export),
+        draw: (panel_dev_export),
     },
 ];
 
@@ -276,8 +277,7 @@ mod tests {
         assert!(!section_active(&recipe, tone), "a stock recipe lights nothing");
         recipe.exposure_ev = 0.5;
         assert!(section_active(&recipe, tone), "a tone edit lights the section");
-        let mut wb = EditRecipe::default();
-        wb.temperature_k = Some(6000.0);
+        let wb = EditRecipe { temperature_k: Some(6000.0), ..Default::default() };
         assert!(section_active(&wb, tone), "a WB edit lights it too");
     }
 }

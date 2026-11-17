@@ -558,7 +558,7 @@ mod tests {
             "failed at {}:\\Users\\alice\\x.py and ({}:{}/y.py)",
             'C',
             'D',
-            format!("/{}", "tmp")
+            "/tmp"
         );
         let win = error_line(&anyhow::anyhow!(win_text));
         assert!(!win.contains("alice") && !win.contains("Users") && !win.contains("tmp"), "{win}");

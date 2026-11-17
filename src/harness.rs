@@ -123,8 +123,9 @@ fn node_exe() -> String {
 /// Windows gives a console child a new console window of its own instead — the
 /// cmd window that appeared when an AI button was pressed. So the console flag
 /// is applied exactly when [`crate::has_console`] is false.
+#[allow(clippy::disallowed_methods)] // the node spawn door
 fn node_command(node: &str) -> ProcessCommand {
-    let mut cmd = ProcessCommand::new(node);
+    let cmd = ProcessCommand::new(node);
     // Only the windowed GUI lacks a console; the flag is Windows-only.
     #[cfg(windows)]
     if !crate::has_console() {
