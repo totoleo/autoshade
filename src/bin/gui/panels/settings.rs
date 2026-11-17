@@ -3,7 +3,6 @@
 use crate::*;
 
 
-
 impl PanelView<'_, '_> {
     pub(crate) fn settings_ui(&mut self, ui: &mut egui::Ui) {
         let mut do_save = false;
@@ -665,8 +664,6 @@ impl PanelView<'_, '_> {
     }
 }
 
-impl AutoShadeApp {
-}
 
 /// The launch line a check with something wrong gets; `None` when the sidecars
 /// have a Python 3 and nothing has to be said.

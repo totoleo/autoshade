@@ -7,12 +7,6 @@
 
 use crate::*;
 
-impl AutoShadeApp {
-
-
-
-
-}
 
 /// Lightroom's parametric tone curve (v1.5.0), under the point curve in
 /// the order the engine composes them (`render::build_tone_lut`: the point
