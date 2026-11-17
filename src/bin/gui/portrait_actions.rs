@@ -187,6 +187,9 @@ pub(crate) fn on_portrait_found(&mut self, workspace: &mut WorkspaceView, lang: 
 pub(crate) fn guard_portrait_skin(&mut self, workspace: &mut WorkspaceView) {
         if self.skin_held(workspace) && autoshade::face::keep_skin_natural_in(&mut self.doc_mut().recipe) {
             self.session_mut().dirty = true;
+            if crate::trace::on() {
+                crate::trace::event("skin.clamp", "the held skin switch clamped a write");
+            }
         }
     }
 

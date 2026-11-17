@@ -37,6 +37,7 @@ use i18n::*;
 mod model;
 mod services;
 mod commands;
+mod trace;
 pub(crate) use commands::Commands;
 mod analysis_session;
 mod canvas_plates;

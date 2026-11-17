@@ -220,6 +220,18 @@ pub(crate) fn start_redevelop(&mut self) {
     let film = self.editor.film_short_edge();
     self.editor.scheduler_mut().inflight = true;
     self.editor.session_mut().dirty = false;
+    if crate::trace::on() {
+        crate::trace::event(
+            "develop.dispatch",
+            format_args!(
+                "base={:p} masks={} curve={} start={:?}",
+                std::sync::Arc::as_ptr(&base),
+                recipe.masks.len(),
+                recipe.base_curve.len(),
+                autoshade::render::BasePart::of(&recipe),
+            ),
+        );
+    }
     self.services.spawn_worker(
         move || Msg::Developed(Box::new(Ok(build_preview(base, recipe, show_clipping, film, source)))),
         |e| Msg::Developed(Box::new(Err(e))),
@@ -253,6 +265,15 @@ pub(crate) fn ensure_source_part(&mut self) -> bool {
     let Some(path) = self.editor.photo().src_path.clone() else { return true };
     let edge = self.workspace.genai().preview_edge.clamp(640, 8192);
     self.workspace.open_mut().source_part_inflight = Some(want.clone());
+    if crate::trace::on() {
+        crate::trace::event(
+            "sourcepart.spawn",
+            format_args!(
+                "want={want:?} have={:?} edge={edge}",
+                self.workspace.open().source_part,
+            ),
+        );
+    }
     let (p, part) = (path.clone(), want.clone());
     self.services.spawn_worker(
         move || {
@@ -289,6 +310,17 @@ pub(crate) fn finish_redevelop(&mut self, ctx: &egui::Context, done: anyhow::Res
         .as_ref()
         .is_some_and(|base| Arc::ptr_eq(base, &frame.base))
         && self.editor.doc().recipe == frame.recipe;
+    if crate::trace::on() {
+        crate::trace::event(
+            "develop.land",
+            format_args!(
+                "accepted={current} base_same={} recipe_same={} base={:p}",
+                self.editor.photo().base_preview.as_ref().is_some_and(|b| Arc::ptr_eq(b, &frame.base)),
+                self.editor.doc().recipe == frame.recipe,
+                std::sync::Arc::as_ptr(&frame.base),
+            ),
+        );
+    }
     if !current {
         // The frame was solved for a recipe that changed mid-flight. The
         // redispatch gate is `dirty && !develop_inflight`, so a caller

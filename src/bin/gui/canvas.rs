@@ -64,6 +64,17 @@ impl Commands<'_> {
         if self.workspace.overlay().overlay_key.as_ref() == Some(&key) && self.workspace.overlay().mask_overlay_tex.is_some() {
             return;
         }
+        if crate::trace::on() {
+            crate::trace::event(
+                "overlay.rebuild",
+                format_args!(
+                    "mask={i} base={:p} straighten={} builds={}",
+                    Arc::as_ptr(&base),
+                    self.editor.doc().recipe.straighten_deg,
+                    self.workspace.overlay().overlay_build_count + 1,
+                ),
+            );
+        }
 
         // A geometry-only mask never reads reference pixels. Avoid the old
         // second develop entirely; only Range Masks need the masks-cleared

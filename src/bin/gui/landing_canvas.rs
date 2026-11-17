@@ -970,6 +970,16 @@ pub(crate) fn on_base_redeveloped(
     if self.workspace.open().source_part_inflight.as_ref() == Some(&part) {
         self.workspace.open_mut().source_part_inflight = None;
     }
+    if crate::trace::on() {
+        crate::trace::event(
+            "sourcepart.land",
+            format_args!(
+                "part={part:?} ok={} want={:?}",
+                img.is_ok(),
+                self.workspace.open().source_part,
+            ),
+        );
+    }
     if self.editor.photo().src_path.as_deref() != Some(path.as_path()) {
         return;
     }

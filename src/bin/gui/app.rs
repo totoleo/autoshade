@@ -165,6 +165,19 @@ impl AutoShadeApp {
         // delegate method that does the vetoing. Both need a live event loop,
         // and this creation closure is the first moment there is one.
         crate::quit::set_ctx(&cc.egui_ctx);
+        // Debugging hook, debug builds only: open ONE photo at launch
+        // (`AUTOSHADE_GUI_OPEN=<raw>`) so a canvas loop or a stall can be
+        // reproduced without a click. A release app never opens a file named
+        // by the environment.
+        #[cfg(debug_assertions)]
+        if let Some(path) = autoshade::config::live_env_os("AUTOSHADE_GUI_OPEN") {
+            let path = std::path::PathBuf::from(path);
+            crate::trace::event("startup.open", format_args!("path={} is_file={}", path.display(), path.is_file()));
+            eprintln!("[trace] AUTOSHADE_GUI_OPEN={} is_file={}", path.display(), path.is_file());
+            if path.is_file() {
+                app.commands().open_path(path);
+            }
+        }
         #[cfg(target_os = "macos")]
         if let Err(why) = crate::macos::install_quit_guard() {
             // Not fatal, and not silent: without that method ⌘Q behaves the
@@ -1972,6 +1985,15 @@ impl AutoShadeApp {
         // Land a finished edit gesture (slider release, AI Analyze, Reset) into
         // the undo history — once per gesture, after all controls are read.
         self.editor.commit_if_settled(&self.workspace, ctx);
+        if crate::trace::on() {
+            crate::trace::frame(format_args!(
+                "dirty={} inflight={} overlay_stale={} base={:p}",
+                self.editor.session().dirty,
+                self.editor.scheduler().inflight,
+                self.workspace.overlay().overlay_stale,
+                self.editor.photo().base_preview.as_ref().map_or(std::ptr::null(), |b| std::sync::Arc::as_ptr(b)),
+            ));
+        }
         // LAST, after every panel had its chance to spawn (L12-3): evaluated
         // at the top of update (inside poll_workers) the gate judged a frame
         // whose spawns had not happened yet, so the FIRST batch of workers
