@@ -131,7 +131,7 @@ pub(crate) type AnalyzeRunner = fn(
     &GradeRequest,
 ) -> anyhow::Result<(EditRecipe, autoshade::advisor::Verdict, Vec<autoshade::rationale::Note>)>;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
     /// The sidebar: the four groups, behind the same mid-open gate as the

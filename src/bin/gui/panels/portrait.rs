@@ -111,7 +111,7 @@ impl Default for PortraitState {
 /// lens-corrected (the two are then different frames). `film` / `raw_source`
 /// are the canvas's (`film_short_edge`, `source_is_raw`).
 #[allow(clippy::too_many_arguments)] // the two pictures, the base's lens, the photo, and the canvas's recipe, film edge and source kind
-impl AutoShadeApp {
+impl Commands<'_> {
     /// 🤖 Find people and faces: both sidecars in one worker.
         /// The find landing: the four masks into the recipe — a mask
     /// that already has its role is re-pointed at the new raster and keeps
@@ -200,7 +200,7 @@ impl AutoShadeApp {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_SKIN));
         let gate = self.editor.portrait_face_gate(&self.workspace, lang);
-        let guarded = self.keep_skin_on();
+        let guarded = self.editor.keep_skin_on(&self.workspace);
         let mut changed = false;
         ui.add_enabled_ui(gate.is_none(), |ui| {
             let mut probe = LocalAdjustment::default();

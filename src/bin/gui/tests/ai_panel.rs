@@ -12,11 +12,11 @@
         use autoshade::library::Summary;
         // ── Nothing built: the entry point, the pointer sentence, AND the
         // slider's own warning.
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: Some(Summary::Absent),
                 ..Default::default()
-            }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            }; view });
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         for want in ["No reference library yet", "folder of finished photos", "no library", "Pick folder"] {
             assert!(seen.iter().any(|t| t.contains(want)), "missing {want:?}: {seen:?}");
         }
@@ -25,7 +25,7 @@
         // idea which library it is referencing".
         let finished = std::env::temp_dir().join(format!("autoshade-library-{}/finished", std::process::id()));
         let finished_text = finished.display().to_string();
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: Some(Summary::Built {
                 photos: 412,
                 phrased: 300, with_settings: 0,
@@ -33,8 +33,8 @@
                 age: Some(std::time::Duration::from_secs(5 * 3600)),
             }),
                 ..Default::default()
-            }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            }; view });
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("412") && t.contains(finished_text.as_str()) && t.contains("300 with look phrases")),
             "the count, the folder and the phrase coverage: {seen:?}"
@@ -43,11 +43,11 @@
         assert!(!seen.iter().any(|t| t.contains("no library")), "no false warning once a library exists: {seen:?}");
 
         // ── Unusable: the loader's reason, before an analysis is paid for.
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: Some(Summary::Unusable("it is format v0, this build reads v1".into())),
                 ..Default::default()
-            }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            }; view });
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("format v0")), "the cause reaches the user: {seen:?}");
         assert!(seen.iter().any(|t| t.contains("no library")), "and the slider is flagged: {seen:?}");
     }
@@ -62,8 +62,8 @@
     #[test]
     fn the_ai_panel_is_five_folds_that_each_say_what_they_cost() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let mut app = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            let mut app = AutoShadeApp::default().but_lang(lang);
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
             let want = [
                 tr(lang, K_AI_AI_GENERATION_REVERSE_FIT),
                 tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API),
@@ -98,8 +98,8 @@
         let ctx = egui::Context::default();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let frame = |app: &mut AutoShadeApp| -> (Option<bool>, Option<bool>) {
-            app.seams.ai_library_build_enabled = None; // this frame's evidence only
-            app.seams.ai_library_read_enabled = None;
+            app.seams().ai_library_build_enabled = None; // this frame's evidence only
+            app.seams().ai_library_read_enabled = None;
             let _ = ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 900.0))),
@@ -110,25 +110,25 @@
                     // state cannot make this vacuous.
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.ai_panel(ui);
+                        app.commands().ai_panel(ui);
                     });
                 },
             );
-            (app.seams.ai_library_build_enabled, app.seams.ai_library_read_enabled)
+            (app.seams().ai_library_build_enabled, app.seams().ai_library_read_enabled)
         };
         let mut app = AutoShadeApp::default();
-        assert!(app.aip.style_strength > 0.0, "premise: the app ships with Style above 0");
+        assert!(app.aip().style_strength > 0.0, "premise: the app ships with Style above 0");
         assert_eq!(frame(&mut app), (Some(true), Some(true)), "above Style 0 a library is buildable and read");
-        app.aip.style_strength = 0.0;
+        app.aip_mut().style_strength = 0.0;
         assert_eq!(frame(&mut app), (Some(true), Some(false)), "at Style 0: still buildable, not read");
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("Style is at 0%")), "a greyed control must say why: {seen:?}");
         assert!(seen.iter().any(|t| t.contains("Build / rebuild")), "the build entry stays at Style 0: {seen:?}");
-        app.aip.style_strength = 0.01;
+        app.aip_mut().style_strength = 0.01;
         assert_eq!(frame(&mut app), (Some(true), Some(true)), "any non-zero Style opens a library");
         // Guided by the direction, no library is read whatever Style says —
         // and it is still buildable.
-        app.aip.guide = autoshade::pipeline::Guide::Direction;
+        app.aip_mut().guide = autoshade::pipeline::Guide::Direction;
         assert_eq!(frame(&mut app), (Some(true), Some(false)), "direction-guided: buildable, not read");
     }
 
@@ -144,23 +144,23 @@
             age: None,
         });
         let warn = "built, but not searched";
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: built.clone(),
                 ..Default::default()
-            }; view } , aip: AiPrefs {
+            }; view }).but_aip(AiPrefs {
                 style_embed: false,
                 ..Default::default()
-            }, ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            });
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains(warn)), "{seen:?}");
-        app.aip.style_embed = true;
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        app.aip_mut().style_embed = true;
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(!seen.iter().any(|t| t.contains(warn)), "{seen:?}");
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_info: Some(autoshade::library::Summary::Absent),
                 ..Default::default()
-            }; view } , ..Default::default() };
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+            }; view });
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(!seen.iter().any(|t| t.contains(warn)), "nothing built, nothing to warn about: {seen:?}");
     }
 
@@ -182,17 +182,17 @@
         let reference = std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id()));
         // A stock app: ONE Original variant, nothing generated.
         let mut app = AutoShadeApp::default();
-        assert_eq!(app.editor.fit_target(&app.workspace), None, "premise: nothing to fit against yet");
-        app.workspace.fit_mut().fit_ref = Some(reference.clone());
+        assert_eq!(app.editor().fit_target(&app.workspace()), None, "premise: nothing to fit against yet");
+        app.workspace_mut().fit_mut().fit_ref = Some(reference.clone());
         assert_eq!(
-            app.editor.fit_target(&app.workspace),
+            app.editor().fit_target(&app.workspace()),
             Some(reference.clone()),
             "an explicitly chosen reference IS the target"
         );
         // …and it OUTRANKS a generated variant: an explicit choice must not
         // be shadowed by whichever card happens to be active.
         let generated = std::path::PathBuf::from("./out/P21.reimagine.png");
-        app.editor.doc_mut().variants.push(Variant {
+        app.editor_mut().doc_mut().variants.push(Variant {
             id: String::new(),
             name: None,
             kind: VariantKind::Generated,
@@ -201,12 +201,12 @@
             origin: Some(generated.clone()),
             thumb: None,
         });
-        app.editor.doc_mut().active = app.editor.doc().variants.len() - 1;
-        assert_eq!(app.editor.fit_target(&app.workspace), Some(reference), "the chosen reference wins");
+        app.editor_mut().doc_mut().active = app.editor().doc().variants.len() - 1;
+        assert_eq!(app.editor().fit_target(&app.workspace()), Some(reference), "the chosen reference wins");
         // Clearing it hands the entry back to the generated variant — both
         // doors stay open, which is the whole shape of this change.
-        app.workspace.fit_mut().fit_ref = None;
-        assert_eq!(app.editor.fit_target(&app.workspace), Some(generated));
+        app.workspace_mut().fit_mut().fit_ref = None;
+        assert_eq!(app.editor().fit_target(&app.workspace()), Some(generated));
     }
 
     /// The panel half of the same change: the door has to be visible, and the
@@ -214,7 +214,7 @@
     #[test]
     fn the_reverse_fit_area_offers_the_reference_picker() {
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("Choose reference")),
             "the reference entry must exist at all: {seen:?}"
@@ -225,8 +225,8 @@
         );
         // The chosen file is shown, so "what am I fitting against" is
         // answerable without opening a dialog again.
-        app.workspace.fit_mut().fit_ref = Some(std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id())));
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        app.workspace_mut().fit_mut().fit_ref = Some(std::env::temp_dir().join(format!("autoshade-exports-{}/P21-lightroom.tif", std::process::id())));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t.contains("P21-lightroom.tif")),
             "the chosen reference must be named on the panel: {seen:?}"
@@ -240,43 +240,40 @@
     /// iterates, and the deep-thinking checkbox is what the request carries.
     #[test]
     fn the_paid_dials_are_off_in_both_defaults_and_drawn() {
-        assert!(!AutoShadeApp::default().workspace.fit().reimagine_retry, "spending is opt-in");
+        assert!(!AutoShadeApp::default().workspace().fit().reimagine_retry, "spending is opt-in");
         assert!(!Prefs::default().reimagine_retry, "an older prefs file must decode to the same answer");
-        assert!(!AutoShadeApp::default().workspace.fit().fit_deep, "spending is opt-in");
+        assert!(!AutoShadeApp::default().workspace().fit().fit_deep, "spending is opt-in");
         assert!(!Prefs::default().fit_deep, "an older prefs file must decode to the same answer");
-        assert!(!AutoShadeApp::default().aip.deep_think, "a fresh app must not start paying for a deeper analyze");
+        assert!(!AutoShadeApp::default().aip().deep_think, "a fresh app must not start paying for a deeper analyze");
         assert!(!Prefs::default().deep_think, "an older prefs file must decode to the SAME answer");
 
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(seen.iter().any(|t| t.contains("auto-retry")), "the retry switch must exist: {seen:?}");
         assert!(seen.iter().any(|t| t == "Retry once"), "the deep-fit switch must exist: {seen:?}");
         assert!(seen.iter().any(|t| t == "Deep thinking"), "the switch was not drawn in a 320 px panel: {seen:?}");
 
         // The deep reverse-fit's gate is on the WIDGET; a stock app has the
         // review off, and deep-without-review is not a configuration.
-        assert!(!app.workspace.fit().fit_ai_judge, "premise: the review is off in a stock app");
-        app.workspace.fit_mut().fit_ai_judge = true;
-        app.workspace.fit_mut().fit_deep = true;
-        assert!(app.workspace.fit().fit_deep && app.workspace.fit().fit_ai_judge);
+        assert!(!app.workspace().fit().fit_ai_judge, "premise: the review is off in a stock app");
+        app.workspace_mut().fit_mut().fit_ai_judge = true;
+        app.workspace_mut().fit_mut().fit_deep = true;
+        assert!(app.workspace().fit().fit_deep && app.workspace().fit().fit_ai_judge);
 
         // Same rule as `fit_ai_judge` / `send_style_ref_image`: a remembered
         // preference is not "this photo's AI inputs carry state".
-        app.aip.deep_think = true;
-        assert!(!app.editor.ai_section_active(&app.workspace), "a preference must not light the section ●");
+        app.aip_mut().deep_think = true;
+        assert!(!app.editor().ai_section_active(&app.workspace()), "a preference must not light the section ●");
 
-        let request_app = AutoShadeApp {
-            aip: AiPrefs { deep_think: true, ..Default::default() },
-            ..Default::default()
-        };
+        let request_app = AutoShadeApp::default().but_aip(AiPrefs { deep_think: true, ..Default::default() });
         let req = autoshade::pipeline::GradeRequest {
-            guide: request_app.aip.guide,
-            style: request_app.aip.style_strength,
-            send_reference_image: request_app.aip.send_style_ref_image,
-            strength: autoshade::recipe::GradeStrength::new(request_app.aip.grade_strength),
-            think: request_app.aip.deep_think,
+            guide: request_app.aip().guide,
+            style: request_app.aip().style_strength,
+            send_reference_image: request_app.aip().send_style_ref_image,
+            strength: autoshade::recipe::GradeStrength::new(request_app.aip().grade_strength),
+            think: request_app.aip().deep_think,
             adherence: autoshade::recipe::DirectionAdherence::default(),
-            embed: autoshade::library::EmbeddingSwitch::resolve(None, request_app.aip.style_embed),
+            embed: autoshade::library::EmbeddingSwitch::resolve(None, request_app.aip().style_embed),
         };
         assert!(req.think, "the checkbox must reach the worker's request");
         assert!(!autoshade::pipeline::GradeRequest::with_style(0.65).think, "every unattended surface stays out of thinking mode");
@@ -290,7 +287,7 @@
     #[test]
     fn the_style_reference_photo_switch_is_off_in_both_defaults() {
         assert!(
-            !AutoShadeApp::default().aip.send_style_ref_image,
+            !AutoShadeApp::default().aip().send_style_ref_image,
             "spending is opt-in — a fresh app must not send a second image"
         );
         assert!(
@@ -300,21 +297,18 @@
         assert_eq!(Prefs::default().style_src_dir, None);
         // …and the request the analyze worker builds carries the flag, so the
         // checkbox cannot become decoration.
-        let app = AutoShadeApp {
-            aip: AiPrefs {
+        let app = AutoShadeApp::default().but_aip(AiPrefs {
                 send_style_ref_image: true,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
+            });
         let req = autoshade::pipeline::GradeRequest {
-            guide: app.aip.guide,
-            style: app.aip.style_strength,
-            send_reference_image: app.aip.send_style_ref_image,
-            strength: autoshade::recipe::GradeStrength::new(app.aip.grade_strength),
-            think: app.aip.deep_think,
+            guide: app.aip().guide,
+            style: app.aip().style_strength,
+            send_reference_image: app.aip().send_style_ref_image,
+            strength: autoshade::recipe::GradeStrength::new(app.aip().grade_strength),
+            think: app.aip().deep_think,
             adherence: autoshade::recipe::DirectionAdherence::default(),
-            embed: autoshade::library::EmbeddingSwitch::resolve(None, app.aip.style_embed),
+            embed: autoshade::library::EmbeddingSwitch::resolve(None, app.aip().style_embed),
         };
         assert!(req.send_reference_image);
         assert!(
@@ -338,28 +332,22 @@
     fn gui_embedding_pref_reaches_the_develop_query() {
         // The environment is NOT set here, and is not touched: the preference
         // alone must be enough.
-        let on = AutoShadeApp {
-            aip: AiPrefs {
+        let on = AutoShadeApp::default().but_aip(AiPrefs {
                 style_embed: true,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
-        let off = AutoShadeApp {
-            aip: AiPrefs {
+            });
+        let off = AutoShadeApp::default().but_aip(AiPrefs {
                 style_embed: false,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
+            });
         let request_from = |app: &AutoShadeApp| autoshade::pipeline::GradeRequest {
-            guide: app.aip.guide,
-            style: app.aip.style_strength,
-            send_reference_image: app.aip.send_style_ref_image,
-            strength: autoshade::recipe::GradeStrength::new(app.aip.grade_strength),
-            think: app.aip.deep_think,
+            guide: app.aip().guide,
+            style: app.aip().style_strength,
+            send_reference_image: app.aip().send_style_ref_image,
+            strength: autoshade::recipe::GradeStrength::new(app.aip().grade_strength),
+            think: app.aip().deep_think,
             adherence: autoshade::recipe::DirectionAdherence::default(),
-            embed: autoshade::library::EmbeddingSwitch::resolve_with(None, app.aip.style_embed, |_| None),
+            embed: autoshade::library::EmbeddingSwitch::resolve_with(None, app.aip().style_embed, |_| None),
         };
         assert!(request_from(&on).embed.on(), "the checkbox must reach the develop's request");
         assert!(!request_from(&off).embed.on(), "…and un-checking it must too");
@@ -400,7 +388,7 @@
         let working =
             ["a harbour at dusk", "cool and quiet", "a touch under the target", "denoise (grain in the sky)"];
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
+            let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
 
                     rationale: rationale.clone(),
 
@@ -408,9 +396,9 @@
 
                     ..Default::default()
 
-                }; editor } , lang, ..Default::default() };
-            app.editor.doc_mut().recipe.rationale = rationale.clone();
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+                }; editor }).but_lang(lang);
+            app.editor_mut().doc_mut().recipe.rationale = rationale.clone();
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
             let sentence = seen
                 .iter()
                 .find(|t| t.starts_with("“Prose."))
@@ -439,13 +427,13 @@
             }
         }
         // Fallback: no typed notes → the raw English, whole, and no box.
-        let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
+        let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
      rationale: rationale.clone(),
      ..Default::default()
- }; editor } , ..Default::default() };
-        app.editor.doc_mut().recipe.rationale = rationale.clone();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
-        let title = tr(app.lang, K_AI_DEEP_THINKING_ITS_WORKING);
+ }; editor });
+        app.editor_mut().doc_mut().recipe.rationale = rationale.clone();
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
+        let title = tr(app.lang(), K_AI_DEEP_THINKING_ITS_WORKING);
         assert!(
             seen.iter().any(|t| t.starts_with("“Prose.") && working.iter().all(|w| t.contains(w))),
             "without notes the working stays inside the raw sentence: {seen:?}"
@@ -468,62 +456,62 @@
 
         // Saved: success toast, folder remembered, search switched on, and a
         // fresh status read armed.
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_build_inflight: true,
                 style_build_progress: Some((stage, 7, 9)),
                 ..Default::default()
-            }; view } , ..Default::default() };
-        assert!(!app.aip.style_embed, "premise: the search ships off");
-        app.services.tx
+            }; view });
+        assert!(!app.aip().style_embed, "premise: the search ships off");
+        app.services().tx
             .send(Msg::StyleBuilt(Box::new(StyleBuildOutcome::Saved { total: 412, dir: dir.clone(), phrased: 0 })))
             .unwrap();
         app.poll_workers(&ctx);
-        assert!(!app.workspace.ai().style_build_inflight, "the button re-arms");
-        assert_eq!(app.workspace.ai().style_build_progress, None, "the counter belongs to ONE build");
-        assert!(app.workspace.status().contains("412") && !app.workspace.status().contains("look phrases"), "{}", app.workspace.status());
-        assert_eq!(app.aip.style_src_dir.as_deref(), Some(dir.as_path()), "the folder is remembered");
-        assert!(app.aip.style_embed, "a built library is a searched library");
+        assert!(!app.workspace().ai().style_build_inflight, "the button re-arms");
+        assert_eq!(app.workspace().ai().style_build_progress, None, "the counter belongs to ONE build");
+        assert!(app.workspace().status().contains("412") && !app.workspace().status().contains("look phrases"), "{}", app.workspace().status());
+        assert_eq!(app.aip().style_src_dir.as_deref(), Some(dir.as_path()), "the folder is remembered");
+        assert!(app.aip().style_embed, "a built library is a searched library");
         // The landing ARMS a fresh status read on a real worker thread, which
         // may already have answered inside this drain: in flight OR answered.
-        assert!(app.workspace.ai().style_info_loading || app.workspace.ai().style_info.is_some(), "a build invalidates the cached status");
-        assert!(app.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Success)));
+        assert!(app.workspace().ai().style_info_loading || app.workspace().ai().style_info.is_some(), "a build invalidates the cached status");
+        assert!(app.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Success)));
 
         // The phrase coverage is told when there is some, in both languages.
         for (lang, needle) in [(Lang::En, "with look phrases"), (Lang::Zh, "外观短语")] {
-            let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+            let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                     style_build_inflight: true,
                     ..Default::default()
-                }; view } , lang, ..Default::default() };
-            app.services.tx
+                }; view }).but_lang(lang);
+            app.services().tx
                 .send(Msg::StyleBuilt(Box::new(StyleBuildOutcome::Saved { total: 412, dir: dir.clone(), phrased: 400 })))
                 .unwrap();
             app.poll_workers(&ctx);
-            assert!(app.workspace.status().contains("400") && app.workspace.status().contains(needle), "{lang:?}: {}", app.workspace.status());
+            assert!(app.workspace().status().contains("400") && app.workspace().status().contains(needle), "{lang:?}: {}", app.workspace().status());
         }
 
         // Failed: the cause, an error toast, button re-armed, nothing else.
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_build_inflight: true,
                 ..Default::default()
-            }; view } , ..Default::default() };
-        app.services.tx
+            }; view });
+        app.services().tx
             .send(Msg::StyleBuilt(Box::new(StyleBuildOutcome::Failed { err: "read the folder: access denied".into() })))
             .unwrap();
         app.poll_workers(&ctx);
-        assert!(!app.workspace.ai().style_build_inflight);
-        assert!(app.workspace.status().contains("access denied"), "{}", app.workspace.status());
-        assert!(app.workspace.chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)));
-        assert!(!app.aip.style_embed && app.aip.style_src_dir.is_none() && !app.workspace.ai().style_info_loading, "a failed build changes nothing");
+        assert!(!app.workspace().ai().style_build_inflight);
+        assert!(app.workspace().status().contains("access denied"), "{}", app.workspace().status());
+        assert!(app.workspace().chrome().toasts.iter().any(|t| matches!(t.kind, ToastKind::Error)));
+        assert!(!app.aip().style_embed && app.aip().style_src_dir.is_none() && !app.workspace().ai().style_info_loading, "a failed build changes nothing");
 
         // Progress ticks land as counts, not as a worker-built sentence.
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                 style_build_inflight: true,
                 ..Default::default()
-            }; view } , ..Default::default() };
-        app.services.tx.send(Msg::StyleBuildProgress { stage, done: 40, total: 300 }).unwrap();
+            }; view });
+        app.services().tx.send(Msg::StyleBuildProgress { stage, done: 40, total: 300 }).unwrap();
         app.poll_workers(&ctx);
-        assert_eq!(app.workspace.ai().style_build_progress, Some((stage, 40, 300)));
-        assert!(app.workspace.status().contains("40") && app.workspace.status().contains("300"), "{}", app.workspace.status());
+        assert_eq!(app.workspace().ai().style_build_progress, Some((stage, 40, 300)));
+        assert!(app.workspace().status().contains("40") && app.workspace().status().contains("300"), "{}", app.workspace().status());
     }
 
     /// R23 review LOW-4: `rounds == 0` had THREE producers and ONE sentence.
@@ -538,7 +526,7 @@
     fn a_deep_fit_that_could_not_run_its_action_does_not_claim_the_review_was_empty() {
         for lang in [Lang::En, Lang::Zh] {
             let render = |outcome| {
-                AutoShadeApp::render_fit_note(
+                Commands::render_fit_note(
                     lang,
                     &FitNote::DeepFit { action: "zoned sky/land pass", outcome },
                 )
@@ -648,12 +636,12 @@
         let long = format!("{}END-OF-RATIONALE", "The sky is lifted and the shadows are opened a little. ".repeat(60));
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let verb = tr(lang, K_AI_VIEW_FULL_TEXT);
-            let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
+            let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
      rationale: long.clone(),
      ..Default::default()
- }; editor } , lang, ..Default::default() };
-            let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
-            let rect = app.seams.analysis_box_rect.expect("the analysis box was drawn");
+ }; editor }).but_lang(lang);
+            let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
+            let rect = app.seams().analysis_box_rect.expect("the analysis box was drawn");
             assert!(
                 rect.height() <= crate::panels::ai::ANALYSIS_BOX_MAX_H + 0.5,
                 "{lang:?}: the analysis box grew to {:.0} px with its text",
@@ -661,7 +649,7 @@
             );
             assert!(seen.iter().any(|t| t == verb), "{lang:?}: an overflowing analysis offers {verb:?}: {seen:?}");
 
-            app.workspace.ui_mut().show_analysis_full = true;
+            app.workspace_mut().ui_mut().show_analysis_full = true;
             let ctx = egui::Context::default();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             // A window spends its first frame measuring itself (egui's sizing
@@ -674,7 +662,7 @@
                         time: Some(f64::from(i) / 60.0),
                         ..Default::default()
                     },
-                    |ctx| app.analysis_full_window(ctx),
+                    |ctx| app.commands().analysis_full_window(ctx),
                 );
                 window = drawn_texts(&out.shapes);
             }
@@ -682,13 +670,13 @@
                 window.iter().any(|t| t.contains("END-OF-RATIONALE")),
                 "{lang:?}: the window must draw the whole rationale"
             );
-            assert!(app.workspace.ui().show_analysis_full, "{lang:?}: the window stays open while there is text");
+            assert!(app.workspace().ui().show_analysis_full, "{lang:?}: the window stays open while there is text");
 
-            let mut short = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
+            let mut short = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
      rationale: "Balanced.".into(),
      ..Default::default()
- }; editor } , lang, ..Default::default() };
-            let seen = tall_frame(&mut short, |a, ui| a.ai_panel(ui));
+ }; editor }).but_lang(lang);
+            let seen = tall_frame(&mut short, |a, ui| a.commands().ai_panel(ui));
             assert!(!seen.iter().any(|t| t == verb), "{lang:?}: a short analysis offers no {verb:?}");
         }
     }

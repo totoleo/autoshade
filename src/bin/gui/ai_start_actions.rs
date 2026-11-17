@@ -6,7 +6,7 @@
 use autoshade::advisor::{hint_action, FitAction};
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
     /// The status-bar ✕: stop the running retouch/generative task. The UI
     /// unblocks NOW; the worker sees the flag at its next checkpoint and its
@@ -60,7 +60,7 @@ impl AutoShadeApp {
         }
         // The ▣ original first (the user's wording: 默认原图), not Automatic,
         // which solves from a ◈ / ▦ master whenever the strip holds one.
-        let from = self.original_index().map(|i| self.editor.doc().variants[i].id.clone()).filter(|id| !id.is_empty());
+        let from = self.editor.original_index().map(|i| self.editor.doc().variants[i].id.clone()).filter(|id| !id.is_empty());
         self.workspace.fit_mut().fit_prompt = Some(FitPrompt { target, divergence, from, dont_ask: false });
         // The layer's Enter waits for "no widget focused" — surrendered now,
         // as the quit layer does when it opens.

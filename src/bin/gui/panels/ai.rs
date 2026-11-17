@@ -35,7 +35,7 @@
 //! library nobody has yet the one nobody can make.
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
     /// The AI area — TWO first-level sections (user ruling 2026-10-20: the two
     /// AI paths read as one 「AI」 heap before, and they are different
@@ -147,7 +147,7 @@ impl AutoShadeApp {
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| self.panel_view(&mut Vec::new()).analysis_output(ui));
+                    .show(ui, |ui| self.with_panel(|p| p.analysis_output(ui)));
             });
         self.workspace.ui_mut().show_analysis_full = open;
     }
@@ -184,7 +184,7 @@ impl AutoShadeApp {
                             .id_salt("ai_analysis_box")
                             .max_height(ANALYSIS_BOX_MAX_H)
                             .auto_shrink([false, true])
-                            .show(ui, |ui| self.panel_view(&mut Vec::new()).analysis_output(ui))
+                            .show(ui, |ui| self.with_panel(|p| p.analysis_output(ui)))
                     })
                     .inner;
                 #[cfg(test)]
@@ -438,7 +438,7 @@ impl AutoShadeApp {
             // them silently vacuous instead of red.
             .open(fold_open_in_tests())
             , |ui| {
-                self.panel_view(&mut Vec::new()).ai_library_status(ui);
+                self.with_panel(|p| p.ai_library_status(ui));
                 self.ai_library_build(ui);
                 if !reads_a_library {
                     // Outside the disabled scope below: the sentence that
@@ -455,7 +455,7 @@ impl AutoShadeApp {
                     {
                         self.seams.ai_library_read_enabled = Some(ui.is_enabled());
                     }
-                    self.panel_view(&mut Vec::new()).ai_library_use(ui);
+                    self.with_panel(|p| p.ai_library_use(ui));
                 });
             });
     }
@@ -760,8 +760,12 @@ impl AutoShadeApp {
             // choosable. Until then the fold showed the target only, and the
             // source was a rule nobody could see (`negative_index`).
             let (auto, sources) = self.fit_source_menu();
+            // The label needs the command context, which borrows the editor —
+            // read the active index first, then render the label.
+            let active = self.editor.doc().active;
+            let card_label = self.numbered_card_label(active);
             let to = (self.workspace.fit().fit_ref.is_none() && self.editor.fit_target(&self.workspace).is_some())
-                .then(|| trf(lang, K_ACTIONS_TO, &[("card", &self.numbered_card_label(self.editor.doc().active))]));
+                .then(|| trf(lang, K_ACTIONS_TO, &[("card", &card_label)]));
             if !sources.is_empty() {
                 let shown = match self.workspace.fit().fit_from.as_deref() {
                     Some(id) => sources.iter().find(|(s, _)| s == id).map(|(_, l)| l.clone()),

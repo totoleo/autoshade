@@ -9,7 +9,7 @@ use crate::logic::look::{AnalysisJob, LookIntent, LookKind, LookLine, OneClick};
 use crate::logic::{self, Action, Effect};
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Apply what the view saw the user do. One arm per domain; each arm ends
     /// in `logic::<domain>`, and the effects run at the end, in the order the
     /// logic asked for them.
@@ -32,7 +32,7 @@ impl AutoShadeApp {
                 Action::Lens(action) => {
                     let start = match action {
                         logic::lens_blur::LensAction::EstimateDepth => {
-                            self.editor.photo().src_path.clone().zip(self.original_frame_base()).map(|(photo, base)| (photo, base))
+                            self.editor.photo().src_path.clone().zip(self.editor.original_frame_base()).map(|(photo, base)| (photo, base))
                         }
                         _ => None,
                     };
@@ -53,11 +53,11 @@ impl AutoShadeApp {
                     logic::portrait::PortraitAction::FindPeople => self.start_find_people(),
                     logic::portrait::PortraitAction::RemoveBlemishes => self.start_remove_blemishes(),
                     logic::portrait::PortraitAction::KeepPersonSharp(on) => {
-                        if self.set_keep_person_sharp(on) {
+                        if self.editor.set_keep_person_sharp(on) {
                             self.editor.session_mut().dirty = true;
                         }
                     }
-                    logic::portrait::PortraitAction::SetKeepSkin(on) => self.set_keep_skin(on),
+                    logic::portrait::PortraitAction::SetKeepSkin(on) => self.editor.set_keep_skin(&mut self.workspace, self.lang, on),
                 },
                 Action::Develop(action) => match action {
                     logic::develop::DevelopAction::AiDenoise => self.start_ai_denoise(),
@@ -191,7 +191,7 @@ impl AutoShadeApp {
                     logic::pick::Picker::Range => self.workspace.tools_mut().range_picking = None,
                     logic::pick::Picker::PointColor => self.workspace.tools_mut().point_color_picking = false,
                 },
-                Effect::DisarmTools => self.panel_view(&mut Vec::new()).disarm_tools(),
+                Effect::DisarmTools => self.workspace.disarm_tools(&mut self.editor),
                 Effect::MarkDirty => self.editor.session_mut().dirty = true,
             }
         }

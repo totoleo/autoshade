@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Open the window (the Library panel's 「Recipe library…」 button).
     pub(crate) fn open_recipe_library(&mut self) {
         self.workspace.rlib_mut().show_recipes = true;
@@ -267,7 +267,7 @@ impl AutoShadeApp {
         ui.horizontal_top(|ui| {
             const PREVIEW_W: f32 = 200.0;
             const PREVIEW_H: f32 = 140.0;
-            let tex = if entry.is_ok() { self.panel_view(&mut Vec::new()).recipe_preview_tex(ui.ctx(), name) } else { None };
+            let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(ui.ctx(), name)) } else { None };
             ui.vertical(|ui| {
                 let (rect, _) =
                     ui.allocate_exact_size(egui::vec2(PREVIEW_W, PREVIEW_H), egui::Sense::hover());

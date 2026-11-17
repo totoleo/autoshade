@@ -276,7 +276,7 @@ pub(crate) fn paste_payload(src: EditRecipe, paste_geometry: bool) -> PastePaylo
     }
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 
@@ -1282,7 +1282,7 @@ impl AutoShadeApp {
         // "Keep skin natural" (Portraits) holds each target's write where it
         // is written, by that target's own switch (`skin_held_for`).
         let skin_held: std::collections::HashSet<PathBuf> =
-            targets.iter().filter(|t| self.skin_held_for(t)).cloned().collect();
+            targets.iter().filter(|t| self.editor.skin_held_for(&self.workspace, t)).cloned().collect();
         if n_raster > 0 && has_foreign_target {
             self.workspace.toast(
                 ToastKind::Error,
@@ -1355,7 +1355,7 @@ impl AutoShadeApp {
             self.fork_edited_card();
             // Wholesale recipe replacement: disarm index-carrying tools and
             // refresh derived display, like every other whole-swap path.
-            self.resync_recipe_display();
+            self.editor.resync_recipe_display(&mut self.workspace);
             self.workspace.open_mut().pasted_open = Some((open, live));
         }
         let lang = self.lang; // pre-spawn UI statuses only; results land as FACTS (L12#4)

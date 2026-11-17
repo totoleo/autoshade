@@ -9,7 +9,7 @@ pub(crate) const BRUSH_R_MAX: f32 = 200.0;
 /// How long the ring stays up, with its size, after the size changes.
 const BRUSH_SIZE_FLASH_S: f64 = 1.2;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Brush-paint into the mask while dragging on the After image. The canvas
     /// is full-frame at preview resolution; pointer→canvas goes through the
     /// view transform so painting stays accurate at any zoom, and the brush
@@ -348,7 +348,7 @@ impl AutoShadeApp {
             }
         });
         if armed {
-            self.panel_view(&mut Vec::new()).brush_size_slider(ui);
+            self.with_panel(|p| p.brush_size_slider(ui));
         }
     }
 
@@ -608,7 +608,7 @@ impl AutoShadeApp {
                     }
                 });
                 if armed {
-                    self.panel_view(&mut Vec::new()).brush_size_slider(ui);
+                    self.with_panel(|p| p.brush_size_slider(ui));
                 }
                 if primary_row(ui, !self.workspace.busy() && self.workspace.tools().clone_mode, tr(lang, K_RETOUCH_CLONE_AREA))
                     .on_hover_text(tr(lang, K_RETOUCH_COPY_THE_SAMPLED_SOURCE_OVER_THE_BRUSHED_AREA_VE))

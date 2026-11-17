@@ -165,7 +165,7 @@
         assert!(!truncated.iter().any(|n| matches!(n, FitNote::MaskRefinement { .. })));
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             for note in &truncated {
-                let line = AutoShadeApp::render_fit_note(lang, note);
+                let line = Commands::render_fit_note(lang, note);
                 assert!(line.contains("XMP"));
                 assert!(!line.contains("global part only") && !line.contains("全局部分"));
                 assert!(!line.contains("omitted from classic XMP"));
@@ -448,18 +448,18 @@
              </rdf:Seq></crs:MaskGroupBasedCorrections>\n\
              </rdf:Description></rdf:RDF></x:xmpmeta>";
         let mut app =
-            AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.doc_mut() = Document {
+            AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
      recipe: autoshade::xmp::xmp_to_recipe(doc),
      ..Default::default()
- }; editor } , ..Default::default() };
+ }; editor });
         assert_eq!(
-            app.editor.doc().recipe.masks.len(),
+            app.editor().doc().recipe.masks.len(),
             2,
             "premise: the importer brought the Lightroom masks in — without this the \
              panel assertions below would pass on an empty list and prove nothing"
         );
         let seen = tall_frame(&mut app, |a, ui| {
-            a.develop_panel(ui);
+            a.commands().develop_panel(ui);
         });
         // The ● rides on the header text, so this is a prefix match — the
         // count is what is being pinned.
@@ -478,7 +478,7 @@
         // …and they are LIVE, not parked: both carry a real exposure delta, so
         // the section earns its ●.
         assert!(
-            app.editor.masks_section_active(),
+            app.editor().masks_section_active(),
             "an imported Lightroom mask with a real slider must light the section"
         );
     }

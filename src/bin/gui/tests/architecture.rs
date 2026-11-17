@@ -4,7 +4,7 @@
 // These are SOURCE tests on purpose: the drift they guard against is a line
 // that goes missing or an import that creeps back, and neither has a runtime
 // signature until the next feature pays for it. The pair pins the deal made in
-// `logic/mod.rs` and `panels/lens_blur.rs`:
+// `logic/mod.rs` and the panel projections:
 //
 //  * logic is headless — no widget code, no rendered text, no worker spawn,
 //    no dialog, no message enum;
@@ -81,13 +81,17 @@
             "self.workspace.busy() =",
             "self.editor.session().dirty =",
         ];
-        // `lens_blur.rs` — the pilot: it must not start the depth worker, open
-        // a dialog or reach into the recipe.
-        let lens = std::fs::read_to_string(root.join("lens_blur.rs")).expect("the panel source is readable");
+        // The lens-blur section draws through the panel projection now. Its
+        // draw must not start the depth worker, open a dialog or reach into
+        // the recipe.
+        let gui = root.parent().expect("the gui directory");
+        let panel_view = std::fs::read_to_string(gui.join("panel_view.rs")).expect("the projection source is readable");
+        let lens = &panel_view[panel_view.find("fn dev_lens_blur(").expect("the lens-blur section")..];
+        let lens = &lens[..lens.find("\n    pub(crate) fn ").expect("the next projection method")];
         for needle in common.into_iter().chain(["on_depth_estimated", "start_depth"]) {
             assert!(
                 !lens.contains(needle),
-                "panels/lens_blur.rs reaches past the seam with `{needle}` — emit a logic::Action instead"
+                "the lens-blur section reaches past the seam with `{needle}` — emit a logic::Action instead"
             );
         }
         // `gallery.rs` — the folder dialog, the thumbnail worker, the selection

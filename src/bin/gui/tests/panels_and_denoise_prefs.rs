@@ -41,8 +41,8 @@
         ] {
             let ctx = egui::Context::default();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let mut app = AutoShadeApp { lang, ..Default::default() };
-            app.editor.doc_mut().recipe.masks = vec![
+            let mut app = AutoShadeApp::default().but_lang(lang);
+            app.editor_mut().doc_mut().recipe.masks = vec![
                 autoshade::recipe::LocalAdjustment {
                     mask: autoshade::recipe::MaskGeometry::Radial {
                         top: 0.2, left: 0.2, bottom: 0.8, right: 0.8,
@@ -70,14 +70,14 @@
                 let out = ctx.run(input(), |ctx| {
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| app.develop_panel(ui));
+                        egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
                     });
                 });
                 texts(&out.shapes, &mut seen);
                 seen
             };
             // ① a mask selected: the group captions and the engine-only note.
-            app.workspace.masks_mut().sel_mask = Some(0);
+            app.workspace_mut().masks_mut().sel_mask = Some(0);
             let seen = frame(&mut app);
             assert!(
                 seen.iter().any(|t| t == group),
@@ -110,7 +110,7 @@
                 "{lang:?}: the Color tint pair must follow {tint_shift:?} in the colour group: {seen:?}"
             );
             // ② nothing selected (one click on the selected row): the hint.
-            app.workspace.masks_mut().sel_mask = None;
+            app.workspace_mut().masks_mut().sel_mask = None;
             let seen = frame(&mut app);
             assert!(
                 seen.iter().any(|t| t == hint),
@@ -138,13 +138,13 @@
         for (lang, caption) in
             [(crate::i18n::Lang::En, "Curve"), (crate::i18n::Lang::Zh, "曲线")]
         {
-            let mut app = AutoShadeApp { lang, ..Default::default() };
-            app.editor.doc_mut().recipe.masks =
+            let mut app = AutoShadeApp::default().but_lang(lang);
+            app.editor_mut().doc_mut().recipe.masks =
                 vec![autoshade::recipe::LocalAdjustment { name: "sky".into(), ..Default::default() }];
             // ① selected → the fourth group caption is drawn.
-            app.workspace.masks_mut().sel_mask = Some(0);
+            app.workspace_mut().masks_mut().sel_mask = Some(0);
             let seen = tall_frame(&mut app, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.iter().any(|t| t == caption),
@@ -153,9 +153,9 @@
             // ② nothing selected → no per-mask curve group. (The global
             //    「Curves」 section is a different caption on purpose, so this
             //    negative cannot be satisfied by it.)
-            app.workspace.masks_mut().sel_mask = None;
+            app.workspace_mut().masks_mut().sel_mask = None;
             let seen = tall_frame(&mut app, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 !seen.iter().any(|t| t == caption),
@@ -165,7 +165,7 @@
 
         // ③ the driven half: a click in the MASK editor lands in the mask.
         let mut app = AutoShadeApp::default();
-        app.editor.doc_mut().recipe.masks =
+        app.editor_mut().doc_mut().recipe.masks =
             vec![autoshade::recipe::LocalAdjustment { name: "sky".into(), ..Default::default() }];
         let ctx = egui::Context::default();
         let run_pass = |app: &mut AutoShadeApp, events: Vec<egui::Event>| -> bool {
@@ -186,7 +186,7 @@
             changed
         };
         let _ = run_pass(&mut app, vec![]);
-        let rect = app.seams.curve_rect.expect("the mask editor records its square (test seam)");
+        let rect = app.seams().curve_rect.expect("the mask editor records its square (test seam)");
         let q = egui::pos2(rect.min.x + rect.width() * 0.25, rect.min.y + rect.height() * 0.5);
         let button = |pressed: bool| egui::Event::PointerButton {
             pos: q,
@@ -198,18 +198,18 @@
         let released = run_pass(&mut app, vec![button(false)]);
         assert!(pressed || released, "the mask editor must report the edit");
         assert_eq!(
-            app.editor.doc().recipe.masks[0].main_curve.len(),
+            app.editor().doc().recipe.masks[0].main_curve.len(),
             1,
             "the click adds one point to the MASK's master curve"
         );
         assert!(
-            app.editor.doc().recipe.tone_curve.is_empty(),
+            app.editor().doc().recipe.tone_curve.is_empty(),
             "the mask editor wrote into the GLOBAL tone curve: {:?}",
-            app.editor.doc().recipe.tone_curve
+            app.editor().doc().recipe.tone_curve
         );
         // ④ a target that no longer addresses a mask draws nothing rather
         //    than falling through to the global curves.
-        app.editor.doc_mut().recipe.masks.clear();
+        app.editor_mut().doc_mut().recipe.masks.clear();
         let mut drew = true;
         let _ = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -217,7 +217,7 @@
             });
         });
         assert!(!drew, "a stale mask index must not report an edit");
-        assert!(app.editor.doc().recipe.tone_curve.is_empty(), "…and must not touch the global curves");
+        assert!(app.editor().doc().recipe.tone_curve.is_empty(), "…and must not touch the global curves");
     }
 
     /// Every text one frame drew, nested `Shape::Vec` included — the way to read
@@ -261,8 +261,8 @@
         };
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             // 1) Nothing imported: not a word of it on screen.
-            let mut clean = AutoShadeApp { lang, ..Default::default() };
-            let seen = tall_frame(&mut clean, |a, ui| a.retouch_panel(ui));
+            let mut clean = AutoShadeApp::default().but_lang(lang);
+            let seen = tall_frame(&mut clean, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 !seen.iter().any(|t| t == tr(lang, K_RETOUCH_IMPORTED_REMOVAL)),
                 "{lang:?}: a photo with no retouch draws no group: {seen:?}"
@@ -270,9 +270,9 @@
 
             // 2) A plain Lightroom heal: the summary, and NO ✨ verb — the
             //    pixels were copied, so there is nothing for a model to redo.
-            let mut copied = AutoShadeApp { lang, ..Default::default() };
-            copied.editor.doc_mut().recipe.retouch = vec![area(SpotOrigin::LightroomHeal)];
-            let seen = tall_frame(&mut copied, |a, ui| a.retouch_panel(ui));
+            let mut copied = AutoShadeApp::default().but_lang(lang);
+            copied.editor_mut().doc_mut().recipe.retouch = vec![area(SpotOrigin::LightroomHeal)];
+            let seen = tall_frame(&mut copied, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_RETOUCH_IMPORTED_REMOVAL)),
                 "{lang:?}: an imported area names itself: {seen:?}"
@@ -283,12 +283,12 @@
             );
 
             // 3) One Adobe-synthesised area among them: the verb appears.
-            let mut invented = AutoShadeApp { lang, ..Default::default() };
-            invented.editor.doc_mut().recipe.retouch = vec![
+            let mut invented = AutoShadeApp::default().but_lang(lang);
+            invented.editor_mut().doc_mut().recipe.retouch = vec![
                 area(SpotOrigin::LightroomHeal),
                 area(SpotOrigin::LightroomGenerative),
             ];
-            let seen = tall_frame(&mut invented, |a, ui| a.retouch_panel(ui));
+            let seen = tall_frame(&mut invented, |a, ui| a.commands().retouch_panel(ui));
             assert!(
                 seen.iter().any(|t| t == tr(lang, K_RETOUCH_REGENERATE_THOSE_AREAS)),
                 "{lang:?}: a synthesised area gets the re-solve: {seen:?}"
@@ -322,9 +322,9 @@
             let lit = format!("{title}  ●");
 
             // 1) Nothing: the section is there, and dark.
-            let mut clean = AutoShadeApp { lang, ..Default::default() };
+            let mut clean = AutoShadeApp::default().but_lang(lang);
             let seen = tall_frame(&mut clean, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.iter().any(|t| t.starts_with(&title)),
@@ -337,10 +337,10 @@
 
             // 2) A stored control with the MODE OFF — renders nothing, and
             //    must still be visible.
-            let mut stored = AutoShadeApp { lang, ..Default::default() };
-            stored.editor.doc_mut().recipe.sdr_brightness = 40.0;
+            let mut stored = AutoShadeApp::default().but_lang(lang);
+            stored.editor_mut().doc_mut().recipe.sdr_brightness = 40.0;
             let seen = tall_frame(&mut stored, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.contains(&lit),
@@ -348,10 +348,10 @@
             );
 
             // 3) …and so does the mode by itself.
-            let mut on = AutoShadeApp { lang, ..Default::default() };
-            on.editor.doc_mut().recipe.hdr_edit = true;
+            let mut on = AutoShadeApp::default().but_lang(lang);
+            on.editor_mut().doc_mut().recipe.hdr_edit = true;
             let seen = tall_frame(&mut on, |a, ui| {
-                a.develop_panel(ui);
+                a.commands().develop_panel(ui);
             });
             assert!(
                 seen.contains(&lit),
@@ -386,7 +386,7 @@
     #[test]
     fn the_ai_dot_reads_this_photos_state_not_the_saved_dials() {
         assert_eq!(
-            AutoShadeApp::default().aip.style_strength, STYLE_STRENGTH_DEFAULT,
+            AutoShadeApp::default().aip().style_strength, STYLE_STRENGTH_DEFAULT,
             "the app must start at the shared default"
         );
         assert_eq!(
@@ -404,7 +404,7 @@
                 ("verdict", true, "", true),
                 ("Direction", false, "warmer and moodier", true),
             ] {
-                let mut app = AutoShadeApp { editor: { let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
+                let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.analysis_mut() = AnalysisSession {
 
                         verdict: has_verdict.then(|| (
                         autoshade::advisor::Decision::Accept, vec!["ok".into()]
@@ -412,16 +412,16 @@
 
                         ..Default::default()
 
-                    }; editor } , workspace:  { let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
+                    }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.ai_mut() = AiState {
                         guidance: guidance.into(),
                         ..Default::default()
-                    }; view } , aip: AiPrefs {
+                    }; view }).but_aip(AiPrefs {
                         style_strength: 0.80,
                         grade_strength: 0.85,
                         fit_strength: 0.85,
                         ..Default::default()
-                    }, lang, ..Default::default() };
-                let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+                    }).but_lang(lang);
+                let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
                 let headers: Vec<_> = seen.iter().map(String::as_str)
                     .filter(|t| *t == title || *t == lit.as_str()).collect();
                 assert_eq!(
@@ -444,7 +444,7 @@
     fn the_grade_strength_slider_sits_beside_style_and_rides_the_analyze_request() {
         // One definition, three consumers (app default / pref default / the
         // slider's reset target) — the R22 #16 rule, applied to the new dial.
-        assert_eq!(AutoShadeApp::default().aip.grade_strength, GRADE_STRENGTH_DEFAULT);
+        assert_eq!(AutoShadeApp::default().aip().grade_strength, GRADE_STRENGTH_DEFAULT);
         assert_eq!(
             Prefs::default().grade_strength, GRADE_STRENGTH_DEFAULT,
             "a prefs file written before this key existed must decode to the SAME number — \
@@ -467,7 +467,7 @@
         // was invisible outright. Assert the LABELS, not just the values: the
         // label is the half that was being clipped.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         for label in ["Style", "Strength", "30", "65"] {
             assert!(
                 seen.iter().any(|t| t == label),
@@ -477,41 +477,38 @@
 
         // A remembered preference stays quiet, including a move DOWN to the
         // calibration point, which differs from the shipped default.
-        assert!(!app.editor.ai_section_active(&app.workspace), "a fresh AI area has no state to flag");
-        app.aip.grade_strength = autoshade::recipe::GradeStrength::CALIBRATED;
+        assert!(!app.editor().ai_section_active(&app.workspace()), "a fresh AI area has no state to flag");
+        app.aip_mut().grade_strength = autoshade::recipe::GradeStrength::CALIBRATED;
         assert!(
-            !app.editor.ai_section_active(&app.workspace),
+            !app.editor().ai_section_active(&app.workspace()),
             "a moved Strength slider is a preference, not this photo's AI state"
         );
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         let title = tr(Lang::En, K_AI_AI_ANALYSIS_AUTO_DEVELOP);
         let lit = format!("{title}  ●");
         assert!(
             seen.iter().any(|t| t == title) && !seen.contains(&lit),
             "a moved Strength slider must leave the AI header plain: {seen:?}"
         );
-        app.aip.grade_strength = GRADE_STRENGTH_DEFAULT;
-        assert!(!app.editor.ai_section_active(&app.workspace), "resetting a preference also leaves the dot unlit");
+        app.aip_mut().grade_strength = GRADE_STRENGTH_DEFAULT;
+        assert!(!app.editor().ai_section_active(&app.workspace()), "resetting a preference also leaves the dot unlit");
 
         // …and it reaches the worker's request, on its OWN axis (the two dials
         // must not be able to swap: `style` is a bare fraction, `strength` a
         // `GradeStrength`, so a transposed pair would not compile).
-        let app = AutoShadeApp {
-            aip: AiPrefs {
+        let app = AutoShadeApp::default().but_aip(AiPrefs {
                 grade_strength: 0.9,
                 style_strength: 0.2,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
+            });
         let req = autoshade::pipeline::GradeRequest {
-            guide: app.aip.guide,
-            style: app.aip.style_strength,
-            send_reference_image: app.aip.send_style_ref_image,
-            strength: autoshade::recipe::GradeStrength::new(app.aip.grade_strength),
-            think: app.aip.deep_think,
+            guide: app.aip().guide,
+            style: app.aip().style_strength,
+            send_reference_image: app.aip().send_style_ref_image,
+            strength: autoshade::recipe::GradeStrength::new(app.aip().grade_strength),
+            think: app.aip().deep_think,
             adherence: autoshade::recipe::DirectionAdherence::default(),
-            embed: autoshade::library::EmbeddingSwitch::resolve(None, app.aip.style_embed),
+            embed: autoshade::library::EmbeddingSwitch::resolve(None, app.aip().style_embed),
         };
         assert_eq!(req.strength.get(), 0.9);
         assert_eq!(req.style, 0.2);
@@ -543,7 +540,7 @@
             let mut app = AutoShadeApp::default();
             app.restore_prefs(prefs);
             if old.contains("lang:Zh") {
-                assert_eq!(app.lang, Lang::Zh, "{old}: the settings beside the removed key restore");
+                assert_eq!(app.lang(), Lang::Zh, "{old}: the settings beside the removed key restore");
             }
         }
     }
@@ -558,31 +555,31 @@
             assert_eq!(prefs.prefs_era, 0, "a missing key must not inherit the current era");
             let mut app = AutoShadeApp::default();
             app.restore_prefs(prefs);
-            assert_eq!((app.workspace.exp().denoise_strength, app.workspace.exp().save_denoise_strength), (autoshade::denoise::DEFAULT_STRENGTH_RAW, autoshade::denoise::DEFAULT_STRENGTH_RAW),
+            assert_eq!((app.workspace().exp().denoise_strength, app.workspace().exp().save_denoise_strength), (autoshade::denoise::DEFAULT_STRENGTH_RAW, autoshade::denoise::DEFAULT_STRENGTH_RAW),
                 "era 0 must reset both denoise dials to the RAW blend default");
             for old in ["71", "65", "50"] {
-                assert!(app.workspace.status().contains(old), "{old} missing from {}", app.workspace.status());
+                assert!(app.workspace().status().contains(old), "{old} missing from {}", app.workspace().status());
             }
-            assert_eq!(app.workspace.status().matches(if lang == Lang::En { "reset to" } else { "已重置" }).count(), 1);
-            assert!(!app.workspace.status().contains("{a}"));
-            assert!(app.workspace.chrome().toasts.is_empty(), "the startup status is the existing disclosure surface");
+            assert_eq!(app.workspace().status().matches(if lang == Lang::En { "reset to" } else { "已重置" }).count(), 1);
+            assert!(!app.workspace().status().contains("{a}"));
+            assert!(app.workspace().chrome().toasts.is_empty(), "the startup status is the existing disclosure surface");
         }
     }
 
     #[test]
     fn denoise_prefs_note_survives_the_startup_folder_scan_once() {
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.busy_mut() = true; view } , ..Default::default() };
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
         app.restore_prefs(Prefs { prefs_era: 0, denoise_strength: 0.65,
             save_denoise_strength: 0.5, ..Prefs::default() });
-        assert!(app.workspace.chrome().startup_note.is_some());
-        app.services.tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
+        assert!(app.workspace().chrome().startup_note.is_some());
+        app.services().tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
         app.poll_workers(&egui::Context::default());
-        assert!(app.workspace.status().contains("no photos found"), "{}", app.workspace.status());
-        assert!(app.workspace.status().contains("reset to 71"), "{}", app.workspace.status());
-        assert!(app.workspace.chrome().startup_note.is_none());
-        app.services.tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
+        assert!(app.workspace().status().contains("no photos found"), "{}", app.workspace().status());
+        assert!(app.workspace().status().contains("reset to 71"), "{}", app.workspace().status());
+        assert!(app.workspace().chrome().startup_note.is_none());
+        app.services().tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
         app.poll_workers(&egui::Context::default());
-        assert!(!app.workspace.status().contains("reset to"), "a later scan must not repeat the startup note");
+        assert!(!app.workspace().status().contains("reset to"), "a later scan must not repeat the startup note");
     }
 
     #[test]
@@ -590,9 +587,9 @@
         let mut app = AutoShadeApp::default();
         app.restore_prefs(Prefs { prefs_era: 2, denoise_strength: 0.65,
             save_denoise_strength: 0.5, ..Prefs::default() });
-        assert_eq!((app.workspace.exp().denoise_strength, app.workspace.exp().save_denoise_strength), (0.65, 0.5));
-        assert_eq!(app.workspace.status(), tr(Lang::En, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB));
-        assert!(app.workspace.chrome().startup_note.is_none());
+        assert_eq!((app.workspace().exp().denoise_strength, app.workspace().exp().save_denoise_strength), (0.65, 0.5));
+        assert_eq!(app.workspace().status(), tr(Lang::En, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB));
+        assert!(app.workspace().chrome().startup_note.is_none());
     }
 
     #[test]
@@ -603,26 +600,26 @@
         assert_eq!(prefs.prefs_era, 0);
         let mut app = AutoShadeApp::default();
         app.restore_prefs(prefs);
-        assert_eq!((app.workspace.exp().denoise_strength, app.workspace.exp().save_denoise_strength), (autoshade::denoise::DEFAULT_STRENGTH_RAW, autoshade::denoise::DEFAULT_STRENGTH_RAW));
-        assert_eq!(app.workspace.status(), tr(Lang::En, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB));
+        assert_eq!((app.workspace().exp().denoise_strength, app.workspace().exp().save_denoise_strength), (autoshade::denoise::DEFAULT_STRENGTH_RAW, autoshade::denoise::DEFAULT_STRENGTH_RAW));
+        assert_eq!(app.workspace().status(), tr(Lang::En, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB));
     }
 
     #[test]
     fn saving_prefs_records_the_current_era_and_preserves_new_choices() {
         assert_eq!(Prefs::default().prefs_era, PREFS_ERA);
-        let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
+        let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
                 denoise_strength: 0.65,
                 save_denoise_strength: 0.5,
                 ..Default::default()
-            }; view } , ..Default::default() };
+            }; view });
         let mut storage = PrefsMemory::default();
         eframe::App::save(&mut app, &mut storage);
         let saved: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
         assert_eq!(saved.prefs_era, PREFS_ERA);
         let mut reopened = AutoShadeApp::default();
         reopened.restore_prefs(saved);
-        assert_eq!((reopened.workspace.exp().denoise_strength, reopened.workspace.exp().save_denoise_strength), (0.65, 0.5));
-        assert!(!reopened.workspace.status().contains("reset to"));
+        assert_eq!((reopened.workspace().exp().denoise_strength, reopened.workspace().exp().save_denoise_strength), (0.65, 0.5));
+        assert!(!reopened.workspace().status().contains("reset to"));
     }
 
     /// 2026-09-13, the same user decision applied to the denoiser's two
@@ -639,8 +636,8 @@
         use autoshade::denoise::DEFAULT_STRENGTH_RAW as DEFAULT_STRENGTH;
         let app = AutoShadeApp::default();
         assert_eq!(DEFAULT_STRENGTH, 0.71);
-        assert_eq!(app.workspace.exp().denoise_strength, DEFAULT_STRENGTH);
-        assert_eq!(app.workspace.exp().save_denoise_strength, DEFAULT_STRENGTH);
+        assert_eq!(app.workspace().exp().denoise_strength, DEFAULT_STRENGTH);
+        assert_eq!(app.workspace().exp().save_denoise_strength, DEFAULT_STRENGTH);
         assert_eq!(Prefs::default().denoise_strength, DEFAULT_STRENGTH);
         assert_eq!(Prefs::default().save_denoise_strength, DEFAULT_STRENGTH);
         // Two keys, two values, and a file without them loads the default.
@@ -658,7 +655,7 @@
         assert_eq!(decoded.save_denoise_strength, DEFAULT_STRENGTH);
         // DRAWN, each in its own fold, at the default 320 px panel.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.develop_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().develop_panel(ui));
         assert!(
             seen.iter().any(|t| t == "AI denoise strength"),
             "the Detail fold's dial must exist: {seen:?}"
@@ -668,15 +665,15 @@
             "the Export fold's dial must exist: {seen:?}"
         );
         // The export echo carries the amount that will actually land.
-        let app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
+        let app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.exp_mut() = ExportState {
                 save_denoise: true,
                 save_denoise_strength: 0.35,
                 ..Default::default()
-            }; view } , ..Default::default() };
+            }; view });
         assert!(
-            app.editor.export_summary(&app.workspace, Lang::En).contains("AI Denoise 35%"),
+            app.editor().export_summary(&app.workspace(), Lang::En).contains("AI Denoise 35%"),
             "{}",
-            app.editor.export_summary(&app.workspace, Lang::En)
+            app.editor().export_summary(&app.workspace(), Lang::En)
         );
         // …and each verb reads ITS fold's dial: no literal strength survives
         // in either worker, and neither reads the other's field.
@@ -690,26 +687,26 @@
                 save_denoise_strength: 1.0, lang, ..Prefs::default() });
             // The dial values themselves are `logic::prefs::migrate_era`'s unit
             // tests; this test owns the Wording of the note the user reads.
-            assert!(app.workspace.status().contains("100"), "old values missing: {}", app.workspace.status());
-            assert!(app.workspace.status().contains("71"), "new default missing: {}", app.workspace.status());
-            assert!(app.workspace.status().contains("Lightroom"));
+            assert!(app.workspace().status().contains("100"), "old values missing: {}", app.workspace().status());
+            assert!(app.workspace().status().contains("71"), "new default missing: {}", app.workspace().status());
+            assert!(app.workspace().status().contains("Lightroom"));
         }
         let mut app = AutoShadeApp::default();
         app.restore_prefs(Prefs { prefs_era: 1, denoise_strength: 0.45,
             save_denoise_strength: 0.6, ..Prefs::default() });
-        app.editor.photo_mut().src_path = Some(PathBuf::from("master.tif"));
+        app.editor_mut().photo_mut().src_path = Some(PathBuf::from("master.tif"));
         let mut storage = PrefsMemory::default();
         eframe::App::save(&mut app, &mut storage);
         let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
         assert_eq!(prefs.prefs_era, 2);
         let mut reopened = AutoShadeApp::default();
         reopened.restore_prefs(prefs);
-        reopened.editor.photo_mut().src_path = Some(PathBuf::from("master.tif"));
-        assert_eq!(reopened.editor.selected_denoise_strength(&reopened.workspace, false), 0.45);
-        assert_eq!(reopened.editor.selected_denoise_strength(&reopened.workspace, true), 0.6);
-        assert!(!reopened.workspace.status().contains("reset to"));
-        reopened.editor.photo_mut().src_path = Some(PathBuf::from("frame.ARW"));
-        assert_eq!(reopened.editor.selected_denoise_strength(&reopened.workspace, false), autoshade::denoise::DEFAULT_STRENGTH_RAW);
+        reopened.editor_mut().photo_mut().src_path = Some(PathBuf::from("master.tif"));
+        assert_eq!(reopened.editor().selected_denoise_strength(&reopened.workspace(), false), 0.45);
+        assert_eq!(reopened.editor().selected_denoise_strength(&reopened.workspace(), true), 0.6);
+        assert!(!reopened.workspace().status().contains("reset to"));
+        reopened.editor_mut().photo_mut().src_path = Some(PathBuf::from("frame.ARW"));
+        assert_eq!(reopened.editor().selected_denoise_strength(&reopened.workspace(), false), autoshade::denoise::DEFAULT_STRENGTH_RAW);
     }
 
     /// User decision 2026-09-12 (「该在哪就在哪」): a control belongs to the fold
@@ -723,7 +720,7 @@
     #[test]
     fn gui_reverse_fit_has_its_own_strength_dial() {
         // One constant, three consumers: app default, pref default, reset target.
-        assert_eq!(AutoShadeApp::default().aip.fit_strength, autoshade::recipe::GradeStrength::DEFAULT);
+        assert_eq!(AutoShadeApp::default().aip().fit_strength, autoshade::recipe::GradeStrength::DEFAULT);
         assert_eq!(
             Prefs::default().fit_strength,
             autoshade::recipe::GradeStrength::DEFAULT,
@@ -731,53 +728,47 @@
              budget, never to serde's 0.0"
         );
         assert_eq!(
-            AutoShadeApp::default().aip.fit_strength().get(),
+            AutoShadeApp::default().aip().fit_strength().get(),
             autoshade::recipe::GradeStrength::DEFAULT,
             "the shipped dial value IS the byte-identical default budget"
         );
         // Two dials, two readings: moving either leaves the other alone.
-        let app = AutoShadeApp {
-            aip: AiPrefs {
+        let app = AutoShadeApp::default().but_aip(AiPrefs {
                 grade_strength: 0.9,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
-        assert_eq!(app.aip.analysis_strength().get(), 0.9);
+            });
+        assert_eq!(app.aip().analysis_strength().get(), 0.9);
         assert_eq!(
-            autoshade::fit::FitBudget::for_strength(app.aip.fit_strength()).vetoes,
+            autoshade::fit::FitBudget::for_strength(app.aip().fit_strength()).vetoes,
             autoshade::fit::VetoPolicy::Withhold,
             "the Analysis Strength must not reach the fit"
         );
-        let app = AutoShadeApp {
-            aip: AiPrefs {
+        let app = AutoShadeApp::default().but_aip(AiPrefs {
                 fit_strength: 0.9,
                 ..Default::default()
-            },
-            ..Default::default()
-        };
+            });
         assert_eq!(
-            autoshade::fit::FitBudget::for_strength(app.aip.fit_strength()).vetoes,
+            autoshade::fit::FitBudget::for_strength(app.aip().fit_strength()).vetoes,
             autoshade::fit::VetoPolicy::Disclose
         );
         assert_eq!(
-            app.aip.analysis_strength().get(),
+            app.aip().analysis_strength().get(),
             GRADE_STRENGTH_DEFAULT,
             "and the fit's dial never reaches the analyze request"
         );
         // DRAWN in the Reverse-fit fold at the default 320 px panel.
         let mut app = AutoShadeApp::default();
-        let seen = tall_frame(&mut app, |a, ui| a.ai_panel(ui));
+        let seen = tall_frame(&mut app, |a, ui| a.commands().ai_panel(ui));
         assert!(
             seen.iter().any(|t| t == "Reverse-fit strength"),
             "the dial must exist in the fold: {seen:?}"
         );
         // The saved reverse-fit dial is a preference, so it leaves the ● unlit.
-        assert!(!app.editor.ai_section_active(&app.workspace), "a fresh AI area has no state to flag");
-        app.aip.fit_strength = 0.85;
-        assert!(!app.editor.ai_section_active(&app.workspace), "a moved reverse-fit dial is still a preference");
-        app.aip.fit_strength = autoshade::recipe::GradeStrength::DEFAULT;
-        assert!(!app.editor.ai_section_active(&app.workspace), "resetting a preference also leaves the dot unlit");
+        assert!(!app.editor().ai_section_active(&app.workspace()), "a fresh AI area has no state to flag");
+        app.aip_mut().fit_strength = 0.85;
+        assert!(!app.editor().ai_section_active(&app.workspace()), "a moved reverse-fit dial is still a preference");
+        app.aip_mut().fit_strength = autoshade::recipe::GradeStrength::DEFAULT;
+        assert!(!app.editor().ai_section_active(&app.workspace()), "resetting a preference also leaves the dot unlit");
         // Persisted on its own key; an older prefs file without it loads at the default.
         let prefs = Prefs { fit_strength: 0.85, ..Prefs::default() };
         let json = serde_json::to_string(&prefs).expect("prefs serialize");
@@ -796,7 +787,7 @@
     #[test]
     fn settings_offer_the_managed_python_environment() {
         for lang in [Lang::En, Lang::Zh] {
-            let mut app = AutoShadeApp { lang, ..Default::default() };
+            let mut app = AutoShadeApp::default().but_lang(lang);
             let seen = tall_frame(&mut app, |a, ui| a.draw_panel(|view| view.settings_ui(ui)));
             assert!(
                 seen.contains(&tr(lang, K_SETTINGS_MANAGED_PYTHON).to_string()),
@@ -833,7 +824,7 @@
             assert!(words.contains("python"), "{lang:?}: {words}");
 
             // The Settings row repeats it, for the interpreter the launch found.
-            let mut app = AutoShadeApp { workspace:  { let mut view = WorkspaceView::default(); *view.ui_mut() = ShellState { python_check: Some(bad), ..Default::default() }; view } , lang, ..Default::default() };
+            let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.ui_mut() = ShellState { python_check: Some(bad), ..Default::default() }; view }).but_lang(lang);
             let seen = tall_frame(&mut app, |a, ui| a.draw_panel(|view| view.settings_ui(ui)));
             assert!(
                 seen.iter().any(|t| t.contains("Python27")),

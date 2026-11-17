@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 /// `Msg::Opened` landing — body extracted verbatim from the
 /// poll_workers pump (round-12 decomposition; indentation kept).
     /// `Msg::Analyzed` landing — body extracted verbatim from the
@@ -43,7 +43,7 @@ pub(crate) fn on_analyzed(
                     // wholesale install below folds it into the
                     // pre-analyze step and Ctrl+Z skips it.
                     self.commit_pending_names();
-                    self.commit_now();
+                    self.editor.commit_now(&self.workspace);
                     let accepted = logic::analysis_landing::accepted(&verdict);
                     // The recipe arrives with its base_curve already
                     // stamped by produce_recipe (saved-curve-first, else a
@@ -67,7 +67,7 @@ pub(crate) fn on_analyzed(
                     // `logic::analysis_landing::shape`.
                     let shaped = logic::analysis_landing::shape(
                         recipe,
-                        self.skin_held(),
+                        self.editor.skin_held(&self.workspace),
                         self.editor.active_on_ai_pixels(),
                     );
                     let stamped = shaped.stamped;
@@ -80,7 +80,7 @@ pub(crate) fn on_analyzed(
                     // Wholesale replacement: disarm index-carrying tools +
                     // refresh rationale, THEN install the fresh verdict
                     // and the typed notes (resync cleared both).
-                    self.resync_recipe_display();
+                    self.editor.resync_recipe_display(&mut self.workspace);
                     self.editor.analysis_mut().rationale_notes = rationale_notes;
                     self.editor.analysis_mut().verdict =
                         Some((verdict.decision.clone(), verdict.reasons.clone()));

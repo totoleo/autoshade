@@ -7584,8 +7584,9 @@ the `K_…` constants (`autoshade::text`); `scripts/check_text.py` keeps the
 locales, the placeholder sets and the generated module in step, and fails on an
 English literal where a key belongs. The local-adjustments
 subsystem (mask list, the selected mask's controls, composed shapes, the
-range editor, the AI segmentation verbs) has its own module,
-[`panels/develop_masks.rs`](../src/bin/gui/panels/develop_masks.rs); the
+range editor, the AI segmentation verbs) draws through the panel
+projection's own mask section
+([`panel_view.rs`](../src/bin/gui/panel_view.rs): `dev_masks`); the
 develop panel file keeps the form sections. The genuinely custom widgets — the
 tone-curve editor, the parametric curve, the colour mixer grid with its Point
 Color rows and the grading wheels — live in
@@ -7593,9 +7594,10 @@ Color rows and the grading wheels — live in
 panel's SECTION list, the display order and
 the family set each ● reads, is a table too
 ([`sections.rs`](../src/bin/gui/sections.rs): `SECTIONS`, `section_active`),
-where each row carries its OWN draw function, so the panel walks the table and
-calls `(section.draw)(self, ui, active)`: adding a section is a row plus a
-draw function in its module, never an enum variant and a central `match`.
+where each row carries its OWN draw function — a `PanelView` draw, or the
+command-context draw the `versions` row still needs — so the panel walks the
+table and calls `(section.draw)(…)`: adding a section is a row plus a draw
+function, never an enum variant and a central `match`.
 The mask list's delete / eye / drag-reorder
 verbs are `Command::Mask` — plus `InsertMask` for the duplicate verb, whose
 raster detach and name the caller prepares — and the selection remap and the

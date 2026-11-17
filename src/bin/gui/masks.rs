@@ -10,7 +10,7 @@ pub(crate) fn stage_preview_png(base: &image::DynamicImage, tag: &str) -> anyhow
     Ok(tmp)
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Run the AI segmentation sidecar on the ORIGINAL-frame preview and attach
     /// the resulting raster as a Bitmap local mask (gap batch A②). The AI only
     /// picks WHERE — every actual edit stays a deterministic recipe slider.
@@ -26,7 +26,7 @@ impl AutoShadeApp {
         let disp = tr(lang, label).to_string();
         // The ORIGINAL frame the recipe stores the mask in (v1.17.0: a
         // corrected base is mapped back first).
-        let Some(base) = self.original_frame_base() else { return };
+        let Some(base) = self.editor.original_frame_base() else { return };
         let Some(src) = self.editor.photo().src_path.clone() else { return };
         self.workspace.set_busy(true);
         *self.workspace.status_mut() = trf(
@@ -91,7 +91,7 @@ impl AutoShadeApp {
     /// brush flag goes up — the Stamp's `clone_mode`, the others' `paint_mode`.
     pub(crate) fn arm_brush(&mut self, owner: BrushOwner) {
         self.workspace.select_brush_owner(owner);
-        self.panel_view(&mut Vec::new()).disarm_tools();
+        self.workspace.disarm_tools(&mut self.editor);
         if owner == BrushOwner::Stamp {
             self.workspace.tools_mut().clone_mode = true;
         } else {
@@ -104,7 +104,7 @@ impl AutoShadeApp {
     /// during a mask-brush session it is that session's Esc, as before.
     pub(crate) fn toggle_brush_key(&mut self) {
         if self.workspace.masks().mask_brush.is_some() {
-            self.panel_view(&mut Vec::new()).disarm_tools();
+            self.workspace.disarm_tools(&mut self.editor);
         } else if self.workspace.brush_armed(self.workspace.masks().paint_owner) {
             self.workspace.disarm_brush();
         } else {
@@ -120,7 +120,7 @@ impl AutoShadeApp {
     /// the red display wash) and the greyscale weight buffer, at canvas
     /// resolution, so the session bakes exactly what it shows.
     pub(crate) fn start_mask_brush(&mut self, target: Option<usize>) {
-        self.panel_view(&mut Vec::new()).disarm_tools();
+        self.workspace.disarm_tools(&mut self.editor);
         let Some(base) = self.editor.photo().base_preview.as_ref() else { return };
         let (mw, mh) = base.dimensions();
         // The session takes the canvas; the owner's area waits in the store.
@@ -325,8 +325,7 @@ lang: Lang,
     else {
         return;
     };
-    let lang = lang;
-    // Through THE raster entry, baked in the sensor frame the result is
+        // Through THE raster entry, baked in the sensor frame the result is
     // written in (unmarked).
     let at = std::path::Path::new(&path);
     let done = autoshade::render::open_mask_raster(at)

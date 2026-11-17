@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     pub(crate) fn open_path(&mut self, path: PathBuf) {
         if self.workspace.busy() {
             // Defence-in-depth: since the px combo refuses BEFORE arming, no

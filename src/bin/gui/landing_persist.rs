@@ -8,7 +8,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Persist one accepted analysis result. `stamped` is the recipe the store
     /// writes (the RAW's own develop — the canvas copy may differ on a baked
     /// card); `p` is the open photo.

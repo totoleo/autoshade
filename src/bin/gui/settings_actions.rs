@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
     /// Populate the Settings form from the resolved config (keys are shown only as
     /// "present", never revealed). Called when the window opens.
     pub(crate) fn load_settings_form(&mut self) {

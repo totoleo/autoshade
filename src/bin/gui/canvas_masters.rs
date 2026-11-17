@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 /// Decode a variant's retouched master off-thread — a 61 MP TIFF takes
 /// seconds, so the UI thread never does this inline — and install it at
 /// `preview_edge`, like every other master install (open: `load_active`'s
@@ -33,7 +33,7 @@ pub(crate) fn spawn_master_load(
     let edge = self.workspace.genai().preview_edge.clamp(640, 8192);
     // Cache probe first: a revisited card installs synchronously, with
     // no worker and no "loading…" status to flash.
-    if let Some(arc) = self.cached_master(&origin, edge) {
+    if let Some(arc) = self.workspace.cached_master(&origin, edge) {
         self.install_master(ctx, &photo, &origin, arc);
         return;
     }
@@ -82,40 +82,7 @@ pub(crate) fn spawn_master_load(
     );
 }
 
-/// Cold-master LRU lookup (most-recent kept last) — same shape and same
-/// staleness guard as `cached_base`.
-pub(crate) fn cached_master(
-    &mut self,
-    origin: &std::path::Path,
-    edge: u32,
-) -> Option<Arc<image::DynamicImage>> {
-    let stamp = file_stamp(origin);
-    crate::logic::lru::get(&mut self.workspace.open_mut().master_cache, |(p, e, t)| {
-        p == origin && *e == edge && *t == stamp
-    })
-}
 
-/// Remember a freshly decoded cold master under its own identity —
-/// `remember_base`'s twin. The stamp is the SPAWN-TIME capture riding
-/// the message (L12-2): the old landing-time stat argued it made a
-/// mid-decode rewrite miss, but it did the opposite — the NEW stamp was
-/// filed with the OLD pixels, so the next probe HIT on pixels the file
-/// never held. Keyed pre-read, a rewrite moves the stamp on and misses.
-pub(crate) fn remember_master(
-    &mut self,
-    origin: &std::path::Path,
-    edge: u32,
-    stamp: FileStamp,
-    img: Arc<image::DynamicImage>,
-) {
-    crate::logic::lru::insert(
-        &mut self.workspace.open_mut().master_cache,
-        (origin.to_path_buf(), edge, stamp),
-        img,
-        |(p, e, _)| p == origin && *e == edge,
-        MASTER_CACHE_CAP,
-    );
-}
 
 /// Install decoded master pixels into every strip entry that still
 /// references this exact master and still awaits pixels — by IDENTITY,
@@ -141,7 +108,7 @@ pub(crate) fn install_master(
     if hit_active {
         // The canvas was showing the disclosed source stand-in — swap in
         // the real pixels now that they exist.
-        self.refresh_active_pixels(ctx);
+        self.editor.refresh_active_pixels(&mut self.workspace, self.lang, ctx);
         self.editor.set_canvas_status(&mut self.workspace, self.lang, "restored the canvas pixels");
     }
 }
@@ -240,7 +207,7 @@ pub(crate) fn start_redevelop(&mut self) {
     // whether it is lens-corrected, and a recipe that develops other lens
     // geometry than the one baked into it is refused, as the export
     // refuses it — the canvas keeps its last frame and says why.
-    let source = match self.source_frame().and_then(|f| f.check(&self.editor.doc().recipe).map(|()| f)) {
+    let source = match self.editor.source_frame().and_then(|f| f.check(&self.editor.doc().recipe).map(|()| f)) {
         Ok(f) => f,
         Err(e) => {
             self.editor.session_mut().dirty = false;
@@ -250,7 +217,7 @@ pub(crate) fn start_redevelop(&mut self) {
     };
     let recipe = self.editor.doc().recipe.clone();
     let show_clipping = self.workspace.chrome().show_clipping;
-    let film = self.film_short_edge();
+    let film = self.editor.film_short_edge();
     self.editor.scheduler_mut().inflight = true;
     self.editor.session_mut().dirty = false;
     self.services.spawn_worker(
@@ -296,51 +263,6 @@ pub(crate) fn ensure_source_part(&mut self) -> bool {
         move |e| Msg::BaseRedeveloped { path, part: Box::new(want), img: Box::new(Err(e)) },
     );
     false
-}
-
-/// Install a re-developed source base ([`Self::ensure_source_part`]),
-/// when it is still the one wanted: same photo, and the canvas recipe
-/// still names that part. Turned into the plates' current frame first
-/// (`sync_base_turns` owns the turn; a fresh develop is in the EXIF frame).
-    /// The full-resolution SHORT EDGE of the active card's pixel source — the
-/// film the Detail panel states its radii in (`render::FilmScale`,
-/// v1.5.0), so the canvas shows sharpening and noise reduction the way the
-/// export looks once it is downscaled to the canvas.
-///
-/// A header read (`decode::film_short_edge`), cached against the path AND its
-/// modification time: the preview asks on every slider tick, and the
-/// answer changes only when the source does — a re-baked raster at the
-/// same path included. `None` (no photo, an unreadable header) develops the
-/// canvas as its own film, which is what every build before v1.5.0 did.
-pub(crate) fn film_short_edge(&mut self) -> Option<u32> {
-    let path = self.editor.active_source_path()?;
-    let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
-    if let Some((cached, when, edge)) = &self.editor.photo().film_edge
-        && *cached == path
-        && *when == modified
-    {
-        return *edge;
-    }
-    let edge = autoshade::decode::film_short_edge(&path);
-    self.editor.photo_mut().film_edge = Some((path, modified, edge));
-    edge
-}
-
-/// Does the active card develop a RAW negative (`decode::is_raw` on the
-/// same path `film_short_edge` reads)? The Sharpening default is
-/// Lightroom's own for the kind — 40 on a RAW, none on a baked raster
-/// (`EditRecipe::capture_sharpening`, v1.6.0) — so every surface that
-/// develops the canvas's pixels passes this beside the film edge. No
-/// photo is a baked raster: nothing to sharpen by default.
-
-/// The frame of the active card's pixel source (v1.17.0): a RAW, or a
-/// baked file with the lens geometry its own marker says is in it
-/// (`render::SourceFrame::of`, cached per file for the process).
-pub(crate) fn source_frame(&self) -> anyhow::Result<autoshade::render::SourceFrame> {
-    match self.editor.active_source_path() {
-        Some(p) => autoshade::render::SourceFrame::of(&p),
-        None => Ok(autoshade::render::SourceFrame::Baked(None)),
-    }
 }
 
 /// Accept one worker-built frame if it still describes the active base +

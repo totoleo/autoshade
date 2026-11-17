@@ -46,7 +46,7 @@ fn developed_card_pixels(
     autoshade::render::Master::of(image, &frame, &part)
 }
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
 pub(crate) fn start_fill(&mut self) {

@@ -786,7 +786,7 @@ impl Editor {
     /// written, so "Ask every time" cannot fall through to a silent write.
     pub(crate) fn export_route(&self, workspace: &WorkspaceView) -> ExportRoute {
         match workspace.export_dest_dir() {
-            Some(dir) => ExportRoute::Render(dir.join(self.export_file_name(&workspace, ))),
+            Some(dir) => ExportRoute::Render(dir.join(self.export_file_name(workspace))),
             None => ExportRoute::Ask,
         }
     }
@@ -833,7 +833,7 @@ impl Editor {
                 || workspace.cards().variant_name_buf.is_some()
                 || !workspace.open().nav_stash.is_empty()
                 || self.quit_guard_open_dirty()
-                || self.inactive_dirty_variants(&workspace, ) > 0
+                || self.inactive_dirty_variants(workspace) > 0
         })
     }
 
@@ -883,7 +883,7 @@ impl Editor {
             parts.push(format!("{} {:.0}", tr(lang, K_EXPORT_OUTPUT_SHARPENING), workspace.exp().sharpen));
         }
         parts.push(tr(lang, EXPORT_SPACES[(workspace.exp().space as usize).min(2)]).to_string());
-        if self.export_denoise_applies(&workspace) {
+        if self.export_denoise_applies(workspace) {
             // With its amount: the dial under the checkbox is the one number
             // that decides how much of the minutes-long sidecar result lands.
             // Absent on a ◈ card, where the pass sits out (the echo says what
@@ -891,7 +891,7 @@ impl Editor {
             parts.push(format!(
                 "{} {:.0}%",
                 tr(lang, K_EXPORT_AI_DENOISE),
-                self.selected_denoise_strength(&workspace, true) * 100.0
+                self.selected_denoise_strength(workspace, true) * 100.0
             ));
         }
         parts.push(match workspace.export_dest_dir() {
@@ -1171,8 +1171,7 @@ impl Editor {
     /// bar, which never expires. A door that can create the disagreement can
     /// also end it, so every door writes on every path.
     pub(crate) fn set_canvas_status(&mut self, workspace: &mut WorkspaceView, lang: Lang, plain: &'static str) {
-        let lang = lang;
-        *workspace.status_mut() = match self.baked_canvas_edge(workspace) {
+                *workspace.status_mut() = match self.baked_canvas_edge(workspace) {
             Some(px) => trf(
                 lang,
                 K_CANVAS_THE_CANVAS_PIXELS_STAY_AT_PX_THEIR_OWN_BAKE_EDIT,
@@ -1201,8 +1200,7 @@ impl Editor {
     /// claim, not from an `exists()` probe here, so the arming can never be
     /// answered by a file that appeared in between.
     pub(crate) fn export_xmp_beside(&mut self, workspace: &mut WorkspaceView, lang: Lang) {
-        let lang = lang;
-        let Some(path) = self.photo().src_path.clone() else { return };
+                let Some(path) = self.photo().src_path.clone() else { return };
         let overwrite = workspace.exp().xmp_beside_confirm;
         match autoshade::store::export_xmp_beside(&path, overwrite) {
             Ok(to) => {
@@ -1365,5 +1363,254 @@ impl Editor {
         // stroke must not turn this into a partial GPU upload (see clear_mask).
         workspace.overlay_mut().mask_dirty_rect = None;
         wanted.len()
+    }
+}
+
+impl Editor {
+    /// Where this photo's base negative sits in the strip — `None` when the
+    /// strip has none. Not a hypothetical: a cold restore whose record named
+    /// a `fitted` active card and listed no Original entry rebuilds exactly
+    /// that, so every caller must say something honest instead of assuming
+    /// card 0 is the negative.
+    pub(crate) fn original_index(&self) -> Option<usize> {
+        crate::logic::cards::original_index(&self.doc().variants)
+    }
+}
+
+impl Editor {
+    /// Commit a pending version rename to ITS OWN photo and number — the
+    /// version half of the `commit_mask_name_buf` rule (U10): a name still
+    /// sitting in its TextEdit when the user hits Ctrl+S, clicks another
+    /// photo or quits must reach the disk, not die with the buffer. Keyed by
+    /// (photo, number), both captured at seed time, so a boundary that has
+    /// already re-pointed `src_path` cannot rename the incoming photo's v1.
+    /// The write is advisory: a failure is disclosed and the buffer is left
+    /// alone so the next boundary retries.
+    pub(crate) fn commit_version_name_buf(&mut self, workspace: &mut WorkspaceView, lang: Lang) {
+        let Some((photo, n, seed, buf)) = workspace.cards().version_name_buf.clone() else { return };
+        if buf == seed {
+            return;
+        }
+        // NoWait wrapper around the store's own Wait lock (the delete_version
+        // rule): a develop held by another process must report here, never
+        // freeze the UI thread on a name.
+        match autoshade::store::with_develop_lock(
+            &photo,
+            autoshade::store::DevelopLockMode::NoWait,
+            || autoshade::store::set_version_name(&photo, n, Some(buf.as_str())),
+        ) {
+            Ok(()) => {
+                let named = Some(buf.trim().to_string()).filter(|s| !s.is_empty());
+                // Re-seed rather than clear: the row is very likely still on
+                // screen, and a SECOND rename in the same row has to compare
+                // against what we just wrote, not the original.
+                workspace.cards_mut().version_name_buf = Some((photo.clone(), n, buf.clone(), buf));
+                if self.photo().src_path.as_deref() == Some(photo.as_path()) {
+                    workspace.cards_mut().version_meta
+                        .entry(n)
+                        .or_insert_with(|| autoshade::store::VersionMetaEntry {
+                            n,
+                            ..Default::default()
+                        })
+                        .name = named;
+                }
+            }
+            Err(e) => {
+                workspace.persist_postponed(lang, &e, "Renaming v{n} failed: {err}", &[("n", &n.to_string())]);
+            }
+        }
+    }
+}
+
+impl Editor {
+    /// The full-resolution SHORT EDGE of the active card's pixel source — the
+    /// film the Detail panel states its radii in (`render::FilmScale`,
+    /// v1.5.0), so the canvas shows sharpening and noise reduction the way the
+    /// export looks once it is downscaled to the canvas.
+    ///
+    /// A header read (`decode::film_short_edge`), cached against the path AND its
+    /// modification time: the preview asks on every slider tick, and the
+    /// answer changes only when the source does — a re-baked raster at the
+    /// same path included. `None` (no photo, an unreadable header) develops the
+    /// canvas as its own film, which is what every build before v1.5.0 did.
+    pub(crate) fn film_short_edge(&mut self) -> Option<u32> {
+        let path = self.active_source_path()?;
+        let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        if let Some((cached, when, edge)) = &self.photo().film_edge
+            && *cached == path
+            && *when == modified
+        {
+            return *edge;
+        }
+        let edge = autoshade::decode::film_short_edge(&path);
+        self.photo_mut().film_edge = Some((path, modified, edge));
+        edge
+    }
+
+    /// The frame of the active card's pixel source (v1.17.0): a RAW, or a
+    /// baked file with the lens geometry its own marker says is in it
+    /// (`render::SourceFrame::of`, cached per file for the process).
+    pub(crate) fn source_frame(&self) -> anyhow::Result<autoshade::render::SourceFrame> {
+        match self.active_source_path() {
+            Some(p) => autoshade::render::SourceFrame::of(&p),
+            None => Ok(autoshade::render::SourceFrame::Baked(None)),
+        }
+    }
+
+    /// Is the canvas base in the lens-CORRECTED frame (v1.17.0)? A RAW source's
+    /// base never is; a baked master is when its own marker says so
+    /// (`render::SourceFrame`). A source
+    /// whose frame cannot be read is not drawn at all (`start_redevelop`).
+    pub(crate) fn base_corrected(&self) -> bool {
+        self.source_frame().is_ok_and(|f| f.corrected())
+    }
+
+    /// An ORIGINAL-frame point → the point on the canvas base that shows the
+    /// same content: itself, or where the lens correction put it.
+    pub(crate) fn orig_to_base_norm(&self, (nx, ny): (f32, f32)) -> (f32, f32) {
+        if !self.base_corrected() {
+            return (nx, ny);
+        }
+        let (dims, _, dist) = self.geom_ctx();
+        autoshade::render::lens_ungeom_norm(nx, ny, dims, &dist.profile, dist.amount)
+    }
+
+    /// The mask frame of a SAMPLED develop over the canvas base (no geometry
+    /// stage follows): `MaskFrame::Corrected` on a corrected base, else
+    /// `MaskFrame::AsRendered`.
+    pub(crate) fn sampled_frame<'a>(&self, composed: &'a autoshade::recipe::LensProfile) -> autoshade::render::MaskFrame<'a> {
+        if self.base_corrected() {
+            autoshade::render::MaskFrame::Corrected { profile: composed }
+        } else {
+            autoshade::render::MaskFrame::AsRendered
+        }
+    }
+
+    /// The canvas base in the ORIGINAL frame, for the helpers that draw a
+    /// raster the recipe stores there (segmentation, depth, the face find): a
+    /// corrected base mapped back through the engine's own inverse
+    /// (`render::corrected_to_sensor_frame`), otherwise the base itself.
+    pub(crate) fn original_frame_base(&self) -> Option<Arc<image::DynamicImage>> {
+        let base = self.photo().base_preview.clone()?;
+        if !self.base_corrected() {
+            return Some(base);
+        }
+        let geom = autoshade::render::geometry_profile(&self.doc().recipe);
+        Some(match autoshade::render::corrected_to_sensor_frame(&base, &geom, 0.0) {
+            Some((img, _)) => Arc::new(image::DynamicImage::ImageRgb8(img.to_rgb8())),
+            None => base,
+        })
+    }
+}
+
+impl Editor {
+    /// The key the portrait skin switch is filed under: the photo and the
+    /// active card's id. `None` with no photo open.
+    pub(crate) fn skin_key(&self) -> Option<(PathBuf, String)> {
+        let photo = self.photo().src_path.clone()?;
+        Some((photo, self.doc().variants.get(self.doc().active).map(|v| v.id.clone()).unwrap_or_default()))
+    }
+
+    /// The skin switch of the ACTIVE card — on by default, and on for a card
+    /// with no entry (a fresh card is inside the limits by construction).
+    pub(crate) fn keep_skin_on(&self, workspace: &WorkspaceView) -> bool {
+        self.skin_key().and_then(|k| workspace.portrait().keep_skin.get(&k).copied()).unwrap_or(true)
+    }
+
+    /// The skin switch as a HISTORY STEP sees it: `None` when there is no
+    /// card to file it under (no photo), so an undo step can tell "on" from
+    /// "no opinion".
+    pub(crate) fn skin_switch(&self, workspace: &WorkspaceView) -> Option<bool> {
+        self.skin_key().map(|_| self.keep_skin_on(workspace))
+    }
+
+    pub(crate) fn skin_held(&self, workspace: &WorkspaceView) -> bool {
+        self.keep_skin_on(workspace)
+    }
+
+    /// Is the skin switch held for `photo`? For a photo that is NOT open the
+    /// answer comes from its stashed nav record — the switch belongs to a
+    /// (photo, card) pair, not to the canvas that happens to be showing.
+    pub(crate) fn skin_held_for(&self, workspace: &WorkspaceView, photo: &std::path::Path) -> bool {
+        if self.photo().src_path.as_deref() == Some(photo) {
+            return self.skin_held(workspace);
+        }
+        workspace.open().nav_stash.get(photo).is_none_or(|st| {
+            workspace.portrait().keep_skin.get(&(photo.to_path_buf(), st.id.clone())).copied().unwrap_or(true)
+        })
+    }
+
+    /// A history step brought back an edit past the skin limits: file the
+    /// switch as OFF rather than leave it claiming "natural skin" it no
+    /// longer holds.
+    pub(crate) fn release_skin_for_history(&mut self, workspace: &mut WorkspaceView) {
+        if self.skin_held(workspace)
+            && autoshade::face::skin_values_beyond(&self.doc().recipe) > 0
+            && let Some(key) = self.skin_key()
+        {
+            workspace.portrait_mut().keep_skin.insert(key, false);
+        }
+    }
+
+    /// Hand the skin switch back as the undone step had it.
+    pub(crate) fn restore_skin_switch(&mut self, workspace: &mut WorkspaceView, on: Option<bool>) {
+        if let (Some(on), Some(key)) = (on, self.skin_key()) {
+            workspace.portrait_mut().keep_skin.insert(key, on);
+        }
+    }
+
+    /// The live working state as an [`UndoStep`]: current recipe + the active
+    /// variant's pixel identity. Arc/path clones only — never pixel copies.
+    pub(crate) fn current_step(&self, workspace: &WorkspaceView) -> UndoStep {
+        UndoStep {
+            recipe: self.doc().recipe.clone(),
+            base: self.active_variant().and_then(|v| v.base.clone()),
+            origin: self.active_variant().and_then(|v| v.origin.clone()),
+            keep_skin: self.skin_switch(workspace),
+        }
+    }
+
+    /// Reset undo history — call when a brand-new photo opens, when the active
+    /// variant changes (you can't undo across either), or when a photo GOES
+    /// AWAY: a failed fresh open leaves no canvas for its steps to apply to,
+    /// and an undo there restored one that no longer existed. `committed`
+    /// becomes the current head — with no photo open that is the empty step,
+    /// which is exactly what stops the next settled frame pushing a phantom.
+    pub(crate) fn reset_history(&mut self, workspace: &WorkspaceView) {
+        let head = self.current_step(workspace);
+        let hist = self.history_mut();
+        hist.committed = head;
+        hist.undo_stack.clear();
+        hist.redo_stack.clear();
+    }
+
+    /// Commit the current state as one undo step RIGHT NOW (when it differs
+    /// from the head). Used directly by programmatic pixel swaps (the retouch
+    /// bake-in): waiting for `commit_if_settled` left a one-frame window where
+    /// a same-frame Ctrl+Z saw only the older history and undid a recipe step
+    /// while keeping the freshly retouched pixels installed.
+    pub(crate) fn commit_now(&mut self, workspace: &WorkspaceView) {
+        let cur = self.current_step(workspace);
+        let hist = self.history_mut();
+        if cur.recipe != hist.committed.recipe || !cur.same_pixels(&hist.committed) {
+            hist.undo_stack.push(std::mem::replace(&mut hist.committed, cur));
+            if hist.undo_stack.len() > 100 {
+                hist.undo_stack.remove(0); // cap history memory
+            }
+            hist.redo_stack.clear();
+        } else {
+            // A flip of the skin switch that changed no value belongs to the
+            // step on screen, so a later undo/redo hands it back as set.
+            hist.committed.keep_skin = cur.keep_skin;
+        }
+    }
+
+    /// Commit the current state as ONE undo step once the edit gesture settles
+    /// (pointer released) — dragging a slider is one step, not one per frame.
+    /// Programmatic edits (Analyze, Reset) land here on the next frame.
+    pub(crate) fn commit_if_settled(&mut self, workspace: &WorkspaceView, ctx: &egui::Context) {
+        if !ctx.input(|i| i.pointer.any_down()) {
+            self.commit_now(workspace);
+        }
     }
 }

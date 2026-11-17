@@ -14,11 +14,11 @@ pub(crate) struct RecipePreview {
 pub(crate) struct AutoShadeApp {
     /// The open photo's edit: pixels, document, session, analysis, canvas
     /// plates and the develop scheduler (see [`Editor`]).
-    pub(crate) editor: Editor,
+    editor: Editor,
     /// The client-only view/session state (see [`WorkspaceView`]).
-    pub(crate) workspace: WorkspaceView,
+    workspace: WorkspaceView,
     /// The worker channel and the event-loop context (see [`Services`]).
-    pub(crate) services: Services,
+    services: Services,
     // TYPED, not a baked string: the decision word + reasons are rendered
     // (and translated) at draw time, so a language switch re-renders them.
     /// Scripts already disclosed as undrawable this session (L12#3) — the
@@ -32,14 +32,549 @@ pub(crate) struct AutoShadeApp {
     /// either/or (user ruling 2026-10-14). The controls of the one not chosen
     /// are greyed out. Persisted.
     /// The persisted AI preferences; see [`AiPrefs`].
-    pub(crate) aip: AiPrefs,
-    pub(crate) lang: Lang,             // UI language: English skeleton / Chinese overlay (i18n.rs)
+    aip: AiPrefs,
+    lang: Lang,             // UI language: English skeleton / Chinese overlay (i18n.rs)
     /// Layout/behaviour probes for the window tests; see [`TestSeams`].
     #[cfg(test)]
-    pub(crate) seams: TestSeams,
+    seams: TestSeams,
 }
 
 impl AutoShadeApp {
+    /// The root's state stays its own: a caller borrows ONE piece for the
+    /// length of one call. Reads take the shared door; writes the `_mut` one.
+    #[cfg(test)]
+    pub(crate) fn editor(&self) -> &Editor {
+        &self.editor
+    }
+
+    #[cfg(test)]
+    pub(crate) fn editor_mut(&mut self) -> &mut Editor {
+        &mut self.editor
+    }
+
+    #[cfg(test)]
+    pub(crate) fn workspace(&self) -> &WorkspaceView {
+        &self.workspace
+    }
+
+    #[cfg(test)]
+    pub(crate) fn workspace_mut(&mut self) -> &mut WorkspaceView {
+        &mut self.workspace
+    }
+
+    #[cfg(test)]
+    pub(crate) fn services(&self) -> &Services {
+        &self.services
+    }
+
+    #[cfg(test)]
+    pub(crate) fn aip(&self) -> &AiPrefs {
+        &self.aip
+    }
+
+    #[cfg(test)]
+    pub(crate) fn aip_mut(&mut self) -> &mut AiPrefs {
+        &mut self.aip
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lang(&self) -> Lang {
+        self.lang
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lang_mut(&mut self) -> &mut Lang {
+        &mut self.lang
+    }
+
+    /// The editor and the view state TOGETHER, for the invariants that take
+    /// both (a history step, a rotate, a skin switch): two doors would borrow
+    /// the root twice, one pair borrows each field once.
+    #[cfg(test)]
+    pub(crate) fn editor_workspace_mut(&mut self) -> (&mut Editor, &mut WorkspaceView, Lang) {
+        (&mut self.editor, &mut self.workspace, self.lang)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn seams(&mut self) -> &mut TestSeams {
+        &mut self.seams
+    }
+
+    /// Test builders: a fixture starts from `Default` and overrides ONE piece,
+    /// which is what the struct literals used to spell out. The fields stay the
+    /// root's own; a test may inject a stand-in through a named door.
+    #[cfg(test)]
+    pub(crate) fn but_editor(mut self, editor: Editor) -> Self {
+        self.editor = editor;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn but_workspace(mut self, workspace: WorkspaceView) -> Self {
+        self.workspace = workspace;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn but_aip(mut self, aip: AiPrefs) -> Self {
+        self.aip = aip;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn but_lang(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn but_seams(mut self, seams: TestSeams) -> Self {
+        self.seams = seams;
+        self
+    }
+
+    /// Restore persisted prefs (last folder, view mode, export options) and
+    /// re-open the library the user was browsing. Window geometry itself is
+    /// restored by eframe's own persistence layer.
+    pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // The REAL event-loop context replaces default()'s headless one:
+        // workers wake the loop through this clone (see `spawn_worker`).
+        let mut app = Self {
+            services: Services { egui_ctx: cc.egui_ctx.clone(), ..Services::default() },
+            ..Self::default()
+        };
+        if let Some(prefs) =
+            cc.storage.and_then(|s| eframe::get_value::<Prefs>(s, eframe::APP_KEY))
+        {
+            app.restore_prefs(prefs);
+        }
+        // The launch check of the interpreter the AI sidecars would run: a fact
+        // about this machine, measured once before the first frame. It spawns
+        // the interpreter only when the managed environment is not the answer,
+        // so a prepared install costs one file check. After the prefs restore
+        // (which decides the language) and outside it, so headless tests that
+        // restore prefs run no interpreter.
+        if let Some(note) = app.commands().refresh_python_check() {
+            app.workspace.chrome_mut().startup_note = Some(note);
+        }
+        if !app.workspace.busy() {
+            app.workspace.show_startup_note();
+        }
+        // The quit guard's two process-wide hooks (see `quit.rs`): the repaint
+        // handle a vetoed quit wakes the UI with, and — on macOS — the
+        // delegate method that does the vetoing. Both need a live event loop,
+        // and this creation closure is the first moment there is one.
+        crate::quit::set_ctx(&cc.egui_ctx);
+        #[cfg(target_os = "macos")]
+        if let Err(why) = crate::macos::install_quit_guard() {
+            // Not fatal, and not silent: without that method ⌘Q behaves the
+            // way it did before this batch, and the user is owed the fact.
+            eprintln!(
+                "warning: ⌘Q and Dock Quit will NOT ask about unsaved work — {why}. \
+                 Close the window with its red button instead, which does ask."
+            );
+        }
+        app
+    }
+
+    /// Restore the persisted settings through the same path at startup and
+    /// in headless tests; no access to the user's actual prefs is needed.
+    pub(crate) fn restore_prefs(&mut self, prefs: Prefs) {
+        let app = self;
+        app.aip.guide = prefs.guide;
+        app.aip.style_strength = crate::logic::prefs::clamp01(prefs.style_strength);
+        app.aip.grade_strength = crate::logic::prefs::clamp01(prefs.grade_strength);
+        app.aip.fit_strength = crate::logic::prefs::clamp01(prefs.fit_strength);
+        app.aip.send_style_ref_image = prefs.send_style_ref_image;
+        app.aip.deep_think = prefs.deep_think;
+        app.aip.style_embed = prefs.style_embed;
+        app.aip.style_describe = prefs.style_describe;
+        // Only a folder that still EXISTS is prefilled: a picker opened at
+        // a deleted path lands wherever the OS decides (the same rule the
+        // gallery restore above follows).
+        app.aip.style_src_dir = prefs.style_src_dir.clone().filter(|d| d.is_dir());
+        app.aip.style_raw_dir = prefs.style_raw_dir.clone().filter(|d| d.is_dir());
+        app.aip.direction_adherence = autoshade::recipe::DirectionAdherence::new(prefs.direction_adherence).get();
+        app.workspace.exp_mut().format = ExportFormat::from_pref(prefs.exp_format, prefs.save_jpeg);
+        app.workspace.exp_mut().dest = ExportDest::from_pref(prefs.exp_dest);
+        app.workspace.exp_mut().last_dir = prefs.last_export_dir.clone();
+        app.workspace.exp_mut().save_denoise = prefs.save_denoise;
+        app.workspace.exp_mut().save_denoise_strength = crate::logic::prefs::clamp01(prefs.save_denoise_strength);
+        app.workspace.exp_mut().denoise_strength = crate::logic::prefs::clamp01(prefs.denoise_strength);
+        app.workspace.exp_mut().baked_denoise_strength = crate::logic::prefs::clamp01(prefs.baked_denoise_strength);
+        app.workspace.exp_mut().baked_save_denoise_strength = crate::logic::prefs::clamp01(prefs.baked_save_denoise_strength);
+        app.workspace.fit_mut().zoned_fit = prefs.zoned_fit;
+        app.workspace.fit_mut().zoned_four_regions = prefs.zoned_four_regions;
+        app.workspace.fit_mut().fit_ai_judge = prefs.fit_ai_judge;
+        app.workspace.fit_mut().fit_deep = prefs.fit_deep;
+        app.workspace.fit_mut().reimagine_retry = prefs.reimagine_retry;
+        app.workspace.fit_mut().ask_fit_after_generate = prefs.ask_fit_after_generate;
+        app.workspace.genai_mut().adjust_quality = crate::logic::prefs::choice(prefs.adjust_quality);
+        app.workspace.view_mut().mode = prefs.view_mode;
+        app.workspace.exp_mut().long_edge = prefs.exp_long_edge;
+        app.workspace.exp_mut().sharpen = crate::logic::prefs::clamp_sharpen(prefs.exp_sharpen);
+        app.workspace.exp_mut().quality = crate::logic::prefs::clamp_quality(prefs.exp_quality);
+        app.workspace.chrome_mut().show_clipping = prefs.show_clipping;
+        // Restore the UI language (an older save without this key decoded to
+        // `Lang::En` via `#[serde(default)]`, so this is always valid).
+        app.lang = prefs.lang;
+        // Restore the theme and re-apply it — main() installed the Dark
+        // default before prefs were readable (same shape as the greeting).
+        app.workspace.ui_mut().theme = prefs.theme;
+        app.workspace.ui_mut().accent = prefs.accent;
+        install_look(&app.services.egui_ctx, app.workspace.ui().theme, app.workspace.ui().accent);
+        // The greeting was set by default() BEFORE the language was known —
+        // re-issue it, or a Chinese install opens with one English line.
+        app.workspace.set_status(tr(app.lang, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB).into());
+        // Each saved file advances to the current dial law; a current/future
+        // file keeps the choices made under its own law. The wording of the
+        // reset note uses the values the file actually carried.
+        for era in prefs.prefs_era..PREFS_ERA {
+            let migrated = crate::logic::prefs::migrate_era(era, prefs.denoise_strength, prefs.save_denoise_strength);
+            app.workspace.exp_mut().denoise_strength = migrated.raw_detail;
+            app.workspace.exp_mut().save_denoise_strength = migrated.raw_export;
+            if let Some(v) = migrated.baked_detail {
+                app.workspace.exp_mut().baked_denoise_strength = v;
+            }
+            if let Some(v) = migrated.baked_export {
+                app.workspace.exp_mut().baked_save_denoise_strength = v;
+            }
+            if let Some((a, b)) = migrated.reset_note {
+                let default = autoshade::denoise::DEFAULT_STRENGTH_RAW;
+                app.workspace.chrome_mut().startup_note = Some(trf(
+                    app.lang,
+                    K_ACTIONS_AI_DENOISE_STRENGTH_FOR_RAW_FILES_WAS_RESET_TO_W,
+                    &[
+                        ("new", &format!("{:.0}", default * 100.0)),
+                        ("a", &format!("{:.0}", a * 100.0)),
+                        ("b", &format!("{:.0}", b * 100.0)),
+                    ],
+                ));
+            }
+        }
+        // Only known color spaces and working-preview steps: a corrupt pref
+        // must not produce an unrenderable space or a 1-px / 100-MP preview.
+        app.workspace.exp_mut().space = crate::logic::prefs::known_space(prefs.exp_space);
+        app.workspace.genai_mut().preview_edge = crate::logic::prefs::known_preview_edge(prefs.preview_edge);
+        if let Some(dir) = prefs.gallery_dir.filter(|d| d.is_dir()) {
+            app.commands().open_folder(dir);
+        }
+        // A restored folder's asynchronous status must not erase the note
+        // before the user sees it. Its completion uses the same status line.
+        if !app.workspace.busy() {
+            app.workspace.show_startup_note();
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /// Match a live card to a persisted card. Stable IDs are authoritative
+    /// when both sides carry one; an id-less legacy side falls back to kind +
+    /// strip position, mirroring [`version_is_from`]'s ID-first rule.
+    pub(crate) fn persisted_identity_matches(
+        live: &Variant,
+        live_position: usize,
+        saved_kind: VariantKind,
+        saved_position: usize,
+        saved_id: Option<&str>,
+    ) -> bool {
+        crate::logic::strip::identity_matches(
+            &live.id,
+            live.kind,
+            live_position,
+            saved_kind,
+            saved_position,
+            saved_id,
+        )
+    }
+
+    pub(crate) fn poll_workers(&mut self, ctx: &egui::Context) {
+        // UI-thread language for the status/toast strings built HERE, at
+        // landing. Worker results carry typed FACTS (FitOutcome, RetouchNote,
+        // PasteOutcome, …) that the landing arms render in the language live
+        // NOW (L12#4 — a sentence translated inside the spawn closure carried
+        // the language captured at spawn, minutes stale by the time it
+        // landed). The Strings that still ride the channel are payloads, not
+        // pre-translated sentences: a generative worker's heartbeat line, a
+        // mask's stable English label and the sidecar's backend name, an
+        // extracted style prompt, a model id, an error's own text.
+        let lang = self.lang;
+        // Drain a bounded batch each frame so a burst of thumbnails doesn't take
+        // one-per-frame to land (try_recv borrow is released before we mutate).
+        for _ in 0..64 {
+            let Some(msg) = self.services.rx.as_ref().and_then(|rx| rx.try_recv().ok()) else { break };
+            match msg {
+                Msg::Opened(boxed) => {
+                    self.commands().on_opened(ctx, lang, boxed);
+                    // A Lightroom AI mask arrives without an alpha: cut it
+                    // on this computer now, or the canvas skips it.
+                    self.commands().start_ai_mask_resolve(lang);
+                }
+                Msg::BaseRedeveloped { path, part, img } => {
+                    self.commands().on_base_redeveloped(ctx, path, *part, *img)
+                }
+                Msg::AiMasksResolved(boxed) => self.commands().on_ai_masks_resolved(lang, *boxed),
+                Msg::Developed(boxed) => self.commands().finish_redevelop(ctx, *boxed),
+                Msg::Analyzed(epoch, mut boxed) => {
+                    // The look protocol's claim: only the pending look's own,
+                    // current epoch may touch this result. A looked-for verb
+                    // also puts back what its fresh look replaced, BEFORE the
+                    // shared landing writes.
+                    let gen_epoch = self.workspace.tools().gen_epoch;
+                    let claim = logic::look::claim(&mut self.workspace.tools_mut().look, epoch, gen_epoch, &boxed);
+                    if let Some(claim) = &claim
+                        && let Ok((recipe, _, _)) = &mut *boxed
+                    {
+                        logic::look::restore(claim, recipe);
+                    }
+                    let landed = boxed.is_ok();
+                    self.commands().on_analyzed(lang, epoch, boxed);
+                    // The claimed look's own line, memory and view facts.
+                    if let Some(claim) = claim {
+                        let effects = logic::look::landed(&claim, &self.editor.doc().recipe, landed);
+                        self.commands().run_effects(effects);
+                    }
+                }
+                Msg::OneClickBuildProgress { done, total } => {
+                    self.workspace.normal_mut().build_progress = Some((done, total));
+                }
+                Msg::OneClickBuilt(res) => self.commands().on_one_click_built(lang, res),
+                Msg::PythonEnvLine(line) => self.workspace.ui_mut().python_env_line = Some(line),
+                Msg::PythonEnvReady(res) => self.commands().on_python_env_ready(lang, res),
+                Msg::PortraitFound(found) => self.editor.on_portrait_found(&mut self.workspace, lang, *found),
+                Msg::Exported(Ok(outcome)) => {
+                    // Normal's Save group words its own landing (`normal.rs`).
+                    let plain = self.workspace.normal_delivery_words(lang, &outcome);
+                    self.workspace.exp_mut().batch_progress = None; // the bar belongs to ONE batch run
+                    match outcome {
+                        ExportOutcome::Single { out, relooked, warn } => {
+                            // ABSOLUTE (R22-7): the deliverable exists NOW, and
+                            // a folder relative to the launch directory was the
+                            // single most-reported "where did my file go".
+                            let p = abs_display(&out);
+                            if relooked
+                                && let Some(photo) = self.editor.photo().src_path.clone()
+                                && autoshade::pipeline::repair_pre_era_base_curve(
+                                    &photo,
+                                    &mut self.editor.doc_mut().recipe,
+                                )
+                                .is_some()
+                            {
+                                // The export repaired its own COPY: the canvas
+                                // is repaired too, or export and preview stay
+                                // divergent for the rest of the session.
+                                self.editor.session_mut().dirty = true;
+                            }
+                            let words =
+                                logic::export_landing::single_words(&p, relooked, warn.as_deref());
+                            let mut line = crate::i18n::text(lang, &words.line);
+                            if let Some(relook) = words.relook {
+                                line = format!("{line} — {}", crate::i18n::text(lang, &relook));
+                            }
+                            match words.warn {
+                                Some(warn) => {
+                                    let t = format!(
+                                        "{line} · {}",
+                                        crate::i18n::text(lang, &warn)
+                                    );
+                                    self.workspace.set_status(t.clone());
+                                    self.workspace.toast(ToastKind::Error, t);
+                                }
+                                None => self.workspace.done(line),
+                            }
+                        }
+                        ExportOutcome::Batch { ok, errs, renamed, relooked, warns, dest } => {
+                            // Where the batch actually DELIVERED becomes the
+                            // remembered destination — here, not at the dialog
+                            // (R22 M1): a folder inside the photo library is
+                            // refused per photo, so a batch that picked one
+                            // lands nothing and must not be remembered. `ok > 0`
+                            // is the proof that at least one file is there.
+                            if ok > 0 {
+                                self.workspace.exp_mut().last_dir = Some(dest.clone());
+                            }
+                            let words = logic::export_landing::batch_words(
+                                ok,
+                                &errs,
+                                &renamed,
+                                relooked,
+                                &warns,
+                                &abs_display(&dest),
+                            );
+                            let mut line = crate::i18n::text(lang, &words.base);
+                            for part in [words.renamed, words.relooked, words.develops]
+                                .into_iter()
+                                .flatten()
+                            {
+                                line.push_str(&crate::i18n::text(lang, &part));
+                            }
+                            if errs.is_empty() {
+                                self.workspace.done(line);
+                            } else {
+                                // A partial failure keeps the error channel,
+                                // exactly as the worker-side bail! did.
+                                self.workspace.fail(tr(lang, K_GUI_EXPORT_FAILED), anyhow::anyhow!("{line}"));
+                            }
+                        }
+                    }
+                    if let Some(plain) = plain {
+                        self.workspace.reword_landing(plain);
+                    }
+                }
+                Msg::Exported(Err(e)) => {
+                    self.workspace.exp_mut().batch_progress = None;
+                    self.workspace.normal_mut().delivering = false;
+                    self.workspace.fail(tr(lang, K_GUI_EXPORT_FAILED), e);
+                }
+                Msg::BatchProgress { done, total } => {
+                    self.workspace.exp_mut().batch_progress = Some((done, total));
+                    // No destination here: the tick fires once per photo and the
+                    // root was already named when the batch started (and is
+                    // named again at the landing). Repeating it 500 times only
+                    // pushed the counts out of a truncated status line — and
+                    // the old hardcoded "./out" became a lie the moment the
+                    // destination became a setting (R22-7).
+                    *self.workspace.status_mut() = trf(
+                        lang,
+                        K_GUI_BATCH_RENDERING,
+                        &[("done", &done.to_string()), ("total", &total.to_string())],
+                    );
+                }
+                Msg::StyleInfo(info) => {
+                    self.workspace.ai_mut().style_info_loading = false;
+                    self.workspace.ai_mut().style_info = Some(*info);
+                }
+                Msg::StyleBuildProgress { stage, done, total } => {
+                    self.workspace.ai_mut().style_build_progress = Some((stage, done, total));
+                    // The panel's own line renders these counts; the status bar
+                    // gets them too, because a minutes-long job must be visible
+                    // from wherever the user is looking.
+                    *self.workspace.status_mut() = trf(
+                        lang,
+                        K_GUI_BUILDING_THE_STYLE_LIBRARY_PHOTOS,
+                        &[
+                            ("stage", tr(lang, stage.label())),
+                            ("done", &done.to_string()),
+                            ("total", &total.to_string()),
+                        ],
+                    );
+                }
+                Msg::StyleBuilt(outcome) => self.commands().on_style_built(lang, *outcome),
+                Msg::Segmented(res) => self.commands().on_segmented(lang, res),
+                Msg::DepthEstimated(res) => {
+                    self.commands().on_depth_estimated(res);
+                    self.editor.after_portrait_depth(&mut self.workspace);
+                }
+                Msg::MaskRefined(res) => self.commands().on_mask_refined(lang, res),
+                Msg::Folder(boxed) => {
+                    self.commands().on_folder(lang, *boxed);
+                    self.workspace.show_startup_note();
+                }
+                Msg::Thumb { generation, idx, img } => self.workspace.on_thumb(ctx, generation, idx, *img),
+                Msg::MasterLoaded { photo, origin, edge, stamp, img } => {
+                    self.commands().on_master_loaded(ctx, lang, photo, origin, edge, stamp, *img)
+                }
+                Msg::Progress(epoch, m) => {
+                    // Liveness lines from a running generative worker. Epoch-
+                    // gated: after Cancel + an immediate re-run, the abandoned
+                    // worker's heartbeats must not overwrite the new task's
+                    // status line.
+                    if self.workspace.busy() && self.workspace.tools().gen_cancel.is_some() && epoch == self.workspace.tools().gen_epoch {
+                        self.workspace.set_status(m);
+                    }
+                }
+                Msg::Retouched(epoch, boxed) => {
+                    // Normal's noise switch lands through the same door —
+                    // with the look's undo history kept across its card.
+                    let history = self.commands().normal_denoise_history();
+                    self.commands().on_retouched(ctx, lang, epoch, *boxed);
+                    self.commands().after_normal_denoise(lang, history);
+                }
+                Msg::Fitted(boxed) => self.commands().on_fitted(ctx, lang, boxed),
+                Msg::Styled(boxed) => match *boxed {
+                    Ok((prompt, note)) => {
+                        // Into the Reimagine prompt: ready to restyle OTHER photos.
+                        self.workspace.genai_mut().reimagine_prompt = prompt;
+                        let s = match &note {
+                            StyleNote::SavedCopy => tr(
+                                lang,
+                                K_GUI_STYLE_PROMPT_EXTRACTED_FILLED_INTO_THE_GENERATE,
+                            )
+                            .to_string(),
+                            StyleNote::SaveFailed(err) => trf(
+                                lang,
+                                K_GUI_STYLE_PROMPT_EXTRACTED_FILLED_INTO_THE_GENERATE__2,
+                                &[("err", err)],
+                            ),
+                            StyleNote::NotSaved => tr(
+                                lang,
+                                K_GUI_STYLE_PROMPT_EXTRACTED_FILLED_INTO_THE_GENERATE__3,
+                            )
+                            .to_string(),
+                        };
+                        self.workspace.done(s);
+                    }
+                    Err(e) => {
+                        self.workspace.fail(tr(lang, K_GUI_STYLE_EXTRACTION_FAILED), e);
+                    }
+                },
+                Msg::Pasted(res) => {
+                    // Normal's 「apply to every photo」 renders once the paste
+                    // has landed whole (`normal.rs`).
+                    let then_render = self.workspace.normal_mut()
+                        .apply_all
+                        .take()
+                        .map(|dest| (dest, res.as_ref().is_ok_and(|o| o.errs.is_empty())));
+                    self.commands().on_pasted(lang, res);
+                    if let Some((dest, pasted)) = then_render {
+                        self.commands().after_apply_all_paste(lang, dest, pasted);
+                    }
+                }
+                Msg::LegacyImported(res) => {
+                    self.workspace.gal_mut().edited_badge.clear(); // imported sidecars light ● badges
+                    match res {
+                        Ok((n, dir)) => self.workspace.done(trf(
+                            lang,
+                            K_GUI_IMPORTED_SAVED_DEVELOPS_FOR_PHOTO_S_FROM,
+                            &[("n", &n.to_string()), ("path", &dir.display().to_string())],
+                        )),
+                        Err(e) => self.workspace.fail(tr(lang, K_GUI_IMPORT_FAILED), e),
+                    }
+                }
+                Msg::Models(role, generation, res) => self.workspace.on_models(lang, role, generation, res),
+            }
+        }
+    }
+
+
+    
+
+    /// The verb projection: the two aggregates, the worker channel, the AI
+    /// preferences and the language — borrowed for the length of one command.
+    /// The behaviour modules implement their verbs on it, so the root stays
+    /// wiring.
+    pub(crate) fn commands(&mut self) -> Commands<'_> {
+        Commands {
+            editor: &mut self.editor,
+            workspace: &mut self.workspace,
+            services: &self.services,
+            aip: &mut self.aip,
+            lang: self.lang,
+            #[cfg(test)]
+            seams: &mut self.seams,
+        }
+    }
+
     /// The projection a panel draws through: the edit, the view state, the
     /// language and the test seams — never the app itself.
     pub(crate) fn panel_view<'a>(&'a mut self, actions: &'a mut Vec<logic::Action>) -> PanelView<'a, 'a> {
@@ -58,7 +593,7 @@ impl AutoShadeApp {
     pub(crate) fn draw_panel(&mut self, draw: impl FnOnce(&mut PanelView<'_, '_>)) {
         let mut actions = Vec::new();
         draw(&mut self.panel_view(&mut actions));
-        self.apply_actions(actions);
+        self.commands().apply_actions(actions);
     }
 
     /// One update() phase — body extracted verbatim from the eframe
@@ -127,18 +662,18 @@ impl AutoShadeApp {
             });
             if do_open && !self.workspace.busy() {
                 self.workspace.gal_mut().selected = None;
-                self.apply_actions(vec![logic::Action::Gallery(
+                self.commands().apply_actions(vec![logic::Action::Gallery(
                     logic::gallery::GalleryAction::OpenPhotoFile,
                 )]);
             }
             if do_export && self.editor.photo().src_path.is_some() && !self.workspace.busy() {
-                self.start_export();
+                self.commands().start_export();
             }
             if do_xmp && self.editor.photo().src_path.is_some() && !self.workspace.busy() {
                 // The pending-rename flush lives at save_xmp's head now (it
                 // fires while a TextEdit holds focus either way) — the Save
                 // develop BUTTON takes the same entry point (U10).
-                self.save_xmp();
+                self.commands().save_xmp();
             }
         }
         if !self.workspace.modal_up() && !transient_open && ctx.memory(|m| m.focused()).is_none() {
@@ -277,8 +812,8 @@ impl AutoShadeApp {
                     self.workspace.toast(ToastKind::Error, t);
                 }
             } else {
-                if armed_undo { self.undo(ctx); }
-                if armed_redo { self.redo(ctx); }
+                if armed_undo { self.editor.undo(&mut self.workspace, self.lang, ctx); }
+                if armed_redo { self.editor.redo(&mut self.workspace, self.lang, ctx); }
             }
             // R mirrors the crop button exactly (incl. the one-tool-at-a-time
             // disarms); no photo → nothing to crop.
@@ -336,7 +871,7 @@ impl AutoShadeApp {
                 self.workspace.tools_mut().clone_mode = on;
             }
             if do_brush && self.editor.photo().src_path.is_some() {
-                self.toggle_brush_key();
+                self.commands().toggle_brush_key();
             }
             if do_linear && self.editor.photo().src_path.is_some() {
                 let armed = matches!(self.workspace.masks().placing_mask, Some((MaskKind::Linear, PlaceTarget::NewMask)));
@@ -414,7 +949,7 @@ impl AutoShadeApp {
                     // gallery scrolls to it next frame (clicks don't set this:
                     // a clicked row is visible by definition).
                     self.workspace.gal_mut().gallery_scroll_to = Some(next as usize);
-                    self.open_gallery_index(next as usize);
+                    self.commands().open_gallery_index(next as usize);
                 }
             }
             // Zoom keys act on the open photo's canvas. Fit/1:1 mirror their
@@ -444,7 +979,7 @@ impl AutoShadeApp {
                 // typed into a mask row, a version row or a variant card and
                 // never blurred still lands before anything else in the app
                 // acts.
-                self.commit_pending_names();
+                self.commands().commit_pending_names();
                 self.workspace.genai_mut().copied = Some(self.editor.doc().recipe.clone());
                 self.workspace.genai_mut().copied_from = self.editor.photo().src_path.clone();
                 *self.workspace.status_mut() = tr(
@@ -454,7 +989,7 @@ impl AutoShadeApp {
                 .to_string();
             }
             if do_paste && !self.workspace.busy() && self.workspace.genai().copied.is_some() && !self.workspace.gal().multi_sel.is_empty() {
-                self.start_paste();
+                self.commands().start_paste();
             }
         }
 
@@ -480,7 +1015,7 @@ impl AutoShadeApp {
                     tr(self.lang, K_APP_BUSY_WAIT_FOR_THE_CURRENT_TASK_TO_FINISH_BEFORE),
                 );
             } else if p.is_dir() {
-                self.open_folder(p);
+                self.commands().open_folder(p);
                 if n_dropped > 1 {
                     // EVERY branch discloses the leftovers — silently eating
                     // them read as "it handled them all" (the photo branch
@@ -496,7 +1031,7 @@ impl AutoShadeApp {
                 }
             } else if is_photo_path(&p) {
                 self.workspace.gal_mut().selected = None;
-                self.open_path(p);
+                self.commands().open_path(p);
                 if n_dropped > 1 {
                     // Silently eating the rest read as "it opened them all".
                     self.workspace.toast(
@@ -580,7 +1115,7 @@ impl AutoShadeApp {
                         .clicked()
                     {
                         self.workspace.gal_mut().selected = None; // a one-off file isn't a gallery selection
-                        self.apply_actions(vec![logic::Action::Gallery(
+                        self.commands().apply_actions(vec![logic::Action::Gallery(
                             logic::gallery::GalleryAction::OpenPhotoFile,
                         )]);
                     }
@@ -627,7 +1162,7 @@ impl AutoShadeApp {
                         self.editor.session_mut().dirty = true;
                         // The old AI rationale/verdict describe the recipe Reset
                         // just discarded — showing them under neutral sliders lies.
-                        self.resync_recipe_display();
+                        self.editor.resync_recipe_display(&mut self.workspace);
                     }
                 });
                 group(ui, &[tr(lang, K_APP_UNDO), tr(lang, K_APP_REDO)], 0, |ui| {
@@ -636,14 +1171,14 @@ impl AutoShadeApp {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.undo(&ctx);
+                        self.editor.undo(&mut self.workspace, self.lang, &ctx);
                     }
                     if action(ui, ready && !self.editor.session().hist.redo_stack.is_empty(), tr(lang, K_APP_REDO))
                         .on_hover_text(tr(lang, K_APP_CTRL_Y_REDO_THE_UNDONE_EDIT))
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.redo(&ctx);
+                        self.editor.redo(&mut self.workspace, self.lang, &ctx);
                     }
                 });
                 group(ui, &[tr(lang, K_APP_TURN_LEFT), tr(lang, K_APP_TURN_RIGHT)], 0, |ui| {
@@ -672,7 +1207,7 @@ impl AutoShadeApp {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.rotate_photo(3, &ctx); // anticlockwise = three clockwise
+                        self.editor.rotate_photo(&mut self.workspace, self.lang, 3, &ctx); // anticlockwise = three clockwise
                     }
                     let right_hover = if can_rotate {
                         tr(lang, K_APP_A_QUARTER_TURN_CLOCKWISE_THE_CROP_AND_EVERY_MASK)
@@ -684,7 +1219,7 @@ impl AutoShadeApp {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.rotate_photo(1, &ctx);
+                        self.editor.rotate_photo(&mut self.workspace, self.lang, 1, &ctx);
                     }
                 });
                 group(ui, &[tr(lang, K_APP_COMPARE), tr(lang, K_APP_SINGLE)], 0, |ui| {
@@ -720,7 +1255,7 @@ impl AutoShadeApp {
                             ))
                             .clicked()
                         {
-                            self.start_export();
+                            self.commands().start_export();
                         }
                         // `add_enabled_ui`, not a disabled Button: menu_button
                         // returns an InnerResponse and takes no enabled flag.
@@ -732,7 +1267,7 @@ impl AutoShadeApp {
                                     .clicked()
                                 {
                                     ui.close();
-                                    self.export_to_chosen_path();
+                                    self.commands().export_to_chosen_path();
                                 }
                             })
                             .response
@@ -743,7 +1278,7 @@ impl AutoShadeApp {
                         .on_hover_text(tr(lang, K_APP_CTRL_S_SAVE_THIS_PHOTO_S_DEVELOP_RECIPE_A_LIGHTR))
                         .clicked()
                     {
-                        self.save_xmp();
+                        self.commands().save_xmp();
                     }
                 });
                 group(ui, &[], 2, |ui| {
@@ -752,7 +1287,7 @@ impl AutoShadeApp {
                         // while open wiped everything already typed (incl. keys).
                         // Toggle semantics, matching ⌨ next door.
                         if !self.workspace.ui().show_settings {
-                            self.load_settings_form();
+                            self.commands().load_settings_form();
                         }
                         self.workspace.ui_mut().show_settings = !self.workspace.ui().show_settings;
                     }
@@ -785,7 +1320,7 @@ impl AutoShadeApp {
                             ))
                             .clicked()
                     {
-                        self.cancel_generative();
+                        self.commands().cancel_generative();
                     }
                 }
                 // The unsaved marker: canvas differs from the saved develop
@@ -858,17 +1393,17 @@ impl AutoShadeApp {
                         // then Normal's four groups (`panels/normal.rs` — the
                         // one-click look, fine-tune, noise, save), then the
                         // shared AI / Develop / Retouch panels.
-                        self.portrait_panel(ui);
-                        self.normal_panel(ui);
+                        self.commands().portrait_panel(ui);
+                        self.commands().normal_panel(ui);
                         // The AI area is FIRST among the shared panels (R22 #4):
                         // one first-level section holding every AI develop verb
                         // — analysis, whole-image generation, reverse-fit —
                         // above the sliders it writes into. It used to be three
                         // fragments: a section inside Develop, a section in
                         // the middle of Retouch, and a switch in Settings.
-                        self.ai_panel(ui);
-                        self.develop_panel(ui);
-                        self.retouch_panel(ui);
+                        self.commands().ai_panel(ui);
+                        self.commands().develop_panel(ui);
+                        self.commands().retouch_panel(ui);
                     } else {
                         // Empty state with the same voice as the canvas hero:
                         // centered, quiet, and it says what to do next — a
@@ -914,7 +1449,7 @@ impl AutoShadeApp {
                 // — height and its derivation live on VARIANT_STRIP_H.
                 .exact_height(Self::VARIANT_STRIP_H)
                 .show(ctx, |ui| {
-                    self.variant_strip(ui);
+                    self.commands().variant_strip(ui);
                 });
         }
 
@@ -967,12 +1502,12 @@ impl AutoShadeApp {
                         let w = 300.0;
                         ui.add_space((ui.available_width() - w).max(0.0) * 0.5);
                         if primary(ui, true, tr(self.lang, K_APP_OPEN_PHOTO_CTRL_O)).clicked() {
-                            self.apply_actions(vec![logic::Action::Gallery(
+                            self.commands().apply_actions(vec![logic::Action::Gallery(
                                 logic::gallery::GalleryAction::OpenPhotoFile,
                             )]);
                         }
                         if action(ui, true, tr(self.lang, K_APP_OPEN_FOLDER)).clicked() {
-                            self.apply_actions(vec![logic::Action::Gallery(
+                            self.commands().apply_actions(vec![logic::Action::Gallery(
                                 logic::gallery::GalleryAction::OpenFolder,
                             )]);
                         }
@@ -1020,11 +1555,11 @@ impl AutoShadeApp {
                             }
                         });
                         ui.separator();
-                        ui.vertical(|ui| self.after_view(ui, half, avail.y, comparing));
+                        ui.vertical(|ui| self.commands().after_view(ui, half, avail.y, comparing));
                     });
                 }
                 ViewMode::AfterOnly => {
-                    ui.vertical(|ui| self.after_view(ui, avail.x, avail.y, comparing));
+                    ui.vertical(|ui| self.commands().after_view(ui, avail.x, avail.y, comparing));
                 }
             }
         });
@@ -1033,8 +1568,8 @@ impl AutoShadeApp {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
     pub(crate) fn upd_sheets(&mut self, ctx: &egui::Context) {
-        self.analysis_full_window(ctx);
-        self.recipe_library_window(ctx);
+        self.commands().analysis_full_window(ctx);
+        self.commands().recipe_library_window(ctx);
         // Settings window (provider / model / API keys). A local `open` avoids a
         // double &mut self borrow (Window::open vs the closure that reads self).
         if self.workspace.ui().show_settings {
@@ -1222,8 +1757,8 @@ impl AutoShadeApp {
             // unsaved work in the same sense (it writes straight to its own
             // advisory sidecar), but it must not die with the window either,
             // so the last boundary before the quit decision flushes the lot.
-            self.commit_pending_names();
-            self.fork_edited_card();
+            self.commands().commit_pending_names();
+            self.commands().fork_edited_card();
             let unsaved_open = self.editor.quit_guard_open_dirty();
             if self.workspace.busy() {
                 // A running export / retouch / paid AI generation dies with
@@ -1251,7 +1786,7 @@ impl AutoShadeApp {
             }
         }
         if self.workspace.ui().confirm_quit {
-            self.confirm_quit_layer(ctx);
+            self.commands().confirm_quit_layer(ctx);
         }
         // Hover-to-preview is frame-scoped: take last frame's target; the mask
         // list re-sets it below if the cursor is still on a row. The diff is
@@ -1261,7 +1796,7 @@ impl AutoShadeApp {
         // so its Esc / Enter are its own; never under the quit layer, which
         // outranks it.
         if !self.workspace.ui().confirm_quit {
-            self.fit_prompt_layer(ctx);
+            self.commands().fit_prompt_layer(ctx);
         }
 
         self.upd_shortcuts(ctx);
@@ -1277,19 +1812,19 @@ impl AutoShadeApp {
         // frame wrote into the recipe — a slider, a paste, an AI landing —
         // meets the skin limits here, before the fork, the develop and the
         // undo commit below read it.
-        self.guard_portrait_skin();
+        self.editor.guard_portrait_skin(&mut self.workspace);
         // The immutability rule (2026-09-13): whatever this frame wrote into
         // the live recipe — a slider, a shortcut, a landing — continues on
         // an ✎ card when the active card is the pristine ✨ image, BEFORE the
         // turn sync, the Before rebuild, the develop dispatch and the undo
         // commit below see it.
-        self.fork_edited_card();
+        self.commands().fork_edited_card();
         // The plates follow `recipe.quarter_turns` (R27) BEFORE the Before
         // rebuild and the redevelop dispatch below, so a turn — however it
         // arrived: the toolbar, an undo, a variant switch, a version load —
         // lands in the same frame it was asked for. Returns on a `u8` compare
         // when nothing turned, which is every frame but the one.
-        self.sync_base_turns(ctx);
+        self.editor.sync_base_turns(&mut self.workspace, self.lang, ctx);
         // Reset re-stamping a legacy photo, a paste, or a restore would
         // otherwise leave the compare against a stale starting point. One
         // cheap LUT-only develop, and only when the curve actually changed.
@@ -1308,7 +1843,7 @@ impl AutoShadeApp {
         }
         // A held-still pointer still needs a repaint to receive the result.
         if self.editor.session().dirty && !self.editor.scheduler().inflight {
-            self.start_redevelop();
+            self.commands().start_redevelop();
         }
         if self.editor.scheduler().inflight {
             ctx.request_repaint();
@@ -1319,7 +1854,7 @@ impl AutoShadeApp {
             self.workspace.overlay_mut().overlay_stale = true;
         }
         if std::mem::take(&mut self.workspace.overlay_mut().overlay_stale) {
-            self.refresh_mask_overlay(ctx);
+            self.commands().refresh_mask_overlay(ctx);
         }
 
         self.upd_central(ctx);
@@ -1436,7 +1971,7 @@ impl AutoShadeApp {
 
         // Land a finished edit gesture (slider release, AI Analyze, Reset) into
         // the undo history — once per gesture, after all controls are read.
-        self.commit_if_settled(ctx);
+        self.editor.commit_if_settled(&self.workspace, ctx);
         // LAST, after every panel had its chance to spawn (L12-3): evaluated
         // at the top of update (inside poll_workers) the gate judged a frame
         // whose spawns had not happened yet, so the FIRST batch of workers

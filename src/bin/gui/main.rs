@@ -36,6 +36,8 @@ use i18n::*;
 
 mod model;
 mod services;
+mod commands;
+pub(crate) use commands::Commands;
 mod analysis_session;
 mod canvas_plates;
 mod document;
@@ -87,7 +89,6 @@ mod runtime;
 mod settings_actions;
 mod side_panel;
 mod window_chrome;
-mod workers;
 use model::*;
 use services::*;
 use analysis_session::*;

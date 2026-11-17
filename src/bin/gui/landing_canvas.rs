@@ -4,7 +4,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<anyhow::Result<OpenedBase>>) {
                 // `keep` distinguishes a fresh open from a preview-resolution
                 // re-decode (the px combo): consumed whether the open
@@ -831,16 +831,16 @@ pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<a
                         // natural" is decided against the edit just read
                         // (`panels/portrait.rs`) — opening never changes
                         // a value.
-                        self.decide_keep_skin_for_photo();
+                        self.editor.decide_keep_skin_for_photo(&mut self.workspace);
                         self.workspace.chrome_mut().last_rgb = None; // retained frame was the old photo's
-                        self.reset_history(); // a new photo starts a fresh undo history
+                        self.editor.reset_history(&self.workspace); // a new photo starts a fresh undo history
                         self.workspace.overlay_mut().region = None; // and a fresh local-edit selection
                         self.workspace.overlay_mut().region_drag = None;
                         // View + tool state is per-photo.
                         self.workspace.view_mut().zoom = 1.0;
                         self.workspace.view_mut().zoom_target = 1.0; // instant — no glide across photos
                         self.workspace.view_mut().pan = egui::vec2(0.5, 0.5);
-                        self.panel_view(&mut Vec::new()).disarm_tools();
+                        self.workspace.disarm_tools(&mut self.editor);
                         // The \-latch is per-photo transient state:
                         // carried across an open, the new photo arrived
                         // with every tool locked out (M21).
@@ -935,7 +935,7 @@ pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<a
                         // is the reason there is nothing to guard. The
                         // photo's unsaved work is NOT lost — open_path
                         // stashed it before the flight.
-                        self.reset_history();
+                        self.editor.reset_history(&self.workspace);
                     } else if let Some(p) = self.editor.photo().src_path.clone() {
                         // A preview-res re-decode failed: the photo (and
                         // its live canvas) is untouched — consume the
@@ -959,33 +959,6 @@ pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<a
             }
 }
 
-pub(crate) fn on_thumb(&mut self, ctx: &egui::Context, generation: u64, idx: usize, img: anyhow::Result<image::DynamicImage>) {
-                // Ignore thumbnails from a previous folder generation (their
-                // inflight count was already discarded when the folder changed).
-                if generation == self.workspace.gal().gallery_gen {
-                    self.workspace.gal_mut().thumb_inflight = self.workspace.gal().thumb_inflight.saturating_sub(1);
-                    match img {
-                        Ok(im) => {
-                            let tex = ctx.load_texture(
-                                format!("thumb{idx}"),
-                                to_color_image(&im),
-                                egui::TextureOptions::LINEAR,
-                            );
-                            self.workspace.gal_mut().thumbs.insert(idx, tex);
-                        }
-                        Err(_) => {
-                            // Count the failure and release the queue slot:
-                            // `request_thumb` allows three attempts, so a
-                            // transient decode failure (AV lock, a slow
-                            // share) still recovers on a later frame while
-                            // an undecodable file stops for good instead of
-                            // respawning decode threads every frame.
-                            *self.workspace.gal_mut().thumb_fail.entry(idx).or_insert(0) += 1;
-                            self.workspace.gal_mut().thumb_requested.remove(&idx);
-                        }
-                    }
-                }
-}
 
 pub(crate) fn on_base_redeveloped(
     &mut self,

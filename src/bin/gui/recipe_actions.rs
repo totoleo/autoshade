@@ -6,7 +6,7 @@
 
 use crate::*;
 
-impl AutoShadeApp {
+impl Commands<'_> {
 
 
     /// The name a blank field saves under: the open photo's stem.
@@ -95,7 +95,7 @@ impl AutoShadeApp {
         // The target's own calibration and baked-source rules, through the
         // same shaper the clipboard paste uses.
         let mut live = crate::persist::paste_recipe_for(&src, &entry);
-        if self.skin_held_for(&src) {
+        if self.editor.skin_held_for(&self.workspace, &src) {
             autoshade::face::keep_skin_natural_in(&mut live);
         }
         if self.editor.active_on_ai_pixels() {
@@ -128,7 +128,7 @@ impl AutoShadeApp {
         // A recipe placed on the pristine ✨ card is an edit like any other:
         // it lands on a new ✎ card (the immutability rule).
         self.fork_edited_card();
-        self.resync_recipe_display();
+        self.editor.resync_recipe_display(&mut self.workspace);
         let text = trf(self.lang, K_ACTIONS_APPLIED_RECIPE_CTRL_Z_RETURNS_TO_BEFORE, &[("name", name)]);
         self.workspace.recipe_status(true, text);
     }

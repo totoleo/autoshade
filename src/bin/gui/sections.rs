@@ -19,10 +19,10 @@ pub(crate) enum SectionKind {
     Custom,
 }
 
-/// Where a section's draw lives: still an app method, or already a
+/// Where a section's draw lives: still on the command context, or already a
 /// PanelView method. The table is the single place either is named.
 pub(crate) enum SectionDraw {
-    App(fn(&mut AutoShadeApp, &mut egui::Ui, bool) -> bool),
+    App(fn(&mut Commands<'_>, &mut egui::Ui, bool) -> bool),
     Panel(fn(&mut PanelView<'_, '_>, &mut egui::Ui, bool) -> bool),
 }
 
@@ -84,6 +84,10 @@ fn panel_dev_detail(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: boo
 
 fn panel_dev_hsl(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
     view.dev_hsl(ui, active)
+}
+
+fn app_dev_versions(view: &mut Commands<'_>, ui: &mut egui::Ui, active: bool) -> bool {
+    view.dev_versions(ui, active)
 }
 
 fn panel_dev_tone_wb(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
@@ -190,7 +194,7 @@ pub(crate) const SECTIONS: &[Section] = &[
         id: "versions",
         families: &[],
         kind: SectionKind::Form,
-        draw: SectionDraw::App(AutoShadeApp::dev_versions),
+        draw: SectionDraw::App(app_dev_versions),
     },
     Section {
         id: "stack",
