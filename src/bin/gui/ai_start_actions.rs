@@ -105,10 +105,10 @@ impl Commands<'_> {
         // then owns its own Enter.
         let widget_focused = ctx.memory(|m| m.focused()).is_some();
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+            if Chord::ESCAPE.consume(i) {
                 later = true;
             }
-            if !widget_focused && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+            if !widget_focused && Chord::ENTER.consume(i) {
                 fit = true;
             }
         });
@@ -264,10 +264,10 @@ impl Commands<'_> {
         // Cancel/Discard would fire Save instead of the focused control.
         let widget_focused = ctx.memory(|m| m.focused()).is_some();
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+            if Chord::ESCAPE.consume(i) {
                 cancel = true;
             }
-            if !widget_focused && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+            if !widget_focused && Chord::ENTER.consume(i) {
                 save_quit = true;
             }
         });

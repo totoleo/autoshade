@@ -630,14 +630,14 @@ impl AutoShadeApp {
             let sheet_open = self.workspace.ui().show_shortcuts;
             let (esc, sheet_key) = ctx.input_mut(|i| {
                 (
-                    i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+                    Chord::ESCAPE.consume(i),
                     // F1 / ? stay live while the sheet is open — they are its
                     // advertised toggle, and the focused-none tier below is
                     // skipped entirely while a transient is up (L19).
                     sheet_open
-                        && (i.consume_key(egui::Modifiers::NONE, egui::Key::F1)
-                            || i.consume_key(egui::Modifiers::NONE, egui::Key::Questionmark)
-                            || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Questionmark)),
+                        && (Chord::F1.consume(i)
+                            || Chord::QUESTION.consume(i)
+                            || Chord::SHIFT_QUESTION.consume(i)),
                 )
             });
             if esc || sheet_key {
@@ -652,13 +652,13 @@ impl AutoShadeApp {
         if !self.workspace.modal_up() && !transient_open {
             let (mut do_open, mut do_export, mut do_xmp) = (false, false, false);
             ctx.input_mut(|i| {
-                if i.consume_key(egui::Modifiers::COMMAND, egui::Key::O) { do_open = true; }
+                if Chord::CTRL_O.consume(i) { do_open = true; }
                 // LR's export key is Ctrl+Shift+E — consumed FIRST (the
                 // exact-match consume would leave it dead behind plain
                 // Ctrl+E, which stays as the historical alias, D13).
-                if i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::E) { do_export = true; }
-                if i.consume_key(egui::Modifiers::COMMAND, egui::Key::E) { do_export = true; }
-                if i.consume_key(egui::Modifiers::COMMAND, egui::Key::S) { do_xmp = true; }
+                if Chord::CTRL_SHIFT_E.consume(i) { do_export = true; }
+                if Chord::CTRL_E.consume(i) { do_export = true; }
+                if Chord::CTRL_S.consume(i) { do_xmp = true; }
             });
             if do_open && !self.workspace.busy() {
                 self.workspace.gal_mut().selected = None;
@@ -704,47 +704,45 @@ impl AutoShadeApp {
                 .zip(self.workspace.view().controls_rect)
                 .is_some_and(|(p, r)| r.contains(p));
             ctx.input_mut(|i| {
-                if i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z) { do_redo = true; }
-                if i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y) { do_redo = true; }
-                if i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z) { do_undo = true; }
+                if Chord::CTRL_SHIFT_Z.consume(i) { do_redo = true; }
+                if Chord::CTRL_Y.consume(i) { do_redo = true; }
+                if Chord::CTRL_Z.consume(i) { do_undo = true; }
                 if crop_tool {
                     // Crop owns the arrows while armed (keyboard-only
                     // geometry, D13); gallery walking resumes on exit.
                     let s = if i.modifiers.shift { 10.0 } else { 1.0 };
-                    for (key, dx, dy) in [
-                        (egui::Key::ArrowRight, 1.0, 0.0),
-                        (egui::Key::ArrowLeft, -1.0, 0.0),
-                        (egui::Key::ArrowDown, 0.0, 1.0),
-                        (egui::Key::ArrowUp, 0.0, -1.0),
+                    for (chord, dx, dy) in [
+                        (Chord::ARROW_RIGHT, 1.0, 0.0),
+                        (Chord::ARROW_LEFT, -1.0, 0.0),
+                        (Chord::ARROW_DOWN, 0.0, 1.0),
+                        (Chord::ARROW_UP, 0.0, -1.0),
                     ] {
-                        if i.consume_key(egui::Modifiers::NONE, key)
-                            || i.consume_key(egui::Modifiers::SHIFT, key)
-                        {
+                        if chord.consume(i) || chord.with_shift().consume(i) {
                             crop_nudge.0 += dx * s;
                             crop_nudge.1 += dy * s;
                         }
                     }
-                    if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) { do_crop_commit = true; }
+                    if Chord::ENTER.consume(i) { do_crop_commit = true; }
                 }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight) { nav = 1; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft) { nav = -1; }
+                if Chord::ARROW_RIGHT.consume(i) { nav = 1; }
+                if Chord::ARROW_LEFT.consume(i) { nav = -1; }
                 // ↑/↓: the vertical twins (a vertical list wants vertical
                 // keys) — gated on `over_controls` above.
                 if !over_controls {
-                    if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) { nav = 1; }
-                    if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) { nav = -1; }
+                    if Chord::ARROW_DOWN.consume(i) { nav = 1; }
+                    if Chord::ARROW_UP.consume(i) { nav = -1; }
                 }
                 // Zoom keys — the canvas Fit / 1:1 buttons' twins. `=` is
                 // unshifted `+` on ANSI layouts; Shift++ covers the rest.
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Plus)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Plus)
-                    || i.consume_key(egui::Modifiers::NONE, egui::Key::Equals)
+                if Chord::PLUS.consume(i)
+                    || Chord::SHIFT_PLUS.consume(i)
+                    || Chord::EQUALS.consume(i)
                 {
                     zoom_key = 1.0;
                 }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Minus) { zoom_key = -1.0; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Num0) { do_fit = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Num1) { do_one = true; }
+                if Chord::MINUS.consume(i) { zoom_key = -1.0; }
+                if Chord::NUM0.consume(i) { do_fit = true; }
+                if Chord::NUM1.consume(i) { do_one = true; }
                 // Ctrl+Shift+C/V (LR's Copy/Paste Develop Settings):
                 // keyboard twins of ⎘ Copy recipe / ⇩ Paste to selected.
                 // EVENT-level, not consume_key: egui-winit swallows every
@@ -762,30 +760,30 @@ impl AutoShadeApp {
                     i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
                     do_paste |= i.events.len() < n;
                 }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) { do_escape = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::O) {
+                if Chord::ESCAPE.consume(i) { do_escape = true; }
+                if Chord::O.consume(i) {
                     if crop_tool { do_crop_grid = true; } else { do_overlay = true; }
                 }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::J) { do_clip = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::R) { do_crop = true; }
+                if Chord::J.consume(i) { do_clip = true; }
+                if Chord::R.consume(i) { do_crop = true; }
                 // LR tool keys (D13): W / Q / K and M / Shift+M (the Shift
                 // variant consumed first — exact match leaves it dead after).
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::W) { do_wb = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Q) { do_heal = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::K) { do_brush = true; }
-                if i.consume_key(egui::Modifiers::SHIFT, egui::Key::M) { do_radial = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::M) { do_linear = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Backslash) { do_before = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Y) { do_compare = true; }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) { do_panels = true; }
+                if Chord::W.consume(i) { do_wb = true; }
+                if Chord::Q.consume(i) { do_heal = true; }
+                if Chord::K.consume(i) { do_brush = true; }
+                if Chord::SHIFT_M.consume(i) { do_radial = true; }
+                if Chord::M.consume(i) { do_linear = true; }
+                if Chord::BACKSLASH.consume(i) { do_before = true; }
+                if Chord::Y.consume(i) { do_compare = true; }
+                if Chord::TAB.consume(i) { do_panels = true; }
                 if brush_tool {
-                    if i.consume_key(egui::Modifiers::NONE, egui::Key::OpenBracket) { brush_delta = -4.0; }
-                    if i.consume_key(egui::Modifiers::NONE, egui::Key::CloseBracket) { brush_delta = 4.0; }
+                    if Chord::OPEN_BRACKET.consume(i) { brush_delta = -4.0; }
+                    if Chord::CLOSE_BRACKET.consume(i) { brush_delta = 4.0; }
                 }
                 // F1 / ? — the cheat-sheet (Shift+/ produces ? on most layouts).
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::F1)
-                    || i.consume_key(egui::Modifiers::NONE, egui::Key::Questionmark)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::Questionmark)
+                if Chord::F1.consume(i)
+                    || Chord::QUESTION.consume(i)
+                    || Chord::SHIFT_QUESTION.consume(i)
                 {
                     do_cheatsheet = true;
                 }
@@ -1532,7 +1530,7 @@ impl AutoShadeApp {
             // not flash the Before mid-word.
             let comparing = self.workspace.view().before
                 || (ctx.memory(|m| m.focused()).is_none()
-                    && ctx.input(|i| i.key_down(egui::Key::B)));
+                    && ctx.input(|i| Chord::B.held(i)));
 
             match self.workspace.view().mode {
                 ViewMode::SideBySide => {

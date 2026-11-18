@@ -62,6 +62,7 @@ mod quit;
 #[cfg(target_os = "macos")]
 mod macos;
 mod buttons;
+mod shortcuts;
 mod headings;
 mod theme;
 mod util;
@@ -101,6 +102,7 @@ use scheduler::*;
 use session::*;
 use persist::*;
 use buttons::*;
+use shortcuts::*;
 use headings::*;
 use theme::*;
 use util::*;

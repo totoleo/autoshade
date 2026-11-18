@@ -311,10 +311,10 @@ pub(crate) fn slider_impl(
         let shift = ui.input(|i| i.modifiers.shift);
         let (up, down) = ui.input_mut(|i| {
             (
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::ArrowUp),
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::ArrowDown),
+                Chord::ARROW_UP.consume(i)
+                    || Chord::ARROW_UP.with_shift().consume(i),
+                Chord::ARROW_DOWN.consume(i)
+                    || Chord::ARROW_DOWN.with_shift().consume(i),
             )
         });
         if up != down {
