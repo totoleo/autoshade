@@ -336,3 +336,60 @@
         }
         }
     }
+
+    /// The framework stays behind ONE door: `view.rs` re-exports the names the
+    /// GUI uses and owns the launch, the application hooks and the storage
+    /// plugin. No other production file may name `egui`/`eframe` in code —
+    /// not a path (`eframe::App`), not an identifier (`egui_ctx`). Comments are
+    /// prose and stay allowed; tests are the harness and drive the framework
+    /// through the names the door re-exports under `cfg(test)`.
+    ///
+    /// MUTATION: write `egui::` or an `egui_*` identifier in a panel or helper
+    /// and this names the file and line.
+    #[test]
+    fn the_framework_stays_behind_the_door() {
+        fn names_framework(code: &str) -> bool {
+            for needle in ["egui", "eframe"] {
+                for (at, _) in code.match_indices(needle) {
+                    let before = code[..at].chars().next_back();
+                    let boundary = !before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+                    if boundary {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("bin")
+            .join("gui");
+        let mut files = Vec::new();
+        collect_rs(&root, &mut files);
+        let mut scanned = 0;
+        for file in files {
+            let rel = file.strip_prefix(&root).expect("under the gui tree").to_path_buf();
+            if rel.components().any(|c| c.as_os_str() == "tests")
+                || file.file_name().is_some_and(|n| n == "tests.rs")
+                || file.file_name().is_some_and(|n| n == "view.rs")
+            {
+                continue;
+            }
+            scanned += 1;
+            let src = std::fs::read_to_string(&file).expect("gui source readable");
+            for (number, line) in src.lines().enumerate() {
+                let code = line.split("//").next().unwrap_or("");
+                assert!(
+                    !names_framework(code),
+                    "{}:{} names the framework outside `view.rs` — route it through the door: {}",
+                    rel.display(),
+                    number + 1,
+                    line.trim()
+                );
+            }
+        }
+        assert!(scanned > 20, "premise: the gui has {scanned} production sources");
+        let door = std::fs::read_to_string(root.join("view.rs")).expect("the door is readable");
+        assert!(door.contains("eframe::egui"), "view.rs is no longer the door");
+    }

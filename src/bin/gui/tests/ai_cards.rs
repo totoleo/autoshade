@@ -1280,7 +1280,7 @@
         // chrome; a frame that decorates itself while buttons are drawn over
         // it would leave both sets on screen.
         assert!(
-            src.contains(".with_decorations(!window_chrome::CUSTOM_CHROME)"),
+            src.contains(".with_decorations(!crate::window_chrome::CUSTOM_CHROME)"),
             "the frame and the drawn buttons must agree"
         );
 

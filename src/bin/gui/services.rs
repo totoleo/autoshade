@@ -14,13 +14,13 @@ use crate::model::Msg;
 pub(crate) struct Services {
     pub(crate) rx: Option<Receiver<Msg>>,
     pub(crate) tx: Sender<Msg>,
-    pub(crate) egui_ctx: Context,
+    pub(crate) view_ctx: Context,
 }
 
 impl Default for Services {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
-        Self { rx: Some(rx), tx, egui_ctx: Context::default() }
+        Self { rx: Some(rx), tx, view_ctx: Context::default() }
     }
 }
 
@@ -41,13 +41,13 @@ impl Services {
         on_panic: impl FnOnce(anyhow::Error) -> Msg + Send + 'static,
     ) {
         let tx = self.tx.clone();
-        let ctx = self.egui_ctx.clone();
+        let ctx = self.view_ctx.clone();
         // Starting a worker schedules the next frame itself: the repaint
         // pump's gate (`poll_workers`, at the top of update) has already run
         // by the time a panel can start one in the same frame, so without
         // this the "fetching…"/busy state is not drawn and the 100 ms pump
         // never re-arms until the next input event.
-        self.egui_ctx.request_repaint();
+        self.view_ctx.request_repaint();
         std::thread::spawn(move || {
             // This body's panic is CONTAINED by the `catch_unwind` below.
             // Declared, so the panic hook does not announce a crash over an

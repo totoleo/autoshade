@@ -395,9 +395,9 @@
         // Drain the fresh context's startup frames (egui schedules a couple
         // on its own) until it reports quiet.
         for _ in 0..8 {
-            let _ = app.services().egui_ctx.run(Default::default(), |_| {});
+            let _ = app.services().view_ctx.run(Default::default(), |_| {});
         }
-        assert!(!app.services().egui_ctx.has_requested_repaint(), "sanity: context drained");
+        assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: context drained");
         let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
         app.services().spawn_worker(
             move || {
@@ -408,18 +408,18 @@
         );
         // Edge 1: STARTING a worker schedules the next frame (the pump's
         // gate has already run this frame by the time a panel can spawn).
-        assert!(app.services().egui_ctx.has_requested_repaint(), "spawn must wake the loop");
+        assert!(app.services().view_ctx.has_requested_repaint(), "spawn must wake the loop");
         // Consume that request the way real frames would; the worker is
         // still gated, so quiet must return…
         for _ in 0..8 {
-            let _ = app.services().egui_ctx.run(Default::default(), |_| {});
+            let _ = app.services().view_ctx.run(Default::default(), |_| {});
         }
-        assert!(!app.services().egui_ctx.has_requested_repaint(), "sanity: drained again");
+        assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: drained again");
         // …until the worker completes: edge 2, the completion itself must
         // wake the loop — the mpsc send alone never does.
         gate_tx.send(()).expect("the worker is waiting on the gate");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !app.services().egui_ctx.has_requested_repaint() {
+        while !app.services().view_ctx.has_requested_repaint() {
             assert!(
                 std::time::Instant::now() < deadline,
                 "a completed worker never asked for a repaint — its result would sit unread until the next input event"

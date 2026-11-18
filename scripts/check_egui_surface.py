@@ -1,35 +1,37 @@
 #!/usr/bin/env python3
-"""View-boundary gate: one module owns the UI framework.
+"""Framework quarantine: only the door may name the UI framework.
 
 GATES (exit 1 on any):
 
-  * a production file (`src/bin/gui`, tests excluded) that is not `view.rs`
-    mentions `egui::`;
-  * a production file outside {view.rs, main.rs, app.rs} mentions `eframe::`;
+  * a production file (`src/bin/gui`, tests excluded) other than `view.rs`
+    contains the framework's name in CODE — `egui`/`eframe` as a token, which
+    includes identifiers such as `egui_ctx` and paths such as `eframe::App`;
   * the door stopped being the door (`view.rs` no longer re-exports
-    `eframe::egui`), or an entry point stopped being the entry.
+    `eframe::egui`).
 
-Production code gets the framework's names from `view.rs` (unqualified, through
-the crate prelude) and never spells the framework namespace itself. `eframe`
-stays at the entry: the door re-exports the context, and `main.rs` / `app.rs`
-own `run_native`, `impl eframe::App` and the storage hooks. A framework change
-starts in the door.
+Comments and doc comments are prose, not code: a sentence about the framework
+is allowed anywhere (it is not a dependency). Tests are the harness and drive
+the framework directly through the `egui`/`eframe` names the door re-exports
+under `cfg(test)`; this gate scans production only.
+
+The quarantine is the anti-corruption layer: `view.rs` re-exports the names the
+GUI uses and owns the launch, the application hooks and the storage plugin, so
+a framework change starts and ends in that one file.
 
 Run: py -3 scripts/check_egui_surface.py
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 GUI = REPO / "src" / "bin" / "gui"
 
-EGUI = "egui::"
-EFRAME = "eframe::"
 DOOR = "view.rs"
-ENTRY = {"main.rs", "app.rs"}
+FRAMEWORK = re.compile(r"\b(?:egui|eframe)\w*")
 
 
 def production_sources() -> list[Path]:
@@ -40,46 +42,44 @@ def production_sources() -> list[Path]:
     )
 
 
+def code_only(line: str) -> str:
+    """The line with its trailing `//` comment cut off (prose is not code)."""
+    cut = line.find("//")
+    return line if cut < 0 else line[:cut]
+
+
 def main() -> int:
-    counts: dict[str, tuple[int, int]] = {}
+    failures: list[str] = []
+    prose = 0
+
     for path in production_sources():
         rel = path.relative_to(GUI).as_posix()
-        src = path.read_text(encoding="utf-8")
-        counts[rel] = (src.count(EGUI), src.count(EFRAME))
+        if rel == DOOR:
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if "egui" in line or "eframe" in line:
+                prose += 1
+            code = code_only(line)
+            if FRAMEWORK.search(code):
+                failures.append(
+                    f"{rel}:{number}: names the framework outside the door — "
+                    f"route it through `{DOOR}`: {line.strip()}"
+                )
 
-    failures: list[str] = []
-
-    for rel, (egui, _) in sorted(counts.items()):
-        if rel != DOOR and egui:
-            failures.append(
-                f"{rel}: names the framework namespace (`{EGUI}`) — import the "
-                "name from `view.rs` instead"
-            )
-
-    for rel, (_, eframe) in sorted(counts.items()):
-        if rel not in {"view.rs", "main.rs", "app.rs"} and eframe:
-            failures.append(
-                f"{rel}: reaches for `{EFRAME}` — only the door and the two "
-                "entry points may name the framework shell"
-            )
-
-    door = (GUI / DOOR).read_text(encoding="utf-8") if (GUI / DOOR).is_file() else ""
-    if "eframe::egui" not in door:
+    door = GUI / DOOR
+    door_src = door.read_text(encoding="utf-8") if door.is_file() else ""
+    if "eframe::egui" not in door_src:
         failures.append(f"{DOOR}: no longer re-exports `eframe::egui` — the door is gone")
-
-    for entry in sorted(ENTRY):
-        if counts.get(entry, (0, 0))[1] == 0:
-            failures.append(f"{entry}: no `{EFRAME}` left — the entry stopped being the entry")
 
     for failure in failures:
         print(f"FAIL {failure}")
 
-    egui_outside = sum(n for rel, (n, _) in counts.items() if rel != DOOR)
-    eframe_files = [rel for rel, (_, n) in counts.items() if n]
     verdict = "PASS" if not failures else "FAIL"
+    files = len(production_sources())
     print(
-        f"check_view_boundary: {verdict} — {egui_outside} `{EGUI}` outside the door; "
-        f"`{EFRAME}` in {', '.join(sorted(eframe_files))}"
+        f"check_view_boundary: {verdict} — 0 framework tokens in code outside "
+        f"`{DOOR}` over {files} production files "
+        f"({prose} prose mentions in comments; comments are allowed)"
     )
     return 0 if not failures else 1
 

@@ -73,13 +73,13 @@ impl Chord {
 
     /// Consume this chord from the frame's input, if it is a fresh press.
     pub(crate) fn consume(self, i: &mut InputState) -> bool {
-        i.consume_key(self.mods.egui(), self.key.egui())
+        i.consume_key(self.mods.framework_mods(), self.key.framework_key())
     }
 
     /// Whether the chord's key is held down right now (the modifiers are not
     /// part of a held-key test).
     pub(crate) fn held(self, i: &InputState) -> bool {
-        i.key_down(self.key.egui())
+        i.key_down(self.key.framework_key())
     }
 
     /// Esc: dismiss the topmost transient (and never mutate what is being
@@ -158,7 +158,7 @@ impl Chord {
 }
 
 impl Key {
-    fn egui(self) -> view::Key {
+    fn framework_key(self) -> view::Key {
         match self {
             Key::Escape => view::Key::Escape,
             Key::Enter => view::Key::Enter,
@@ -194,7 +194,7 @@ impl Key {
 }
 
 impl Mods {
-    fn egui(self) -> Modifiers {
+    fn framework_mods(self) -> Modifiers {
         match self {
             Mods::None => Modifiers::NONE,
             Mods::Shift => Modifiers::SHIFT,

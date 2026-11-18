@@ -136,16 +136,14 @@ impl AutoShadeApp {
     /// Restore persisted prefs (last folder, view mode, export options) and
     /// re-open the library the user was browsing. Window geometry itself is
     /// restored by eframe's own persistence layer.
-    pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub(crate) fn new(ctx: &Context, prefs: Option<Prefs>) -> Self {
         // The REAL event-loop context replaces default()'s headless one:
         // workers wake the loop through this clone (see `spawn_worker`).
         let mut app = Self {
-            services: Services { egui_ctx: cc.egui_ctx.clone(), ..Services::default() },
+            services: Services { view_ctx: ctx.clone(), ..Services::default() },
             ..Self::default()
         };
-        if let Some(prefs) =
-            cc.storage.and_then(|s| eframe::get_value::<Prefs>(s, eframe::APP_KEY))
-        {
+        if let Some(prefs) = prefs {
             app.restore_prefs(prefs);
         }
         // The launch check of the interpreter the AI sidecars would run: a fact
@@ -164,7 +162,7 @@ impl AutoShadeApp {
         // handle a vetoed quit wakes the UI with, and — on macOS — the
         // delegate method that does the vetoing. Both need a live event loop,
         // and this creation closure is the first moment there is one.
-        crate::quit::set_ctx(&cc.egui_ctx);
+        crate::quit::set_ctx(ctx);
         #[cfg(target_os = "macos")]
         if let Err(why) = crate::macos::install_quit_guard() {
             // Not fatal, and not silent: without that method ⌘Q behaves the
@@ -222,7 +220,7 @@ impl AutoShadeApp {
         // default before prefs were readable (same shape as the greeting).
         app.workspace.ui_mut().theme = prefs.theme;
         app.workspace.ui_mut().accent = prefs.accent;
-        install_look(&app.services.egui_ctx, app.workspace.ui().theme, app.workspace.ui().accent);
+        install_look(&app.services.view_ctx, app.workspace.ui().theme, app.workspace.ui().accent);
         // The greeting was set by default() BEFORE the language was known —
         // re-issue it, or a Chinese install opens with one English line.
         app.workspace.set_status(tr(app.lang, K_ACTIONS_OPEN_A_PHOTO_OR_OPEN_A_FOLDER_TO_BROWSE_YOUR_LIB).into());
@@ -1342,63 +1340,57 @@ impl AutoShadeApp {
     }
 }
 
-impl eframe::App for AutoShadeApp {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.run_frame(ctx);
-    }
+impl AutoShadeApp {
+    /// The persisted preferences snapshot — what the storage plugin writes
+    /// and what the launch restores. `view.rs` only speaks the storage
+    /// plugin's API; what persists is this file's business.
+    pub(crate) fn prefs_snapshot(&self) -> Prefs {
+        Prefs {
 
-    /// Persist the prefs (last folder, view mode, export options) — restored by
-    /// [`AutoShadeApp::new`]. Window geometry is saved by eframe itself.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(
-            storage,
-            eframe::APP_KEY,
-            &Prefs {
-                prefs_era: PREFS_ERA,
-                gallery_dir: self.workspace.gal().gallery_dir.clone(),
-                guide: self.aip.guide,
-                style_strength: self.aip.style_strength,
-                grade_strength: self.aip.grade_strength,
-                fit_strength: self.aip.fit_strength,
-                send_style_ref_image: self.aip.send_style_ref_image,
-                deep_think: self.aip.deep_think,
-                style_embed: self.aip.style_embed,
-                style_describe: self.aip.style_describe,
-                style_src_dir: self.aip.style_src_dir.clone(),
-                style_raw_dir: self.aip.style_raw_dir.clone(),
-                direction_adherence: self.aip.direction_adherence,
-                // Both written: exp_format is the truth, save_jpeg keeps a
-                // pre-阶段4 build reading this prefs file sane.
-                save_jpeg: self.workspace.exp().format == ExportFormat::Jpeg,
-                exp_format: self.workspace.exp().format.pref_code(),
-                exp_dest: self.workspace.exp().dest.pref_code(),
-                last_export_dir: self.workspace.exp().last_dir.clone(),
-                save_denoise: self.workspace.exp().save_denoise,
-                save_denoise_strength: self.workspace.exp().save_denoise_strength,
-                denoise_strength: self.workspace.exp().denoise_strength,
-                baked_denoise_strength: self.workspace.exp().baked_denoise_strength,
-                baked_save_denoise_strength: self.workspace.exp().baked_save_denoise_strength,
-                zoned_fit: self.workspace.fit().zoned_fit,
-                zoned_four_regions: self.workspace.fit().zoned_four_regions,
-                fit_ai_judge: self.workspace.fit().fit_ai_judge,
-                // R23-6 D: the deep reverse-fit toggle persists like every
-                // other paid opt-in. `fit_ref` deliberately does NOT — it
-                // names one file for one photo (see the field).
-                fit_deep: self.workspace.fit().fit_deep,
-                reimagine_retry: self.workspace.fit().reimagine_retry,
-                ask_fit_after_generate: self.workspace.fit().ask_fit_after_generate,
-                adjust_quality: self.workspace.genai().adjust_quality,
-                view_mode: self.workspace.view().mode,
-                exp_long_edge: self.workspace.exp().long_edge,
-                exp_sharpen: self.workspace.exp().sharpen,
-                exp_quality: self.workspace.exp().quality,
-                exp_space: self.workspace.exp().space,
-                preview_edge: self.workspace.genai().preview_edge,
-                show_clipping: self.workspace.chrome().show_clipping,
-                lang: self.lang,
-                theme: self.workspace.ui().theme,
-                accent: self.workspace.ui().accent,
-            },
-        );
+            prefs_era: PREFS_ERA,
+            gallery_dir: self.workspace.gal().gallery_dir.clone(),
+            guide: self.aip.guide,
+            style_strength: self.aip.style_strength,
+            grade_strength: self.aip.grade_strength,
+            fit_strength: self.aip.fit_strength,
+            send_style_ref_image: self.aip.send_style_ref_image,
+            deep_think: self.aip.deep_think,
+            style_embed: self.aip.style_embed,
+            style_describe: self.aip.style_describe,
+            style_src_dir: self.aip.style_src_dir.clone(),
+            style_raw_dir: self.aip.style_raw_dir.clone(),
+            direction_adherence: self.aip.direction_adherence,
+            // Both written: exp_format is the truth, save_jpeg keeps a
+            // pre-阶段4 build reading this prefs file sane.
+            save_jpeg: self.workspace.exp().format == ExportFormat::Jpeg,
+            exp_format: self.workspace.exp().format.pref_code(),
+            exp_dest: self.workspace.exp().dest.pref_code(),
+            last_export_dir: self.workspace.exp().last_dir.clone(),
+            save_denoise: self.workspace.exp().save_denoise,
+            save_denoise_strength: self.workspace.exp().save_denoise_strength,
+            denoise_strength: self.workspace.exp().denoise_strength,
+            baked_denoise_strength: self.workspace.exp().baked_denoise_strength,
+            baked_save_denoise_strength: self.workspace.exp().baked_save_denoise_strength,
+            zoned_fit: self.workspace.fit().zoned_fit,
+            zoned_four_regions: self.workspace.fit().zoned_four_regions,
+            fit_ai_judge: self.workspace.fit().fit_ai_judge,
+            // R23-6 D: the deep reverse-fit toggle persists like every
+            // other paid opt-in. `fit_ref` deliberately does NOT — it
+            // names one file for one photo (see the field).
+            fit_deep: self.workspace.fit().fit_deep,
+            reimagine_retry: self.workspace.fit().reimagine_retry,
+            ask_fit_after_generate: self.workspace.fit().ask_fit_after_generate,
+            adjust_quality: self.workspace.genai().adjust_quality,
+            view_mode: self.workspace.view().mode,
+            exp_long_edge: self.workspace.exp().long_edge,
+            exp_sharpen: self.workspace.exp().sharpen,
+            exp_quality: self.workspace.exp().quality,
+            exp_space: self.workspace.exp().space,
+            preview_edge: self.workspace.genai().preview_edge,
+            show_clipping: self.workspace.chrome().show_clipping,
+            lang: self.lang,
+            theme: self.workspace.ui().theme,
+            accent: self.workspace.ui().accent,
+        }
     }
 }
