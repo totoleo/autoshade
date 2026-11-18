@@ -400,15 +400,15 @@ pub(crate) use autoshade::recipe::HSL_BANDS;
 
 // Representative swatch per HSL band (row markers in the mixer — approximate
 // band-centre hues, display-only; the engine's band maths lives in render.rs).
-pub(crate) const HSL_SWATCH: [egui::Color32; 8] = [
-    egui::Color32::from_rgb(224, 72, 60),  // Red
-    egui::Color32::from_rgb(224, 141, 60), // Orange
-    egui::Color32::from_rgb(224, 211, 60), // Yellow
-    egui::Color32::from_rgb(76, 191, 90),  // Green
-    egui::Color32::from_rgb(60, 200, 200), // Aqua
-    egui::Color32::from_rgb(76, 120, 224), // Blue
-    egui::Color32::from_rgb(142, 90, 217), // Purple
-    egui::Color32::from_rgb(208, 82, 184), // Magenta
+pub(crate) const HSL_SWATCH: [Color32; 8] = [
+    Color32::from_rgb(224, 72, 60),  // Red
+    Color32::from_rgb(224, 141, 60), // Orange
+    Color32::from_rgb(224, 211, 60), // Yellow
+    Color32::from_rgb(76, 191, 90),  // Green
+    Color32::from_rgb(60, 200, 200), // Aqua
+    Color32::from_rgb(76, 120, 224), // Blue
+    Color32::from_rgb(142, 90, 217), // Purple
+    Color32::from_rgb(208, 82, 184), // Magenta
 ];
 
 
@@ -610,7 +610,7 @@ pub(crate) struct ChromeState {
     pub(crate) last_title: String,
     pub(crate) show_clipping: bool,
     pub(crate) last_rgb: Option<image::RgbImage>,
-    pub(crate) clip_tex: Option<egui::TextureHandle>,
+    pub(crate) clip_tex: Option<TextureHandle>,
 }
 
 impl ChromeState {
@@ -856,21 +856,21 @@ impl Default for AiState {
 #[cfg(test)]
 #[derive(Default)]
 pub(crate) struct TestSeams {
-    pub(crate) curve_rect: Option<egui::Rect>,
-    pub(crate) strip_row_rect: Option<egui::Rect>,
-    pub(crate) strip_card_rect: Option<egui::Rect>,
-    pub(crate) strip_title_rect: Option<egui::Rect>,
-    pub(crate) strip_apply: Option<(egui::Rect, bool)>,
-    pub(crate) strip_name_rect: Option<egui::Rect>,
+    pub(crate) curve_rect: Option<Rect>,
+    pub(crate) strip_row_rect: Option<Rect>,
+    pub(crate) strip_card_rect: Option<Rect>,
+    pub(crate) strip_title_rect: Option<Rect>,
+    pub(crate) strip_apply: Option<(Rect, bool)>,
+    pub(crate) strip_name_rect: Option<Rect>,
     pub(crate) edit_list_rows: Vec<String>,
     pub(crate) edit_list_actions: Vec<String>,
-    pub(crate) reimagine_btn_rect: Option<egui::Rect>,
-    pub(crate) fit_from_rect: Option<egui::Rect>,
+    pub(crate) reimagine_btn_rect: Option<Rect>,
+    pub(crate) fit_from_rect: Option<Rect>,
     pub(crate) adjust_btn_enabled: Option<bool>,
-    pub(crate) brush_slider_rect: Option<egui::Rect>,
-    pub(crate) analysis_box_rect: Option<egui::Rect>,
-    pub(crate) histogram_rect: Option<egui::Rect>,
-    pub(crate) prompt_rects: Vec<egui::Rect>,
+    pub(crate) brush_slider_rect: Option<Rect>,
+    pub(crate) analysis_box_rect: Option<Rect>,
+    pub(crate) histogram_rect: Option<Rect>,
+    pub(crate) prompt_rects: Vec<Rect>,
     pub(crate) ai_gate_enabled: Option<bool>,
     pub(crate) adjust_edit_btn_enabled: Option<bool>,
     pub(crate) adherence_gate_enabled: Option<bool>,
@@ -888,7 +888,7 @@ pub(crate) struct CropState {
     pub(crate) aspect: usize,
     pub(crate) aspect_pending: bool,
     pub(crate) grid: u8,
-    pub(crate) drag: Option<(u8, egui::Pos2, [f32; 4], f32)>,
+    pub(crate) drag: Option<(u8, Pos2, [f32; 4], f32)>,
 }
 
 impl Default for CropState {
@@ -909,10 +909,10 @@ impl Default for CropState {
 /// add fields to the app struct.
 pub(crate) struct ViewState {
     pub(crate) zoom: f32,
-    pub(crate) pan: egui::Vec2,
+    pub(crate) pan: Vec2,
     pub(crate) one_to_one: f32,
     pub(crate) zoom_target: f32,
-    pub(crate) controls_rect: Option<egui::Rect>,
+    pub(crate) controls_rect: Option<Rect>,
     pub(crate) before: bool,
     pub(crate) mode: ViewMode,
 }
@@ -921,7 +921,7 @@ impl Default for ViewState {
     fn default() -> Self {
         Self {
             zoom: 1.0,
-            pan: egui::vec2(0.5, 0.5),
+            pan: vec2(0.5, 0.5),
             one_to_one: 1.0,
             zoom_target: 1.0,
             controls_rect: None,
@@ -989,17 +989,17 @@ impl Default for MaskEditState {
 /// `AutoShadeApp` so canvas-overlay work does not add fields to the app struct.
 pub(crate) struct OverlayState {
     pub(crate) region: Option<[f32; 4]>,
-    pub(crate) region_drag: Option<(egui::Pos2, egui::Pos2)>,
+    pub(crate) region_drag: Option<(Pos2, Pos2)>,
     pub(crate) region_restore: Option<([f32; 4], Instant)>,
     #[cfg(test)]
     pub(crate) mask_presence_scans: std::cell::Cell<usize>,
-    pub(crate) mask_tex: Option<egui::TextureHandle>,
+    pub(crate) mask_tex: Option<TextureHandle>,
     pub(crate) mask_dirty: bool,
     pub(crate) mask_tex_xform: (f32, f32, (bool, bool), (f32, f32)),
     pub(crate) mask_dirty_rect: Option<[u32; 4]>,
     pub(crate) mask_tex_built: Instant,
     pub(crate) show_mask_overlay: bool,
-    pub(crate) mask_overlay_tex: Option<egui::TextureHandle>,
+    pub(crate) mask_overlay_tex: Option<TextureHandle>,
     pub(crate) overlay_stale: bool,
     pub(crate) overlay_key: Option<OverlayKey>,
     pub(crate) hover_mask: Option<usize>,
@@ -1095,7 +1095,7 @@ pub(crate) struct GalleryState {
     pub(crate) gallery_dir: Option<PathBuf>, // the working folder
     pub(crate) gallery_gen: u64, // bumped on every folder load (thumb invalidation)
     pub(crate) gallery_scroll_to: Option<usize>,
-    pub(crate) thumbs: HashMap<usize, egui::TextureHandle>, // decoded thumbnails by index
+    pub(crate) thumbs: HashMap<usize, TextureHandle>, // decoded thumbnails by index
     pub(crate) thumb_requested: HashSet<usize>, // indices already queued/decoded
     pub(crate) thumb_fail: std::collections::HashMap<usize, u8>,
     pub(crate) thumb_inflight: usize, // live thumbnail-decode threads
@@ -1103,9 +1103,9 @@ pub(crate) struct GalleryState {
     pub(crate) selected: Option<usize>, // index of the open gallery photo (for highlight)
     pub(crate) multi_sel: HashSet<usize>, // Ctrl+click gallery multi-selection
     #[cfg(test)]
-    pub(crate) gallery_slot_rect: Option<egui::Rect>, // test seam: first drawn gallery thumb's SLOT
+    pub(crate) gallery_slot_rect: Option<Rect>, // test seam: first drawn gallery thumb's SLOT
     #[cfg(test)]
-    pub(crate) gallery_thumb_rect: Option<egui::Rect>, // test seam: … and the image drawn inside it
+    pub(crate) gallery_thumb_rect: Option<Rect>, // test seam: … and the image drawn inside it
 }
 
 /// The question a whole-frame「AI generate」landing asks (v1.17.0): reverse-fit
@@ -1198,10 +1198,10 @@ pub(crate) struct PreviewDone {
     /// The texture-ready conversion of `rgb`, built worker-side — the UI
     /// thread's only job is `tex.set` (the RGB→RGBA expansion of a 4-11 MP
     /// frame at 2560/4096 was a 5-15 ms stall per accepted frame).
-    pub(crate) after: egui::ColorImage,
+    pub(crate) after: ColorImage,
     pub(crate) histogram: Vec<[f32; 4]>,
-    pub(crate) clipping: Option<egui::ColorImage>,
-    pub(crate) thumb: egui::ColorImage,
+    pub(crate) clipping: Option<ColorImage>,
+    pub(crate) thumb: ColorImage,
 }
 
 /// Coverage-cache identity. Local effect sliders (Exposure/Temp/Saturation/
@@ -1683,11 +1683,11 @@ pub(crate) enum PlaceTarget {
 /// panel chrome and take their colours from `ThemeColors::curve_labels`.
 // Tone-curve channel picker labels — skeleton keys, localized with `tr` at the
 // render site (curve_editor). Colours are the on-curve accent, not localized.
-pub(crate) const CURVE_CHANNELS: [(&str, egui::Color32); 4] = [
-    ("Master", egui::Color32::from_gray(225)),
-    ("Red", egui::Color32::from_rgb(235, 90, 90)),
-    ("Green", egui::Color32::from_rgb(90, 205, 90)),
-    ("Blue", egui::Color32::from_rgb(90, 130, 240)),
+pub(crate) const CURVE_CHANNELS: [(&str, Color32); 4] = [
+    ("Master", Color32::from_gray(225)),
+    ("Red", Color32::from_rgb(235, 90, 90)),
+    ("Green", Color32::from_rgb(90, 205, 90)),
+    ("Blue", Color32::from_rgb(90, 130, 240)),
 ];
 
 /// WHICH four curves the editor is pointed at. The recipe grew a second set in
@@ -1860,7 +1860,7 @@ pub(crate) struct Variant {
     pub(crate) origin: Option<PathBuf>,
     /// Small developed thumbnail for the strip (rebuilt for the active variant
     /// on every develop; built once for the others when created / left).
-    pub(crate) thumb: Option<egui::TextureHandle>,
+    pub(crate) thumb: Option<TextureHandle>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -2096,12 +2096,12 @@ pub(crate) const CROP_ASPECTS: [(&str, Option<f32>); 11] = [
 /// zoom/crop can never silently break any of them.
 #[derive(Clone, Copy)]
 pub(crate) struct ViewXform {
-    pub(crate) rect: egui::Rect, // where the (visible part of the) image is drawn
-    pub(crate) uv: egui::Rect,   // which full-frame region is visible (texture uv)
+    pub(crate) rect: Rect, // where the (visible part of the) image is drawn
+    pub(crate) uv: Rect,   // which full-frame region is visible (texture uv)
 }
 
 impl ViewXform {
-    pub(crate) fn to_norm(self, p: egui::Pos2) -> (f32, f32) {
+    pub(crate) fn to_norm(self, p: Pos2) -> (f32, f32) {
         // .max(1e-6), the same floor to_screen uses (L13-11): max(1.0)
         // REPLACED a sub-point rect dimension with a full point, compressing
         // the inverse map's whole axis — an extreme-panorama edge (>600:1)
@@ -2111,8 +2111,8 @@ impl ViewXform {
         (self.uv.min.x + fx * self.uv.width(), self.uv.min.y + fy * self.uv.height())
     }
 
-    pub(crate) fn to_screen(self, nx: f32, ny: f32) -> egui::Pos2 {
-        egui::pos2(
+    pub(crate) fn to_screen(self, nx: f32, ny: f32) -> Pos2 {
+        pos2(
             self.rect.min.x
                 + (nx - self.uv.min.x) / self.uv.width().max(1e-6) * self.rect.width(),
             self.rect.min.y

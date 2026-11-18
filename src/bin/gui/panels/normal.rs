@@ -136,7 +136,7 @@ impl Commands<'_> {
 
     /// The sidebar: the four groups, behind the same mid-open gate as the
     /// shared panels (L15-2 — these controls write the open photo's recipe).
-    pub(crate) fn normal_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn normal_panel(&mut self, ui: &mut Ui) {
         if self.workspace.normal().key_present.is_none() {
             self.workspace.normal_mut().key_present = Some(autoshade::config::Config::load().openai_api_key.is_some());
         }
@@ -150,7 +150,7 @@ impl Commands<'_> {
     }
 
     /// Group 1 — the one-click look: six fixed looks, or the reference folder.
-    fn normal_one_click(&mut self, ui: &mut egui::Ui) {
+    fn normal_one_click(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_ONE_CLICK_LOOK), false, |_| {});
@@ -230,7 +230,7 @@ impl Commands<'_> {
 
     /// Group 2 — fine-tune: four of the develop panel's fields under plain
     /// names, on top of the one-click result.
-    fn normal_fine_tune(&mut self, ui: &mut egui::Ui) {
+    fn normal_fine_tune(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_FINE_TUNE), false, |_| {});
@@ -273,7 +273,7 @@ impl Commands<'_> {
 
     /// Group 3 — noise: one switch, the Retouch panel's AI denoise
     /// (`set_normal_denoise`).
-    fn normal_noise(&mut self, ui: &mut egui::Ui) {
+    fn normal_noise(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_NOISE), false, |_| {});
@@ -285,7 +285,7 @@ impl Commands<'_> {
         let helper = denoise_helper_available();
         let mut on = self.editor.normal_denoise_on(&self.workspace);
         let toggled = ui
-            .add_enabled(helper && !self.workspace.busy(), egui::Checkbox::new(&mut on, tr(lang, K_NORMAL_AI_DENOISE)))
+            .add_enabled(helper && !self.workspace.busy(), Checkbox::new(&mut on, tr(lang, K_NORMAL_AI_DENOISE)))
             .on_hover_text(tr(lang, K_NORMAL_CLEANS_THE_GRAIN_OUT_OF_THE_PHOTO_AND_THE_PREVIE))
             .changed();
         if helper && self.workspace.normal().denoise_ready.is_none() {
@@ -306,7 +306,7 @@ impl Commands<'_> {
 
     /// Group 4 — save: a jpg of this photo, or the look on every photo of the
     /// folder.
-    fn normal_save(&mut self, ui: &mut egui::Ui) {
+    fn normal_save(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_SAVE), false, |_| {});

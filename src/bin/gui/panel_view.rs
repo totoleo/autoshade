@@ -43,7 +43,7 @@ impl PanelView<'_, '_> {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn variant_card_buttons(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         i: usize,
         active: bool,
         busy: bool,
@@ -146,9 +146,9 @@ impl PanelView<'_, '_> {
     /// full-frame render.
     pub(crate) fn recipe_preview_tex(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &Context,
         name: &str,
-    ) -> Option<(egui::TextureId, egui::Vec2)> {
+    ) -> Option<(TextureId, Vec2)> {
         let src = self.editor.photo().src_path.clone()?;
         let base = self.editor.photo().base_preview.clone()?;
         let entry = autoshade::recipe_library::read(name).ok()?;
@@ -173,11 +173,11 @@ impl PanelView<'_, '_> {
         let img = autoshade::render::develop_preview(plate.shared().as_ref(), &r);
         let rgba = img.to_rgba8();
         let size = [rgba.width() as usize, rgba.height() as usize];
-        let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+        let color = ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
         let texture = ctx.load_texture(
             format!("recipe-preview:{key}"),
             color,
-            egui::TextureOptions::LINEAR,
+            TextureOptions::LINEAR,
         );
         let shown = (texture.id(), texture.size_vec2());
         self.workspace.rlib_mut().recipe_preview = Some(RecipePreview { key, texture });
@@ -185,7 +185,7 @@ impl PanelView<'_, '_> {
     }
     /// The READ side: whether an analysis searches the library, and whether
     /// the references also go to the model as pictures.
-    pub(crate) fn ai_library_use(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn ai_library_use(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let built = matches!(self.workspace.ai().style_info, Some(autoshade::library::Summary::Built { .. }));
         ui.checkbox(&mut self.aip.style_embed, tr(lang, K_AI_SEARCH_THE_LIBRARY_WHEN_ANALYSING))
@@ -211,7 +211,7 @@ impl PanelView<'_, '_> {
         });
     }
     /// Which library, how big, how old, and where — or why there is none.
-    pub(crate) fn ai_library_status(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn ai_library_status(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let line = match &self.workspace.ai().style_info {
             Some(autoshade::library::Summary::Built { photos, phrased, with_settings, dir, age }) => {
@@ -342,7 +342,7 @@ impl PanelView<'_, '_> {
 
     /// The three create tools, the brush-session controls and the AI
     /// segmentation verbs: the panel's "start a mask" half, above the list.
-    pub(crate) fn dev_mask_create_row(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn dev_mask_create_row(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         // R38: three equal cells — three free-width toggles in a
         // non-wrapping row overran the default panel width in English.
@@ -412,7 +412,7 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_masks(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_masks(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -575,7 +575,7 @@ impl PanelView<'_, '_> {
                     ui.painter().hline(
                         row_resp.rect.x_range(),
                         y,
-                        egui::Stroke::new(2.0, ui.visuals().selection.bg_fill),
+                        Stroke::new(2.0, ui.visuals().selection.bg_fill),
                     );
                     let insert = if below { i + 1 } else { i };
                     if row_resp.dnd_release_payload::<usize>().is_some() {
@@ -635,7 +635,7 @@ impl PanelView<'_, '_> {
         });
         changed
     }
-    pub(crate) fn brush_size_slider(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn brush_size_slider(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         // The band the slider occupies, read off the layout cursor before and
         // after — a wrapper (scope/horizontal) would be one more thing that
@@ -686,9 +686,9 @@ impl PanelView<'_, '_> {
             // x from the Ui's USED region (cursor().max.x can be infinite in an
             // unbounded layout), y from the cursor the slider just advanced.
             let used = ui.min_rect();
-            self.seams.brush_slider_rect = Some(egui::Rect::from_min_max(
-                egui::pos2(used.left(), before.top()),
-                egui::pos2(used.right(), ui.cursor().top()),
+            self.seams.brush_slider_rect = Some(Rect::from_min_max(
+                pos2(used.left(), before.top()),
+                pos2(used.right(), ui.cursor().top()),
             ));
         }
     }
@@ -696,7 +696,7 @@ impl PanelView<'_, '_> {
     /// the raster tools, the composed shapes and the range editor — every edit
     /// up to and including Amount, i.e. the edits that can move the coverage
     /// wash. The caller invalidates the overlay when this returns true.
-    pub(crate) fn dev_mask_geometry_and_range(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_geometry_and_range(&mut self, ui: &mut Ui, i: usize) -> bool {
         let mut changed = self.dev_mask_verbs_and_geometry(ui, i);
         changed |= self.dev_mask_shapes(ui, i);
         changed |= self.dev_mask_range_and_amount(ui, i);
@@ -706,7 +706,7 @@ impl PanelView<'_, '_> {
     /// The selected mask's detail block, or the explainer when there are no
     /// masks, or the "select a mask" hint when the list is non-empty and
     /// nothing is selected. All three arms used to live inline in the section.
-    pub(crate) fn dev_mask_selected_or_hint(&mut self, ui: &mut egui::Ui, n_masks: usize) -> bool {
+    pub(crate) fn dev_mask_selected_or_hint(&mut self, ui: &mut Ui, n_masks: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // Selected mask: its full slider set.
@@ -739,7 +739,7 @@ impl PanelView<'_, '_> {
     }
     /// Lightroom's Add / Subtract / Intersect grammar: add or drop one shape on
     /// this mask and pick which shape the on-image knobs edit.
-    pub(crate) fn dev_mask_shapes(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_shapes(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // --- Shapes（组件）: compose extra geometry onto this mask —
@@ -888,7 +888,7 @@ impl PanelView<'_, '_> {
 
     /// The range editor (luminance or colour) and the Amount every range is
     /// judged at — the last coverage-moving control before the adjustments.
-    pub(crate) fn dev_mask_range_and_amount(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_range_and_amount(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // --- Range Mask（LR 范围蒙版）: refines WHERE the geometry applies —
@@ -982,7 +982,7 @@ impl PanelView<'_, '_> {
                         }
                         // The verb fills the rest of the row after the
                         // swatch (2026-09-27), as the gallery's ✕ row does.
-                        let cell = egui::vec2(
+                        let cell = vec2(
                             (full.x - swatch.rect.width() - ui.spacing().item_spacing.x).max(0.0),
                             full.y,
                         );
@@ -1011,7 +1011,7 @@ impl PanelView<'_, '_> {
 
     /// The name/verb row, the radial knobs and the raster tools: the edits that
     /// belong to the mask itself rather than to its composition.
-    pub(crate) fn dev_mask_verbs_and_geometry(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_verbs_and_geometry(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         ui.gap(SPACE_MD);
@@ -1055,8 +1055,8 @@ impl PanelView<'_, '_> {
                     let label = ui.fonts_mut(|f| {
                         f.layout_no_wrap(
                             tr(lang, K_DEVELOP_REDRAW).to_owned(),
-                            egui::TextStyle::Button.resolve(ui.style()),
-                            egui::Color32::WHITE,
+                            TextStyle::Button.resolve(ui.style()),
+                            Color32::WHITE,
                         )
                         .size()
                         .x
@@ -1069,11 +1069,11 @@ impl PanelView<'_, '_> {
             };
             // The frame's own margin (egui's 4 px each side) lies
             // outside `desired_width`, so it comes off the budget too.
-            let name_margin = egui::Margin::symmetric(4, 2);
+            let name_margin = Margin::symmetric(4, 2);
             let name_resp = {
                 let buf = &mut self.workspace.masks_mut().mask_name_buf.as_mut().expect("seeded above").2;
                 ui.add(
-                    egui::TextEdit::singleline(buf)
+                    TextEdit::singleline(buf)
                         .margin(name_margin)
                         .desired_width(
                             (ui.avail_width() - reserve - name_margin.sum().x).max(110.0),
@@ -1322,7 +1322,7 @@ impl PanelView<'_, '_> {
 
     /// The AI segmentation pair and the empty-list line. `n_masks` is the count
     /// the caller already read for the section title.
-    pub(crate) fn dev_mask_ai_verbs(&mut self, ui: &mut egui::Ui, n_masks: usize) {
+    pub(crate) fn dev_mask_ai_verbs(&mut self, ui: &mut Ui, n_masks: usize) {
         let lang = self.lang;
         // --- AI segmentation → bitmap masks (gap batch A②) ---------------
         ui.row(|ui| {
@@ -1383,7 +1383,7 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_export(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_export(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
     
         // --- 导出设置 (UX batch): moved out of the toolbar — touched once per
@@ -1521,7 +1521,7 @@ impl PanelView<'_, '_> {
     /// One capability table: the renderer draws each control through its own
     /// implementation and reports a data change (id + value); the registry
     /// applies it. The panel does not know a control by name.
-    pub(crate) fn dev_tone_wb(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_tone_wb(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -1628,7 +1628,7 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_crop(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_crop(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -1710,7 +1710,7 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_detail(&mut self, ui: &mut egui::Ui, detail_active: bool) -> bool {
+    pub(crate) fn dev_detail(&mut self, ui: &mut Ui, detail_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -1809,7 +1809,7 @@ impl PanelView<'_, '_> {
     /// one or the other (`render::apply_gray_mix` in the colour mixer's place,
     /// as in Lightroom) and showing both would be eight sliders that move no
     /// pixel; the point colours follow the mixer ([`Self::point_color_rows`]).
-    pub(crate) fn dev_hsl(&mut self, ui: &mut egui::Ui, hsl_active: bool) -> bool {
+    pub(crate) fn dev_hsl(&mut self, ui: &mut Ui, hsl_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
         ui.gap(SPACE_MD);
@@ -1872,7 +1872,7 @@ impl PanelView<'_, '_> {
                     ui.row(|ui| {
                         // Band swatch so rows scan like LR's mixer.
                         let (rect, _) = ui
-                            .allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                            .allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                         ui.painter().rect_filled(rect, 2.0, HSL_SWATCH[b]);
                         changed |= slider(ui, lang, tr(lang, name), v, -100.0, 100.0, 0.0);
                     });
@@ -1894,7 +1894,7 @@ impl PanelView<'_, '_> {
     /// which REBUILDS the swatch's three windows: the engine matches pixels
     /// against the stored windows and never reads `range_amount`, so a Range
     /// that only wrote its own number would be a slider that moves no pixel.
-    pub(crate) fn point_color_rows(&mut self, ui: &mut egui::Ui) -> bool {
+    pub(crate) fn point_color_rows(&mut self, ui: &mut Ui) -> bool {
         use autoshade::recipe::MAX_POINT_COLORS;
         let lang = self.lang;
         let mut changed = false;
@@ -1945,11 +1945,11 @@ impl PanelView<'_, '_> {
                     let rgb = autoshade::render::point_color_rgb(p)
                         .map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
                     let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                        ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().rect_filled(
                         rect,
                         2.0,
-                        egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
+                        Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
                     );
                     ui.label(trf(lang, K_DEVELOP_SWATCH, &[("n", &(i + 1).to_string())]));
                     // 🗑, the vocabulary's DELETE-a-list-row glyph (masks,
@@ -1986,7 +1986,7 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_grading(&mut self, ui: &mut egui::Ui, grade_active: bool) -> bool {
+    pub(crate) fn dev_grading(&mut self, ui: &mut Ui, grade_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2000,7 +2000,7 @@ impl PanelView<'_, '_> {
                     let gap = ui.spacing().item_spacing.x;
                     let w = ((ui.avail_width().min(FIELD_W_MAX) - row_h(ui) - 2.0 * gap) / 2.0).floor();
                     for (i, name) in GRADE_VIEWS.iter().enumerate() {
-                        if toggle_in(ui, egui::vec2(w, row_h(ui)), self.workspace.ai().grade_region == i, tr(lang, name)).clicked() {
+                        if toggle_in(ui, vec2(w, row_h(ui)), self.workspace.ai().grade_region == i, tr(lang, name)).clicked() {
                             self.workspace.ai_mut().grade_region = i;
                         }
                     }
@@ -2013,7 +2013,7 @@ impl PanelView<'_, '_> {
                 ui.gap(SPACE_SM);
                 let cg = &mut self.editor.doc_mut().recipe.color_grade;
                 // One wheel with its luminance slider in a column `width` wide.
-                let wheel = |ui: &mut egui::Ui, title: &str, width: f32, h: &mut f32, s: &mut f32, l: &mut f32| {
+                let wheel = |ui: &mut Ui, title: &str, width: f32, h: &mut f32, s: &mut f32, l: &mut f32| {
                     let mut c = false;
                     ui.column(|ui| {
                         ui.set_width(width);
@@ -2063,7 +2063,7 @@ impl PanelView<'_, '_> {
     /// It returns nothing because it changes no recipe field — the merge
     /// writes a master and pushes a card, which is not an edit of the develop
     /// the panel is holding.
-    pub(crate) fn dev_stack(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_stack(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         // The section's ● says this photo HAS a stacked card, which is the
         // only state this fold owns that outlives the click.
@@ -2107,7 +2107,7 @@ impl PanelView<'_, '_> {
     }
 
     /// The Lens Blur section of the Develop panel.
-    pub(crate) fn dev_lens_blur(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_lens_blur(&mut self, ui: &mut Ui, _active: bool) -> bool {
         // A verb section: its body returns the actions the worker start
         // needs, and the row's draw applies them (the facade does this for
         // every surface).
@@ -2119,7 +2119,7 @@ impl PanelView<'_, '_> {
         touched
     }
 
-    pub(crate) fn lens_blur_section(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_section(&mut self, ui: &mut Ui) -> Vec<logic::Action> {
         let lang = self.lang;
         let active = logic::lens_blur::active(&self.editor.doc().recipe);
         let mut actions = Vec::new();
@@ -2129,7 +2129,7 @@ impl PanelView<'_, '_> {
         actions
     }
 
-    pub(crate) fn lens_blur_body(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_body(&mut self, ui: &mut Ui) -> Vec<logic::Action> {
         let lang = self.lang;
         let mut actions = Vec::new();
         let has_helper = depth_helper_available();
@@ -2157,7 +2157,7 @@ impl PanelView<'_, '_> {
             if glyph_toggle(ui, enabled, "👁").on_hover_text(mute).clicked() {
                 actions.push(logic::Action::Lens(logic::lens_blur::LensAction::ToggleLensBlur(!enabled)));
             }
-            let cell = egui::vec2(ui.avail_width() - row_h(ui) - ui.spacing().item_spacing.x, row_h(ui));
+            let cell = vec2(ui.avail_width() - row_h(ui) - ui.spacing().item_spacing.x, row_h(ui));
             let how = tr(lang, K_LENS_CLICK_THE_PHOTO_WHATEVER_IS_AT_THAT_DISTANCE_STA);
             if toggle_in(ui, cell, picking, tr(lang, K_LENS_PICK_FOCUS)).on_hover_text(how).clicked() {
                 actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetFocusPicking(!picking)));
@@ -2184,7 +2184,7 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_presence(&mut self, ui: &mut egui::Ui, presence_active: bool) -> bool {
+    pub(crate) fn dev_presence(&mut self, ui: &mut Ui, presence_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2213,7 +2213,7 @@ impl PanelView<'_, '_> {
     /// works on the colours these seven leave behind. Lightroom writes all
     /// seven keys on nearly every sidecar, so a photo arriving from Lightroom
     /// usually lands here with values already in it.
-    pub(crate) fn dev_calibration(&mut self, ui: &mut egui::Ui, calibration_active: bool) -> bool {
+    pub(crate) fn dev_calibration(&mut self, ui: &mut Ui, calibration_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
         ui.gap(SPACE_MD);
@@ -2244,7 +2244,7 @@ impl PanelView<'_, '_> {
     /// Style, Grain size and roughness) show the value the engine actually
     /// renders — Lightroom's own default while the recipe holds none — and a
     /// reset returns them to absent (`companion_slider_edit` + the command).
-    pub(crate) fn dev_effects(&mut self, ui: &mut egui::Ui, effects_active: bool) -> bool {
+    pub(crate) fn dev_effects(&mut self, ui: &mut Ui, effects_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2273,7 +2273,7 @@ impl PanelView<'_, '_> {
     /// are stored either way, and Lightroom's own sidecars keep them across a
     /// mode change), but nothing they do reaches a pixel while the mode is
     /// off. Greying them out instead would hide values the file really holds.
-    pub(crate) fn dev_hdr(&mut self, ui: &mut egui::Ui, hdr_active: bool) -> bool {
+    pub(crate) fn dev_hdr(&mut self, ui: &mut Ui, hdr_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
         ui.gap(SPACE_MD);
@@ -2320,7 +2320,7 @@ impl PanelView<'_, '_> {
     /// (The Calibration panel used to share this heading. It renders since
     /// v1.5.0 — `dev_calibration` above — and was never in this map: R25
     /// listed seven `CameraCalibration*` keys Lightroom does not write.)
-    pub(crate) fn dev_transform(&mut self, ui: &mut egui::Ui, transform_active: bool) -> bool {
+    pub(crate) fn dev_transform(&mut self, ui: &mut Ui, transform_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
         ui.gap(SPACE_MD);
@@ -2397,7 +2397,7 @@ impl PanelView<'_, '_> {
                 let look = self.editor.doc().recipe.look.clone();
                 if !self.editor.doc().recipe.camera_profile.is_empty() || look.is_some() {
                     ui.gap(SPACE_MD);
-                    let pair = |ui: &mut egui::Ui, label: String, value: &str| {
+                    let pair = |ui: &mut Ui, label: String, value: &str| {
                         ui.row(|ui| {
                             ui.label(Text::new(label).small());
                             ui.label(Text::new(value).small().strong());
@@ -2439,7 +2439,7 @@ impl PanelView<'_, '_> {
                 // In PASSTHROUGH_CRS order (Adobe's own grouping), which is
                 // also the order the writer emits — one order everywhere, so
                 // the panel and the sidecar read the same way.
-                let rows = |ui: &mut egui::Ui, caption: Option<&str>, keys: &[&str]| {
+                let rows = |ui: &mut Ui, caption: Option<&str>, keys: &[&str]| {
                     let present: Vec<(&str, &str)> = keys
                         .iter()
                         .filter_map(|k| {
@@ -2480,7 +2480,7 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_lens(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_lens(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2514,7 +2514,7 @@ impl PanelView<'_, '_> {
                     let mut pch = false;
                     ui.row(|ui| {
                         if ui
-                            .add_enabled(has_v, egui::Checkbox::new(&mut lp.vignette_on, tr(lang, K_DEVELOP_VIGNETTING)))
+                            .add_enabled(has_v, Checkbox::new(&mut lp.vignette_on, tr(lang, K_DEVELOP_VIGNETTING)))
                             .on_hover_text(tr(lang, K_DEVELOP_THE_CAMERA_S_OWN_FALLOFF_MAP_FOR_THIS_SHOT_APPLI))
                             .changed()
                         {
@@ -2524,7 +2524,7 @@ impl PanelView<'_, '_> {
                             pch = true;
                         }
                         if ui
-                            .add_enabled(has_d, egui::Checkbox::new(&mut lp.distortion_on, tr(lang, K_DEVELOP_DISTORTION)))
+                            .add_enabled(has_d, Checkbox::new(&mut lp.distortion_on, tr(lang, K_DEVELOP_DISTORTION)))
                             .on_hover_text(tr(lang, K_DEVELOP_THE_CAMERA_S_OWN_GEOMETRIC_CORRECTION_MASKS_AND))
                             .changed()
                         {
@@ -2534,7 +2534,7 @@ impl PanelView<'_, '_> {
                             pch = true;
                         }
                         if ui
-                            .add_enabled(has_c, egui::Checkbox::new(&mut lp.ca_on, tr(lang, K_DEVELOP_CHROMATIC_ABERRATION)))
+                            .add_enabled(has_c, Checkbox::new(&mut lp.ca_on, tr(lang, K_DEVELOP_CHROMATIC_ABERRATION)))
                             .on_hover_text(tr(lang, K_DEVELOP_PER_CHANNEL_RADIUS_CORRECTION_REMOVES_RED_BLUE_C))
                             .changed()
                         {
@@ -2624,7 +2624,7 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_curves(&mut self, ui: &mut egui::Ui, curves_active: bool) -> bool {
+    pub(crate) fn dev_curves(&mut self, ui: &mut Ui, curves_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2640,7 +2640,7 @@ impl PanelView<'_, '_> {
     /// What one Analyze run wrote — the verdict, the rationale sentence and
     /// the deep-thinking working — drawn by both the Analysis fold's bounded
     /// box and the full-text window, so the two can never disagree.
-    pub(crate) fn analysis_output(&self, ui: &mut egui::Ui) {
+    pub(crate) fn analysis_output(&self, ui: &mut Ui) {
         let lang = self.lang;
         if let Some((d, reasons)) = &self.editor.analysis().verdict {
             // Accept reads calm; anything else (Revise/Reject)
@@ -2708,7 +2708,7 @@ impl PanelView<'_, '_> {
     }
     /// The colour-field row (the mask's own "one luminance colour" row; not a
     /// mask, which is why it is not a list entry).
-    pub(crate) fn dev_mask_colour_field(&mut self, ui: &mut egui::Ui) -> bool {
+    pub(crate) fn dev_mask_colour_field(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // R33 §G. The colour field, in the Masks section because that is
@@ -2779,7 +2779,7 @@ impl PanelView<'_, '_> {
     /// The selected mask's adjustment half: the four captioned groups and the
     /// mask's own curve editor. Tone edits are not coverage, so they are
     /// deliberately outside the overlay invalidation above.
-    pub(crate) fn dev_mask_adjustments(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_adjustments(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         let m = &mut self.editor.doc_mut().recipe.masks[i];
@@ -2790,7 +2790,7 @@ impl PanelView<'_, '_> {
         // grouping replaces — the same reason the global panel is
         // sectioned. `Tone` is our own caption for LR's "Light" group:
         // the key "Light" already means the light THEME.
-        let group = |ui: &mut egui::Ui, title: &str| sub_caption(ui, title);
+        let group = |ui: &mut Ui, title: &str| sub_caption(ui, title);
         group(ui, tr(lang, K_DEVELOP_TONE));
         changed |= slider(ui, lang, tr(lang, K_DEVELOP_EXPOSURE), &mut m.exposure_ev, -5.0, 5.0, 0.0);
         changed |= slider(ui, lang, tr(lang, K_DEVELOP_CONTRAST), &mut m.contrast, -100.0, 100.0, 0.0);
@@ -2933,7 +2933,7 @@ impl PanelView<'_, '_> {
     /// surface for sliders).
     pub(crate) fn capability_rows(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         table: &[&dyn crate::controls::ControlWidget],
     ) -> bool {
         crate::panels::develop_forms::render_and_apply(ui, self.lang, &mut self.editor.doc_mut().recipe, table)
@@ -2947,7 +2947,7 @@ impl PanelView<'_, '_> {
     /// Toggle the clipping overlay (the J overlay and the histogram's corner
     /// triangles share it). At rest it drops the layer; once on it rebuilds
     /// from the retained RGB frame, so the toggle is instant — no redevelop.
-    pub(crate) fn toggle_clipping(&mut self, ctx: &egui::Context) {
+    pub(crate) fn toggle_clipping(&mut self, ctx: &Context) {
         self.workspace.chrome_mut().show_clipping = !self.workspace.chrome().show_clipping;
         if !self.workspace.chrome().show_clipping {
             self.workspace.chrome_mut().clip_tex = None; // OFF is just dropping the layer
@@ -2957,10 +2957,10 @@ impl PanelView<'_, '_> {
             Some(rgb) => {
                 let clip = clipping_overlay_for(rgb, self.editor.doc().recipe.crop);
                 if let Some(tex) = &mut self.workspace.chrome_mut().clip_tex {
-                    tex.set(clip, egui::TextureOptions::NEAREST);
+                    tex.set(clip, TextureOptions::NEAREST);
                 } else {
                     self.workspace.chrome_mut().clip_tex =
-                        Some(ctx.load_texture("clip", clip, egui::TextureOptions::NEAREST));
+                        Some(ctx.load_texture("clip", clip, TextureOptions::NEAREST));
                 }
             }
             None => self.editor.session_mut().dirty = true, // nothing retained (fresh open) — worker builds it

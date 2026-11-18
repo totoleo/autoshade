@@ -16,7 +16,7 @@ impl Commands<'_> {
     /// mask, not WHERE it applies. Range masks include their PREFIX
     /// reference recipe (earlier masks applied — the engine's own stacking
     /// rule) because their coverage genuinely depends on pixels.
-    pub(crate) fn refresh_mask_overlay(&mut self, ctx: &egui::Context) {
+    pub(crate) fn refresh_mask_overlay(&mut self, ctx: &Context) {
         if !self.workspace.overlay().show_mask_overlay {
             self.workspace.overlay_mut().mask_overlay_tex = None;
             self.workspace.overlay_mut().overlay_key = None;
@@ -157,12 +157,12 @@ impl Commands<'_> {
             rgba[i * 4..i * 4 + 4]
                 .copy_from_slice(&[255, 40, 40, (p[0] as u16 * 140 / 255) as u8]);
         }
-        let colour = egui::ColorImage::from_rgba_unmultiplied([w, h], &rgba);
+        let colour = ColorImage::from_rgba_unmultiplied([w, h], &rgba);
         if let Some(tex) = &mut self.workspace.overlay_mut().mask_overlay_tex {
-            tex.set(colour, egui::TextureOptions::LINEAR);
+            tex.set(colour, TextureOptions::LINEAR);
         } else {
             self.workspace.overlay_mut().mask_overlay_tex =
-                Some(ctx.load_texture("mask_overlay", colour, egui::TextureOptions::LINEAR));
+                Some(ctx.load_texture("mask_overlay", colour, TextureOptions::LINEAR));
         }
         self.workspace.overlay_mut().overlay_key = Some(key);
         self.workspace.overlay_mut().overlay_build_count += 1;
@@ -171,7 +171,7 @@ impl Commands<'_> {
 
 
 
-    pub(crate) fn after_view(&mut self, ui: &mut egui::Ui, max_w: f32, avail_y: f32, comparing: bool) {
+    pub(crate) fn after_view(&mut self, ui: &mut Ui, max_w: f32, avail_y: f32, comparing: bool) {
         let lang = self.lang;
         let tex = if comparing { self.editor.plates().before_tex.as_ref() } else { self.editor.plates().after_tex.as_ref() };
         let Some((id, tex_size)) = tex.map(|t| (t.id(), t.size_vec2())) else {
@@ -186,7 +186,7 @@ impl Commands<'_> {
 
         let uv = self.editor.view_uv(&mut self.workspace);
         // Display size fits the VISIBLE window's aspect (in image pixels).
-        let vis_px = egui::vec2(uv.width() * tex_size.x, uv.height() * tex_size.y);
+        let vis_px = vec2(uv.width() * tex_size.x, uv.height() * tex_size.y);
         // Past fit the 4× upscale cap is DROPPED (L13-2): the cap tamed tiny
         // images at fit, but the visible window shrinks as zoom grows, so at
         // deep zoom the cap re-fit the canvas SMALLER — zooming in shrank
@@ -264,7 +264,7 @@ impl Commands<'_> {
             } else {
                 ui.label(Text::new(hint).weak().small());
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if action(ui, true, "1:1").on_hover_text(tr(lang, K_CANVAS_PREVIEW_PIXELS_1_1_DOUBLE_CLICK_THE_IMAGE_TO_TOG)).clicked() {
                     // Same ceiling as the render path (view_uv clamps at 12) —
                     // an unclamped value desynced zoom/pan math from the view.
@@ -278,7 +278,7 @@ impl Commands<'_> {
                 // (the i18n module contract; the audit now flags bypasses).
                 if action(ui, true, tr(lang, K_CANVAS_FIT)).on_hover_text(tr(lang, K_CANVAS_FIT_THE_WHOLE_IMAGE_TO_THE_CANVAS_DOUBLE_CLICK_T)).clicked() {
                     self.workspace.view_mut().zoom_target = 1.0; // glides; the pan clamp eases the rest
-                    self.workspace.view_mut().pan = egui::vec2(0.5, 0.5);
+                    self.workspace.view_mut().pan = vec2(0.5, 0.5);
                 }
                 if glyph_toggle(ui, self.workspace.chrome().show_clipping, "▲")
                     .on_hover_text(tr(lang, K_CANVAS_CLIPPING_WARNING_J_RED_HIGHLIGHT_CLIP_BLUE_SHADO))
@@ -341,16 +341,16 @@ impl Commands<'_> {
             });
         });
 
-        let (rect, resp) = ui.allocate_exact_size(disp, egui::Sense::click_and_drag());
+        let (rect, resp) = ui.allocate_exact_size(disp, Sense::click_and_drag());
         self.editor.paint_canvas_image(ui, rect, uv, id, comparing);
         // Diagnostic layers, uv-synced with the image (hidden while comparing):
         // clipping warnings, then the selected mask's coverage on top.
         if !comparing {
             if let Some(t) = &self.workspace.chrome().clip_tex {
-                ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
+                ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }
             if let Some(t) = &self.workspace.overlay().mask_overlay_tex {
-                ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
+                ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }
         }
         let xf = ViewXform { rect, uv };
@@ -367,7 +367,7 @@ impl Commands<'_> {
                     ((p.y - rect.min.y) / rect.height().max(1.0)).clamp(0.0, 1.0),
                 );
                 // Cursor's point in crop-window coords, kept stationary across the zoom.
-                let q = egui::vec2(
+                let q = vec2(
                     self.workspace.view().pan.x - half + fx * 2.0 * half,
                     self.workspace.view().pan.y - half + fy * 2.0 * half,
                 );
@@ -377,7 +377,7 @@ impl Commands<'_> {
                 self.workspace.view_mut().zoom = (self.workspace.view().zoom * (scroll * 0.003).exp()).clamp(1.0, 12.0);
                 self.workspace.view_mut().zoom_target = self.workspace.view().zoom;
                 let nh = 0.5 / self.workspace.view().zoom;
-                self.workspace.view_mut().pan = q - egui::vec2((fx - 0.5) * 2.0 * nh, (fy - 0.5) * 2.0 * nh);
+                self.workspace.view_mut().pan = q - vec2((fx - 0.5) * 2.0 * nh, (fy - 0.5) * 2.0 * nh);
             }
         }
         let tool_active = self.workspace.tool_armed();
@@ -388,7 +388,7 @@ impl Commands<'_> {
         if resp.double_clicked() && !tool_active {
             if self.workspace.view().zoom_target > 1.01 {
                 self.workspace.view_mut().zoom_target = 1.0;
-                self.workspace.view_mut().pan = egui::vec2(0.5, 0.5);
+                self.workspace.view_mut().pan = vec2(0.5, 0.5);
             } else {
                 // Same physical-pixel 1:1 target as the button above — the
                 // zoom-invariant form computed at the top of this fn (the
@@ -415,7 +415,7 @@ impl Commands<'_> {
         // priority over the implicit pan.
         // Focus-gated like B-compare: Space in a text field is a space.
         let space = ui.ctx().memory(|m| m.focused()).is_none()
-            && ui.input(|i| i.key_down(egui::Key::Space));
+            && ui.input(|i| i.key_down(view::Key::Space));
         let ctrl = ui.input(|i| i.modifiers.command);
         let over_knob = self.workspace.masks().mask_drag.is_some()
             || self.editor.sel_target_geometry(&self.workspace).is_some_and(|g| {
@@ -428,7 +428,7 @@ impl Commands<'_> {
                 // ones actually shown: the selected COMPONENT's when one is
                 // selected (sel_target_geometry), matching handle_mask_edit.
                 let handles = mask_handle_points(&geom_to_view(g, dims, deg, &dist), xf);
-                let hits = |p: egui::Pos2| handles.iter().any(|(_, hp)| hp.distance(p) <= HANDLE_HIT);
+                let hits = |p: Pos2| handles.iter().any(|(_, hp)| hp.distance(p) <= HANDLE_HIT);
                 resp.hover_pos().is_some_and(hits)
                     || ui.input(|i| i.pointer.press_origin()).is_some_and(hits)
             });
@@ -437,12 +437,12 @@ impl Commands<'_> {
             && !ctrl
             && !over_knob
             && self.workspace.overlay().region_drag.is_none();
-        let panning = resp.dragged_by(egui::PointerButton::Middle)
-            || ((space || zoom_pan) && resp.dragged_by(egui::PointerButton::Primary));
+        let panning = resp.dragged_by(PointerButton::Middle)
+            || ((space || zoom_pan) && resp.dragged_by(PointerButton::Primary));
         if panning {
             let d = resp.drag_delta();
             let ext = 1.0 / self.workspace.view().zoom; // visible extent in crop-window coords
-            self.workspace.view_mut().pan -= egui::vec2(
+            self.workspace.view_mut().pan -= vec2(
                 d.x / rect.width().max(1.0) * ext,
                 d.y / rect.height().max(1.0) * ext,
             );
@@ -453,13 +453,13 @@ impl Commands<'_> {
         // crosshair in their handlers; this covers the hand for panning and the
         // drawing tools.
         if panning {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
         } else if (space || zoom_pan) && resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            ui.ctx().set_cursor_icon(CursorIcon::Grab);
         } else if resp.hovered()
             && (self.workspace.masks().paint_mode || self.workspace.masks().placing_mask.is_some() || self.workspace.crop().mode)
         {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+            ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
         }
 
         if comparing || panning {
@@ -486,7 +486,7 @@ impl Commands<'_> {
             self.handle_clone(ui, &resp, xf);
             self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
             if let Some(t) = &self.workspace.overlay().mask_tex {
-                ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
+                ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }
             // Alt is the source pick, with its own crosshair.
             if !ui.input(|i| i.modifiers.alt) {
@@ -496,7 +496,7 @@ impl Commands<'_> {
             self.handle_paint(&resp, xf);
             self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
             if let Some(t) = &self.workspace.overlay().mask_tex {
-                ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
+                ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }
             self.draw_brush_cursor(ui, &resp, rect);
         } else {
@@ -512,15 +512,15 @@ impl Commands<'_> {
         // hover owns the pointer, so hiding it there misrepresented what the
         // AI would see.
         {
-            let stroke = egui::Stroke::new(2.0, ACCENT);
+            let stroke = Stroke::new(2.0, ACCENT);
             let fill =
-                egui::Color32::from_rgba_unmultiplied(ACCENT.r(), ACCENT.g(), ACCENT.b(), 40);
-            let draw = |r: egui::Rect| {
+                Color32::from_rgba_unmultiplied(ACCENT.r(), ACCENT.g(), ACCENT.b(), 40);
+            let draw = |r: Rect| {
                 ui.painter().rect_filled(r, 0.0, fill);
-                ui.painter().rect_stroke(r, 0.0, stroke, egui::StrokeKind::Middle);
+                ui.painter().rect_stroke(r, 0.0, stroke, StrokeKind::Middle);
             };
             if let Some((s, e)) = self.workspace.overlay().region_drag {
-                draw(egui::Rect::from_two_pos(s, e).intersect(rect));
+                draw(Rect::from_two_pos(s, e).intersect(rect));
             } else if let Some([l, t, rr, bb]) = self.workspace.overlay().region {
                 // Stored in the original frame → back into the transformed view.
                 let ((bw, bh), deg, dist) = self.editor.geom_ctx();
@@ -531,7 +531,7 @@ impl Commands<'_> {
                 // from_min_max built a negative rect that was culled — the
                 // committed region turned invisible while still feeding AI.
                 draw(
-                    egui::Rect::from_two_pos(xf.to_screen(a.0, a.1), xf.to_screen(b2.0, b2.1))
+                    Rect::from_two_pos(xf.to_screen(a.0, a.1), xf.to_screen(b2.0, b2.1))
                         .intersect(rect),
                 );
             }
@@ -576,7 +576,7 @@ impl Commands<'_> {
                 let (cx, cy) = ((left + right) / 2.0, (top + bottom) / 2.0);
                 let (rx, ry) = ((right - left) / 2.0, (bottom - top) / 2.0);
                 let (s_a, c_a) = angle.to_radians().sin_cos();
-                let pts: Vec<egui::Pos2> = (0..48)
+                let pts: Vec<Pos2> = (0..48)
                     .map(|k| {
                         let th = k as f32 / 48.0 * std::f32::consts::TAU;
                         let (ex, ey) = (rx * th.cos(), ry * th.sin());
@@ -591,12 +591,12 @@ impl Commands<'_> {
                     })
                     .collect();
                 let p = ui.painter_at(xf.rect);
-                p.add(egui::Shape::closed_line(pts, egui::Stroke::new(2.0, ACCENT)));
+                p.add(Shape::closed_line(pts, Stroke::new(2.0, ACCENT)));
                 // Same effect-side marker semantics as draw_mask_overlay.
                 let (ccx, ccy) = orig_norm_to_view(cx, cy, dims, deg, &dist);
                 let cs = xf.to_screen(ccx, ccy);
                 if net_inverted {
-                    p.circle_stroke(cs, 3.0, egui::Stroke::new(2.0, ACCENT));
+                    p.circle_stroke(cs, 3.0, Stroke::new(2.0, ACCENT));
                 } else {
                     p.circle_filled(cs, 3.0, ACCENT);
                 }
@@ -606,8 +606,8 @@ impl Commands<'_> {
             let p = ui.painter_at(xf.rect);
             for (h, pos) in mask_handle_points(&vg, xf) {
                 let r = if h == 0 { 5.5 } else { 4.5 }; // centre knob reads bigger
-                p.circle_filled(pos, r, egui::Color32::WHITE);
-                p.circle_stroke(pos, r, egui::Stroke::new(1.5, ACCENT));
+                p.circle_filled(pos, r, Color32::WHITE);
+                p.circle_stroke(pos, r, Stroke::new(1.5, ACCENT));
             }
         }
     }
@@ -620,7 +620,7 @@ impl Commands<'_> {
     /// card's own pixel source: the source neutral, or a baked master): WB
     /// runs before develop, so the solve must see pre-develop pixels, not
     /// the current edit.
-    pub(crate) fn handle_wb_pick(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_wb_pick(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         let Some(orig) = self.editor.clicked_orig_norm(ui, resp, xf) else { return };
         let (nx, ny) = self.editor.orig_to_base_norm(orig);
         let px = {
@@ -639,7 +639,7 @@ impl Commands<'_> {
     /// engine will match. The reference is the coverage overlay's own,
     /// shared through `overlay_ref`: with the overlay on, a click is a 5×5
     /// read; a miss pays one preview-sized develop ≈ one slider tick.
-    pub(crate) fn handle_range_pick(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_range_pick(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         let Some((nx, ny)) = self.editor.clicked_orig_norm(ui, resp, xf) else { return };
         let Some(mi) = self.workspace.tools().range_picking.filter(|&i| i < self.editor.doc().recipe.masks.len()) else {
             self.workspace.tools_mut().range_picking = None; // stale index (mask deleted mid-pick)
@@ -698,7 +698,7 @@ impl Commands<'_> {
     /// and at the same price: one preview-sized develop per click. The frame
     /// and the film edge are that build's too (no geometry stage, the canvas's
     /// own film edge), and the click maps back to the original frame first.
-    pub(crate) fn handle_point_color_pick(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_point_color_pick(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         let Some((nx, ny)) = self.editor.clicked_orig_norm(ui, resp, xf) else { return };
         let px = {
             let Some(base) = self.editor.photo().base_preview.clone() else { return };
@@ -731,7 +731,7 @@ impl Commands<'_> {
     /// doesn't also react; a box-select drag already in flight keeps
     /// priority (else its live rectangle would freeze mid-air whenever the
     /// pointer crossed a knob).
-    pub(crate) fn handle_mask_edit(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) -> bool {
+    pub(crate) fn handle_mask_edit(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) -> bool {
         if self.workspace.overlay().region_drag.is_some() {
             return false;
         }
@@ -755,7 +755,7 @@ impl Commands<'_> {
         // Nearest handle wins, ties broken toward the edge/end knobs — the
         // centre-move knob is emitted first and used to shadow them whenever a
         // small mask put everything within HANDLE_HIT.
-        let pick = |p: egui::Pos2| {
+        let pick = |p: Pos2| {
             handles
                 .iter()
                 .filter(|(_, hp)| hp.distance(p) <= HANDLE_HIT)
@@ -765,7 +765,7 @@ impl Commands<'_> {
                 .map(|(h, _)| *h)
         };
         let hover_h = resp.hover_pos().and_then(pick);
-        let orig_at = |p: egui::Pos2| {
+        let orig_at = |p: Pos2| {
             let (nx, ny) = xf.to_norm(p);
             view_norm_to_orig(nx, ny, dims, deg, &dist)
         };
@@ -807,9 +807,9 @@ impl Commands<'_> {
             self.workspace.masks_mut().mask_drag = None; // commit_if_settled turns the drag into ONE undo step
         }
         if self.workspace.masks().mask_drag.is_some() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
         } else if hover_h.is_some() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            ui.ctx().set_cursor_icon(CursorIcon::Grab);
         }
         self.workspace.masks().mask_drag.is_some() || hover_h.is_some()
     }
@@ -819,7 +819,7 @@ impl Commands<'_> {
     /// there (mirrors the web region→mask prompt). A plain click — or a tiny
     /// drag — clears the selection. Coordinates are full-frame normalized (the
     /// AI mask space), mapped through the view transform.
-    pub(crate) fn handle_region_select(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_region_select(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         if resp.drag_started() {
             if let Some(p) = resp.interact_pointer_pos() {
                 // Anchor at the PRESS ORIGIN: egui reports drag_started only
@@ -841,15 +841,15 @@ impl Commands<'_> {
                 // diagonal corners alone describe a different — sometimes
                 // near-degenerate — box than the rectangle the user drew.
                 let ((bw, bh), deg, dist) = self.editor.geom_ctx();
-                let map = |p: egui::Pos2| {
+                let map = |p: Pos2| {
                     let (nx, ny) = xf.to_norm(p);
                     view_norm_to_orig(nx, ny, (bw, bh), deg, &dist)
                 };
                 let corners = [
                     map(s),
                     map(e),
-                    map(egui::pos2(s.x, e.y)),
-                    map(egui::pos2(e.x, s.y)),
+                    map(pos2(s.x, e.y)),
+                    map(pos2(e.x, s.y)),
                 ];
                 self.apply_actions(vec![logic::Action::Region(logic::region::RegionAction::Select(corners))]);
             }
@@ -876,10 +876,10 @@ impl Commands<'_> {
     /// and the XMP already apply, so the tool adds no new data path.
     pub(crate) fn handle_crop(
         &mut self,
-        ui: &egui::Ui,
-        resp: &egui::Response,
+        ui: &Ui,
+        resp: &Response,
         xf: ViewXform,
-        tex_size: egui::Vec2,
+        tex_size: Vec2,
     ) {
         // Pixel aspect ratio (w/h) requested by the preset; "原始" resolves here.
         // `tex_size` is the CURRENT after texture: right after a straighten
@@ -925,12 +925,12 @@ impl Commands<'_> {
         // Corners win over edges on a tiny box (checked first); inside = move;
         // anywhere else on the canvas = rotate-straighten, so the pick is
         // total — implicit pan is already suppressed while crop is armed.
-        let pick_handle = |c: &[f32; 4], p: egui::Pos2| {
+        let pick_handle = |c: &[f32; 4], p: Pos2| {
             (0u8..4)
                 .chain(5u8..9)
                 .find(|&k| handle_pos(c, k).distance(p) <= HIT)
                 .or_else(|| {
-                    let r = egui::Rect::from_min_max(
+                    let r = Rect::from_min_max(
                         xf.to_screen(c[0], c[1]),
                         xf.to_screen(c[2], c[3]),
                     );
@@ -984,8 +984,8 @@ impl Commands<'_> {
                 // are the logic layer's.
                 let a = xf.to_screen(orig[0], orig[1]);
                 let b = xf.to_screen(orig[2], orig[3]);
-                let centre = egui::pos2((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
-                let ang = |q: egui::Pos2| (q.y - centre.y).atan2(q.x - centre.x);
+                let centre = pos2((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
+                let ang = |q: Pos2| (q.y - centre.y).atan2(q.x - centre.x);
                 let raw_delta_deg = (ang(p) - ang(start)).to_degrees();
                 self.apply_actions(vec![logic::Action::Crop(logic::crop::CropAction::Rotate {
                     base_deg: deg0,
@@ -1020,12 +1020,12 @@ impl Commands<'_> {
             .or_else(|| resp.hover_pos().and_then(|p| pick_handle(&c, p)));
         if let Some(h) = hover_handle {
             ui.ctx().set_cursor_icon(match h {
-                0 | 3 => egui::CursorIcon::ResizeNwSe, // TL/BR diagonal
-                1 | 2 => egui::CursorIcon::ResizeNeSw, // TR/BL diagonal
-                5 | 6 => egui::CursorIcon::ResizeVertical, // top/bottom edge
-                7 | 8 => egui::CursorIcon::ResizeHorizontal, // left/right edge
-                4 => egui::CursorIcon::Move,           // inside: move the window
-                _ => egui::CursorIcon::Grab,           // outside: rotate-straighten
+                0 | 3 => CursorIcon::ResizeNwSe, // TL/BR diagonal
+                1 | 2 => CursorIcon::ResizeNeSw, // TR/BL diagonal
+                5 | 6 => CursorIcon::ResizeVertical, // top/bottom edge
+                7 | 8 => CursorIcon::ResizeHorizontal, // left/right edge
+                4 => CursorIcon::Move,           // inside: move the window
+                _ => CursorIcon::Grab,           // outside: rotate-straighten
             });
         }
 
@@ -1037,15 +1037,15 @@ impl Commands<'_> {
         // off-screen (CX5-8). The shading keeps the intersected rect — its
         // job is exactly the visible surround.
         let r_full =
-            egui::Rect::from_min_max(xf.to_screen(c[0], c[1]), xf.to_screen(c[2], c[3]));
+            Rect::from_min_max(xf.to_screen(c[0], c[1]), xf.to_screen(c[2], c[3]));
         let r = r_full.intersect(xf.rect);
-        let dark = egui::Color32::from_black_alpha(140);
+        let dark = Color32::from_black_alpha(140);
         let full = xf.rect;
         for shade in [
-            egui::Rect::from_min_max(full.min, egui::pos2(full.max.x, r.min.y)), // top
-            egui::Rect::from_min_max(egui::pos2(full.min.x, r.max.y), full.max), // bottom
-            egui::Rect::from_min_max(egui::pos2(full.min.x, r.min.y), egui::pos2(r.min.x, r.max.y)),
-            egui::Rect::from_min_max(egui::pos2(r.max.x, r.min.y), egui::pos2(full.max.x, r.max.y)),
+            Rect::from_min_max(full.min, pos2(full.max.x, r.min.y)), // top
+            Rect::from_min_max(pos2(full.min.x, r.max.y), full.max), // bottom
+            Rect::from_min_max(pos2(full.min.x, r.min.y), pos2(r.min.x, r.max.y)),
+            Rect::from_min_max(pos2(r.max.x, r.min.y), pos2(full.max.x, r.max.y)),
         ] {
             if shade.width() > 0.0 && shade.height() > 0.0 {
                 p.rect_filled(shade, 0.0, dark);
@@ -1057,39 +1057,39 @@ impl Commands<'_> {
             1 => &[0.381_966, 0.618_034], // 1−1/φ and 1/φ
             _ => &[],
         };
-        let grid = egui::Stroke::new(1.0, egui::Color32::from_white_alpha(70));
+        let grid = Stroke::new(1.0, Color32::from_white_alpha(70));
         for &t in guide {
             p.line_segment(
                 [
-                    egui::pos2(r_full.min.x + t * r_full.width(), r_full.min.y),
-                    egui::pos2(r_full.min.x + t * r_full.width(), r_full.max.y),
+                    pos2(r_full.min.x + t * r_full.width(), r_full.min.y),
+                    pos2(r_full.min.x + t * r_full.width(), r_full.max.y),
                 ],
                 grid,
             );
             p.line_segment(
                 [
-                    egui::pos2(r_full.min.x, r_full.min.y + t * r_full.height()),
-                    egui::pos2(r_full.max.x, r_full.min.y + t * r_full.height()),
+                    pos2(r_full.min.x, r_full.min.y + t * r_full.height()),
+                    pos2(r_full.max.x, r_full.min.y + t * r_full.height()),
                 ],
                 grid,
             );
         }
-        p.rect_stroke(r_full, 0.0, egui::Stroke::new(1.5, egui::Color32::WHITE), egui::StrokeKind::Middle);
+        p.rect_stroke(r_full, 0.0, Stroke::new(1.5, Color32::WHITE), StrokeKind::Middle);
         for k in 0..4u8 {
             p.rect_filled(
-                egui::Rect::from_center_size(handle_pos(&c, k), egui::vec2(9.0, 9.0)),
+                Rect::from_center_size(handle_pos(&c, k), vec2(9.0, 9.0)),
                 1.0,
-                egui::Color32::WHITE,
+                Color32::WHITE,
             );
         }
         // Edge midpoints as slim pills, so the affordance reads as "this edge"
         // rather than a fifth corner.
         for k in [5u8, 6, 7, 8] {
-            let sz = if k <= 6 { egui::vec2(15.0, 5.0) } else { egui::vec2(5.0, 15.0) };
+            let sz = if k <= 6 { vec2(15.0, 5.0) } else { vec2(5.0, 15.0) };
             p.rect_filled(
-                egui::Rect::from_center_size(handle_pos(&c, k), sz),
+                Rect::from_center_size(handle_pos(&c, k), sz),
                 1.0,
-                egui::Color32::WHITE,
+                Color32::WHITE,
             );
         }
     }
@@ -1099,7 +1099,7 @@ impl Commands<'_> {
     /// direction; Shift = axis lock) or the
     /// bounding box of a radial. Commits into `recipe.masks` — the SAME field
     /// the AI writes, so render + XMP need nothing new.
-    pub(crate) fn handle_place_mask(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_place_mask(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         let Some((kind, target)) = self.workspace.masks().placing_mask else { return };
         // Mask geometry lives in the ORIGINAL frame (the engine composites
         // masks before the geometric remap) — map pointer positions out of the view.

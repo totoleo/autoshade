@@ -11,13 +11,13 @@ use crate::*;
 /// One single-line text field: `hint` shows while the buffer is blank,
 /// `secret` masks the input (the API keys), `width` caps it when given.
 pub(crate) fn field(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     buffer: &mut String,
     hint: Option<&str>,
     secret: bool,
     width: Option<f32>,
-) -> egui::Response {
-    let mut edit = egui::TextEdit::singleline(buffer);
+) -> Response {
+    let mut edit = TextEdit::singleline(buffer);
     if let Some(hint) = hint {
         edit = edit.hint_text(hint);
     }
@@ -37,7 +37,7 @@ pub(crate) enum FieldWidth {
 }
 
 impl FieldWidth {
-    fn desired(&self, ui: &egui::Ui) -> f32 {
+    fn desired(&self, ui: &Ui) -> f32 {
         match *self {
             Self::Reserving(reserve) => FIELD_W_MAX.min(ui.avail_width() - reserve).max(80.0),
         }
@@ -64,7 +64,7 @@ impl<'a> TextRow<'a> {
 
 /// Draw `rows` in order, a label and its field each. Returns true when any
 /// field changed this frame.
-pub(crate) fn text_rows(ui: &mut egui::Ui, lang: Lang, rows: &mut [TextRow<'_>]) -> bool {
+pub(crate) fn text_rows(ui: &mut Ui, lang: Lang, rows: &mut [TextRow<'_>]) -> bool {
     let mut changed = false;
     for row in rows.iter_mut() {
         ui.row(|ui| {

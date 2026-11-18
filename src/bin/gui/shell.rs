@@ -10,7 +10,7 @@ use crate::*;
 impl Commands<'_> {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_dropped_and_title(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_dropped_and_title(&mut self, ctx: &Context) {
         let dropped: Vec<PathBuf> = if self.workspace.modal_up() {
             Vec::new()
         } else {
@@ -78,22 +78,22 @@ impl Commands<'_> {
             None => "AutoShade".to_string(),
         };
         if title != self.workspace.chrome().last_title {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            ctx.send_viewport_cmd(ViewportCommand::Title(title.clone()));
             self.workspace.chrome_mut().last_title = title;
         }
     }
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_top_bar(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_top_bar(&mut self, ctx: &Context) {
         // egui's side_top_panel frame keeps only 2px of vertical margin —
         // at that spacing the action row visually touches the strip edges.
         window_chrome::edge_resize(ctx);
         window_chrome::window_outline(ctx);
-        let frame = egui::Frame::side_top_panel(&ctx.style())
-            .inner_margin(egui::Margin::symmetric(8, SPACE_MD.round() as i8))
+        let frame = Frame::side_top_panel(&ctx.style())
+            .inner_margin(Margin::symmetric(8, SPACE_MD.round() as i8))
             .fill(self.workspace.ui().theme.colors().bar_fill);
-        egui::TopBottomPanel::top("top").frame(frame).show(ctx, |ui| {
+        TopBottomPanel::top("top").frame(frame).show(ctx, |ui| {
             let lang = self.lang;
             // ONE wrapped row of ACTIONS only (UX batch): settings that used
             // to live here moved to where they are used — export options into
@@ -310,9 +310,9 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_status_bar(&mut self, ctx: &egui::Context) {
-        let frame = egui::Frame::side_top_panel(&ctx.style()).fill(self.workspace.ui().theme.colors().bar_fill);
-        egui::TopBottomPanel::bottom("status").frame(frame).show(ctx, |ui| {
+    pub(crate) fn upd_status_bar(&mut self, ctx: &Context) {
+        let frame = Frame::side_top_panel(&ctx.style()).fill(self.workspace.ui().theme.colors().bar_fill);
+        TopBottomPanel::bottom("status").frame(frame).show(ctx, |ui| {
             ui.row(|ui| {
                 if self.workspace.busy() {
                     ui.spinner();
@@ -354,7 +354,7 @@ impl Commands<'_> {
                 // ~160px exactly while the user was waiting).
                 if let Some((done, total)) = self.workspace.exp().batch_progress {
                     ui.add(
-                        egui::ProgressBar::new(done as f32 / total.max(1) as f32)
+                        ProgressBar::new(done as f32 / total.max(1) as f32)
                             .desired_width(150.0)
                             .text(trf(self.lang, K_APP_BATCH,
                                 &[("done", &done.to_string()), ("total", &total.to_string())])),
@@ -362,7 +362,7 @@ impl Commands<'_> {
                 }
                 // Long messages (paths, batch reports) must clip, not blow the
                 // panel wide; the full text is one hover away.
-                ui.add(egui::Label::new(self.workspace.status()).truncate())
+                ui.add(Label::new(self.workspace.status()).truncate())
                     .on_hover_text(self.workspace.status());
             });
         });
@@ -381,11 +381,11 @@ impl Commands<'_> {
     /// that one reserves only while the bar shows, and a side panel sizes
     /// itself to its content, so the panel shrank a few pixels on every frame
     /// the bar faded in.
-    pub(crate) fn controls_column(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn controls_column(&mut self, ui: &mut Ui) {
         let gutter = controls_gutter(ui.style());
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Frame::NONE
-                .inner_margin(egui::Margin { right: gutter.round() as i8, ..Default::default() })
+        ScrollArea::vertical().show(ui, |ui| {
+            Frame::NONE
+                .inner_margin(Margin { right: gutter.round() as i8, ..Default::default() })
                 .show(ui, |ui| {
                     if self.editor.photo().src_path.is_some() {
                         // The one sidebar, top to bottom: the Portraits panel
@@ -439,12 +439,12 @@ impl Commands<'_> {
         });
     }
 
-    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Context) {
         // Variant strip — sits directly above the status bar (registered after
         // it so it stacks on top), only when a photo is open. The selector for
         // 原片 / AI 生成 / 反推 renditions.
         if self.editor.photo().src_path.is_some() {
-            egui::TopBottomPanel::bottom("variants")
+            TopBottomPanel::bottom("variants")
                 // At the old 96 the cards' slack all pooled below the labels
                 // — height and its derivation live on VARIANT_STRIP_H.
                 .exact_height(AutoShadeApp::VARIANT_STRIP_H)
@@ -457,7 +457,7 @@ impl Commands<'_> {
         // the develop controls. Tab collapses both for an edge-to-edge canvas
         // (LR's panel-hiding grammar); all state lives on, only layout skips.
         if !self.workspace.ui().panels_hidden {
-            egui::SidePanel::left("gallery").default_width(240.0).show(ctx, |ui| {
+            SidePanel::left("gallery").default_width(240.0).show(ctx, |ui| {
                 self.with_panel(|view| view.gallery_panel(ui));
             });
 
@@ -484,12 +484,12 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_central(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_central(&mut self, ctx: &Context) {
         // The canvas sits on a bed one step below the panel fill (recessed
         // stage / raised chrome) — keep the stock margins, swap the fill.
-        let bed = egui::Frame::central_panel(&ctx.style())
+        let bed = Frame::central_panel(&ctx.style())
             .fill(self.workspace.ui().theme.colors().canvas_bed);
-        egui::CentralPanel::default().frame(bed).show(ctx, |ui| {
+        CentralPanel::default().frame(bed).show(ctx, |ui| {
             // Empty state: a real landing surface instead of a blank canvas.
             if self.editor.photo().src_path.is_none() {
                 ui.vertical_centered(|ui| {
@@ -525,7 +525,7 @@ impl Commands<'_> {
             // Fit BOTH dimensions (max_width alone lets a portrait overflow the
             // panel). The displayed rect is what paint/box-select map against,
             // so sizing here never changes their coordinate math.
-            let avail = ui.available_size() - egui::vec2(0.0, 22.0); // room for the caption row
+            let avail = ui.available_size() - vec2(0.0, 22.0); // room for the caption row
             // Hold B to flash the source in place — the Lightroom compare
             // gesture (\ latches it until pressed again, D13). Focus-gated
             // like every other shortcut: typing a "b" into Direction must
@@ -547,11 +547,11 @@ impl Commands<'_> {
                             );
                             if let Some(t) = &self.editor.plates().before_tex {
                                 let size = t.size_vec2();
-                                let vis = egui::vec2(uv.width() * size.x, uv.height() * size.y);
+                                let vis = vec2(uv.width() * size.x, uv.height() * size.y);
                                 let disp = fit_in(vis, half, avail.y);
                                 let (rect, _) =
-                                    ui.allocate_exact_size(disp, egui::Sense::hover());
-                                ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
+                                    ui.allocate_exact_size(disp, Sense::hover());
+                                ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
                             }
                         });
                         ui.rule();
@@ -567,7 +567,7 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_sheets(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_sheets(&mut self, ctx: &Context) {
         self.analysis_full_window(ctx);
         self.recipe_library_window(ctx);
         // Settings window (provider / model / API keys). A local `open` avoids a
@@ -578,16 +578,16 @@ impl Commands<'_> {
             // provider sections outgrow a small display, and without a scroll
             // area the 保存 button ends up unreachable off-screen.
             let max_h = ctx.content_rect().height() * 0.85;
-            egui::Window::new(tr(self.lang, K_APP_SETTINGS))
+            Window::new(tr(self.lang, K_APP_SETTINGS))
                 // Fixed id: the TITLE now varies with the language, and egui
                 // keys window state (position, size) off the id.
-                .id(egui::Id::new("settings_window"))
+                .id(Id::new("settings_window"))
                 .collapsible(false)
                 .resizable(false)
                 .default_width(480.0)
                 .open(&mut open)
                 .show(ctx, |ui| {
-                    egui::ScrollArea::vertical()
+                    ScrollArea::vertical()
                         .max_height(max_h)
                         .show(ui, |ui| self.with_panel(|view| view.settings_ui(ui)));
                 });
@@ -603,10 +603,10 @@ impl Commands<'_> {
             let mut open = true;
             let lang = self.lang;
             let accent = self.workspace.ui().theme.colors().accent_text;
-            egui::Window::new(tr(lang, K_APP_SHORTCUTS))
+            Window::new(tr(lang, K_APP_SHORTCUTS))
                 // Fixed id, as for Settings: the title varies with the language
                 // and egui keys window state (position) off the id.
-                .id(egui::Id::new("shortcuts_window"))
+                .id(Id::new("shortcuts_window"))
                 .collapsible(false)
                 .resizable(false)
                 .open(&mut open)
@@ -653,8 +653,8 @@ impl Commands<'_> {
                     // entries off short displays (the window is non-resizable
                     // and had no height limit, unlike the Settings window).
                     let max_h = (ctx.content_rect().height() * 0.7).max(200.0);
-                    egui::ScrollArea::vertical().max_height(max_h).show(ui, |ui| {
-                        egui::Grid::new("shortcut_grid").num_columns(2).striped(true).show(
+                    ScrollArea::vertical().max_height(max_h).show(ui, |ui| {
+                        Grid::new("shortcut_grid").num_columns(2).striped(true).show(
                             ui,
                             |ui| {
                                 for (keys, what) in rows {

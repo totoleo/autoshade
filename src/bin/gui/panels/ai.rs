@@ -52,7 +52,7 @@ impl Commands<'_> {
     /// here would have re-opened exactly that hole. `busy` alone must NOT gate:
     /// a 600 s analyze keeps the panel live (each verb has its own `ready`
     /// gate) — only the open transition freezes it.
-    pub(crate) fn ai_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn ai_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         let editable = !self.workspace.open().open_in_flight;
         // The gate wraps BOTH areas, headers included — exactly how
@@ -102,13 +102,13 @@ impl Commands<'_> {
     /// drawn at fold size, the folds under it read as its siblings).
     fn ai_section(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         id: &str,
         title: &str,
         active: bool,
-        body: impl FnOnce(&mut Self, &mut egui::Ui),
+        body: impl FnOnce(&mut Self, &mut Ui),
     ) {
-        let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
+        let mut state = collapsing_header::CollapsingState::load_with_default_open(
             ui.ctx(),
             ui.make_persistent_id(id),
             true,
@@ -116,7 +116,7 @@ impl Commands<'_> {
         let header = panel_heading(ui, title, active, |ui| {
             state.show_toggle_button(ui, paint_chevron);
         })
-        .on_hover_cursor(egui::CursorIcon::PointingHand);
+        .on_hover_cursor(CursorIcon::PointingHand);
         if header.clicked() {
             state.toggle(ui);
         }
@@ -131,21 +131,21 @@ impl Commands<'_> {
     /// resizable, scrolling, its text selectable. Not a transient sheet — it
     /// is a reading pane, so the editor's keys stay live beside it. Closes
     /// itself once there is nothing to show (a new photo, a cleared result).
-    pub(crate) fn analysis_full_window(&mut self, ctx: &egui::Context) {
+    pub(crate) fn analysis_full_window(&mut self, ctx: &Context) {
         if !self.workspace.ui().show_analysis_full {
             return;
         }
         let mut open = self.editor.has_analysis_output();
-        egui::Window::new(tr(self.lang, K_AI_AI_ANALYSIS_FULL_TEXT))
+        Window::new(tr(self.lang, K_AI_AI_ANALYSIS_FULL_TEXT))
             // Fixed id: the title varies with the language, and egui keys
             // the window's position and size off the id.
-            .id(egui::Id::new("analysis_full_window"))
+            .id(Id::new("analysis_full_window"))
             .collapsible(false)
             .resizable(true)
-            .default_size(egui::vec2(520.0, 420.0))
+            .default_size(vec2(520.0, 420.0))
             .open(&mut open)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
+                ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| self.with_panel(|p| p.analysis_output(ui)));
             });
@@ -161,7 +161,7 @@ impl Commands<'_> {
     /// is collapsed.
     ///
     /// Default OPEN: it is the panel's first read.
-    fn ai_analysis(&mut self, ui: &mut egui::Ui) {
+    fn ai_analysis(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         section_fold(ui, "sec_ai_analysis", tr(lang, K_AI_ANALYSIS_PAID_API), true, true, |ui| {
             // The analysis output lives in ONE bounded box (2026-10-13, user:
@@ -170,9 +170,9 @@ impl Commands<'_> {
             // ANALYSIS_BOX_MAX_H, and once they overflow it a verb opens the
             // whole text in a window of its own (`analysis_full_window`).
             if self.editor.has_analysis_output() {
-                let out = egui::Frame::group(ui.style())
+                let out = Frame::group(ui.style())
                     .show(ui, |ui| {
-                        egui::ScrollArea::vertical()
+                        ScrollArea::vertical()
                             .id_salt("ai_analysis_box")
                             .max_height(ANALYSIS_BOX_MAX_H)
                             .auto_shrink([false, true])
@@ -232,7 +232,7 @@ impl Commands<'_> {
             // is free, is worse than one that says why it is greyed.
             let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight;
             let waiting = self.workspace.tools().analyze_inflight && !self.workspace.busy();
-            let why = |ui: egui::Response| {
+            let why = |ui: Response| {
                 if waiting {
                     ui.on_hover_text(tr(
                         lang,
@@ -256,7 +256,7 @@ impl Commands<'_> {
             // The two TASTE DIALS get their own lines, below the verbs (R23-3).
             //
             // They used to share the verbs' row, with a note claiming the wrap kept
-            // Style on-panel at narrow widths. It did not: `egui::Slider` lays its
+            // Style on-panel at narrow widths. It did not: `Slider` lays its
             // value box, track and LABEL out in a nested `ui.horizontal`, and a
             // nested row never wraps in a wrapping parent — it overflows and is
             // clipped. At the default 320 px side panel the row drew only Style's
@@ -269,7 +269,7 @@ impl Commands<'_> {
                     self.seams.guide_gate_enabled = Some((by_direction, ui.is_enabled()));
                 }
                 // #16: the ONE slider in the app that never went through the
-                // panel's own helper — a bare `egui::Slider` with `show_value(false)`
+                // panel's own helper — a bare `Slider` with `show_value(false)`
                 // and a hand-rolled "30%" label beside it, so it alone had no
                 // double-click / right-click reset and no hover ↑/↓ nudge, and its
                 // 0..1 storage was shown on a scale nothing else in the UI uses.
@@ -358,7 +358,7 @@ impl Commands<'_> {
     /// masks the local segmenter cuts (`pipeline::adjust_envelope`,
     /// `segment::resolve_ai_masks`). Lands like an analysis: into the sliders,
     /// undoable, and on a new ✎ card when the selected card is the pristine ✨.
-    fn ai_adjust_edit(&mut self, ui: &mut egui::Ui) {
+    fn ai_adjust_edit(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_adjust_edit", tr(lang, K_AI_ADJUST_THE_SELECTED_VARIANT_PAID_API), true, true, |ui| {
@@ -402,7 +402,7 @@ impl Commands<'_> {
     /// COLLAPSED by default because it is a setup-time surface: built once,
     /// then left alone. The status line is half the feature (R23-2: "I have no
     /// idea which library it is referencing"), so it heads the fold.
-    fn ai_libraries(&mut self, ui: &mut egui::Ui) {
+    fn ai_libraries(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         // Read the status ONCE per session (cached in `style_info`). OUTSIDE
         // the fold on purpose: the Style slider's own 「⚠ no library」 flag one
@@ -444,7 +444,7 @@ impl Commands<'_> {
 
     /// The folder picker, the build button, the phrase switch and progress —
     /// the BUILD side, live at every Style value; only a running build greys it.
-    fn ai_library_build(&mut self, ui: &mut egui::Ui) {
+    fn ai_library_build(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let building = self.workspace.ai().style_build_inflight;
         let mut pick = false;
@@ -547,7 +547,7 @@ impl Commands<'_> {
     /// the analysis sub-area at the top stays the panel's first read. R30 put
     /// the cost in the header text as well — a collapsed fold that says
     /// 「· paid API」 is the only warning a user gets before opening it.
-    fn ai_generate(&mut self, ui: &mut egui::Ui) {
+    fn ai_generate(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_reimagine", tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API), false, true, |ui| {
@@ -571,13 +571,13 @@ impl Commands<'_> {
                     // frame margin was left out of the reserve). The margin
                     // is therefore pinned HERE and handed to the widget, so
                     // the arithmetic and the widget can never disagree.
-                    const TE_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
+                    const TE_MARGIN: Margin = Margin::symmetric(4, 2);
                     let btn_label = tr(lang, K_AI_GENERATE_IMAGE);
                     let btn_w = ui
                         .painter()
                         .layout_no_wrap(
                             btn_label.to_owned(),
-                            egui::TextStyle::Button.resolve(ui.style()),
+                            TextStyle::Button.resolve(ui.style()),
                             ui.visuals().text_color(),
                         )
                         .size()
@@ -607,7 +607,7 @@ impl Commands<'_> {
                         .clamp(FIELD_W_MIN, FIELD_W_MAX);
                     let field_w = field_drawn - TE_MARGIN.sum().x;
                     let _field = ui.add(
-                        egui::TextEdit::singleline(&mut self.workspace.genai_mut().reimagine_prompt)
+                        TextEdit::singleline(&mut self.workspace.genai_mut().reimagine_prompt)
                             .margin(TE_MARGIN)
                             .desired_width(field_w)
                             .hint_text(tr(lang, K_AI_STYLE_TO_REPAINT_TOWARD_E_G_GOLDEN_HOUR_GLOW_MOO)),
@@ -617,7 +617,7 @@ impl Commands<'_> {
                         self.seams.prompt_rects.push(_field.rect);
                     }
                     ui.enabled(!self.workspace.busy(), |ui| {
-                        let resp = ui.add(primary_button(btn_label).wrap_mode(egui::TextWrapMode::Extend));
+                        let resp = ui.add(primary_button(btn_label).wrap_mode(TextWrapMode::Extend));
                         #[cfg(test)]
                         {
                             self.seams.reimagine_btn_rect = Some(resp.rect);
@@ -648,7 +648,7 @@ impl Commands<'_> {
     }
 
 
-    fn ai_adjust(&mut self, ui: &mut egui::Ui) {
+    fn ai_adjust(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_adjust", tr(lang, K_AI_ADJUST_GENERATED_IMAGE_PAID_API), false, true, |ui| {
@@ -693,7 +693,7 @@ impl Commands<'_> {
     }
 
 
-    fn ai_reverse_fit(&mut self, ui: &mut egui::Ui) {
+    fn ai_reverse_fit(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_reverse_fit", tr(lang, K_AI_MATCH_A_LOOK_REVERSE_FIT_LOCAL), true, true, |ui| {
@@ -743,7 +743,7 @@ impl Commands<'_> {
                     let label = ui.label(tr(lang, K_ACTIONS_FROM)).rect.width();
                     let menu = (row - label - ui.spacing().item_spacing.x).max(FIELD_W_MIN);
                     let _menu = ui.enabled(!busy, |ui| {
-                        egui::ComboBox::from_id_salt("fit_from")
+                        ComboBox::from_id_salt("fit_from")
                             .width(menu)
                             .truncate()
                             .selected_text(shown)
@@ -808,7 +808,7 @@ impl Commands<'_> {
                     // wrapped: a file name is one unbreakable word, and egui's
                     // inline layout in a wrapped row ran it past the panel
                     // edge; the full path is on hover.
-                    ui.allocate_ui_with_layout(cell, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.allocate_ui_with_layout(cell, Layout::right_to_left(Align::Center), |ui| {
                         // Bare glyph, not `tr` — the symbol IS the label in
                         // every language (the same rule the variant-strip and
                         // gallery ✕ buttons follow); only the tooltip is
@@ -821,7 +821,7 @@ impl Commands<'_> {
                         {
                             clear_ref = true;
                         }
-                        ui.add(egui::Label::new(Text::new(name).weak().small()).truncate())
+                        ui.add(Label::new(Text::new(name).weak().small()).truncate())
                             .on_hover_text(p.display().to_string());
                     });
                 }
@@ -917,7 +917,7 @@ impl Commands<'_> {
             // the button above does. Same rule as 「AI review」 — a persisted
             // preference, so no can_fit gate (and, as in Settings, no busy gate:
             // `start_fit` reads the flag when it runs).
-            let zoned_rows = |app: &mut Self, ui: &mut egui::Ui| {
+            let zoned_rows = |app: &mut Self, ui: &mut Ui| {
                 ui.checkbox(&mut app.workspace.fit_mut().zoned_fit, tr(lang, K_AI_FIT_LOCAL_AREAS_TOO)).on_hover_text(tr(
                     lang,
                     K_AI_AFTER_THE_GLOBAL_FIT_TRIES_EXTRA_LOCAL_MASKS_WHE,
@@ -988,7 +988,7 @@ pub(crate) fn fit_explainer(lang: Lang) -> &'static str {
 /// Drawn only when the caller's split actually took these notes OUT of
 /// the sentence; on the fallback path they are still in it, and drawing
 /// them too would print the working twice.
-pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshade::rationale::Note]) {
+pub(crate) fn thinking_notes(lang: Lang, ui: &mut Ui, working: &[&autoshade::rationale::Note]) {
     use autoshade::rationale::keys;
     let lang = lang;
     ui.gap(SPACE_SM);
@@ -1007,7 +1007,7 @@ pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshad
         let Some((_, body)) = n.args.first() else { continue };
         ui.row_wrapped(|ui| {
             ui.label(Text::new(lead).strong());
-            ui.add(egui::Label::new(body.as_str()).selectable(true));
+            ui.add(Label::new(body.as_str()).selectable(true));
         });
     }
 }

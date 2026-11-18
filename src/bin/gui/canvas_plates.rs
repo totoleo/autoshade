@@ -2,9 +2,10 @@
 //! which photo/version the After plate shows. Presentation state — the pixels
 //! live in `PhotoPixels`, the textures are what egui was handed this session.
 
+use crate::view::*;
+
 use std::path::PathBuf;
 
-use egui::TextureHandle;
 
 /// The canvas's uploaded textures and their identity.
 pub(crate) struct CanvasPlates {

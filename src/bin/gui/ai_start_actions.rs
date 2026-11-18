@@ -37,7 +37,7 @@ impl Commands<'_> {
     /// switched to its ✨ card. Not over a running job (the answer could not
     /// start), not once the user said not to ask, and not without the
     /// negative's preview [`Self::start_fit`] reads.
-    pub(crate) fn offer_fit_prompt(&mut self, ctx: &egui::Context, divergence: f32) {
+    pub(crate) fn offer_fit_prompt(&mut self, ctx: &Context, divergence: f32) {
         if self.workspace.busy()
             || !self.workspace.fit().ask_fit_after_generate
             || self.editor.photo().source_preview.is_none()
@@ -76,7 +76,7 @@ impl Commands<'_> {
     /// the panel button's; the strength and the switches stay the fold's
     /// controls (the AI review is paid, and its cost is named there), and the
     /// layer only states them.
-    pub(crate) fn fit_prompt_layer(&mut self, ctx: &egui::Context) {
+    pub(crate) fn fit_prompt_layer(&mut self, ctx: &Context) {
         let lang = self.lang;
         let Some(mut prompt) = self.workspace.fit_mut().fit_prompt.take() else {
             return;
@@ -114,20 +114,20 @@ impl Commands<'_> {
         });
         // And the pointer (D13): the strip and the sliders behind it must not
         // change the card the answer is about.
-        egui::Area::new(egui::Id::new("fit_prompt_scrim"))
-            .order(egui::Order::Middle)
-            .fixed_pos(egui::Pos2::ZERO)
+        Area::new(Id::new("fit_prompt_scrim"))
+            .order(Order::Middle)
+            .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
                 let r = ctx.content_rect();
-                ui.allocate_response(r.size(), egui::Sense::click_and_drag());
-                ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
+                ui.allocate_response(r.size(), Sense::click_and_drag());
+                ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(96));
             });
-        egui::Window::new(tr(lang, K_ACTIONS_REVERSE_FIT_THIS_AI_RESULT))
-            .id(egui::Id::new("fit_prompt"))
-            .order(egui::Order::Foreground)
+        Window::new(tr(lang, K_ACTIONS_REVERSE_FIT_THIS_AI_RESULT))
+            .id(Id::new("fit_prompt"))
+            .order(Order::Foreground)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.label(fit_explainer(lang));
@@ -194,7 +194,7 @@ impl Commands<'_> {
     /// lose; 「Save all & quit」 writes each pending develop exactly like
     /// Ctrl+S (explicit user save → no backup gate), 「Discard & quit」 makes
     /// the state clean so the close guard lets the next close through.
-    pub(crate) fn confirm_quit_layer(&mut self, ctx: &egui::Context) {
+    pub(crate) fn confirm_quit_layer(&mut self, ctx: &Context) {
         let lang = self.lang;
         // Everything quitting would lose: the stash + the open photo's canvas
         // (the live canvas outranks its own stale stash entry). Each entry
@@ -250,7 +250,7 @@ impl Commands<'_> {
         if pending.is_empty() && orphan_variants == 0 {
             // Saved (or discarded) since the guard fired — nothing to protect.
             self.workspace.ui_mut().confirm_quit = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd(ViewportCommand::Close);
             return;
         }
         let mut open = true;
@@ -275,20 +275,20 @@ impl Commands<'_> {
         // swallows every click behind the dialog — sliders were still live
         // during the save-or-discard decision — and dims the stakes into
         // view. Background workers are unaffected (see open_in_flight above).
-        egui::Area::new(egui::Id::new("confirm_quit_scrim"))
-            .order(egui::Order::Middle)
-            .fixed_pos(egui::Pos2::ZERO)
+        Area::new(Id::new("confirm_quit_scrim"))
+            .order(Order::Middle)
+            .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
                 let r = ctx.content_rect();
-                ui.allocate_response(r.size(), egui::Sense::click_and_drag());
-                ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
+                ui.allocate_response(r.size(), Sense::click_and_drag());
+                ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(96));
             });
-        egui::Window::new(tr(lang, K_ACTIONS_UNSAVED_EDITS))
-            .id(egui::Id::new("confirm_quit"))
-            .order(egui::Order::Foreground)
+        Window::new(tr(lang, K_ACTIONS_UNSAVED_EDITS))
+            .id(Id::new("confirm_quit"))
+            .order(Order::Foreground)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
                 if !pending.is_empty() {
@@ -300,7 +300,7 @@ impl Commands<'_> {
                 }
                 // Parent folder + stem: two DSC_0431 from two shoots must be
                 // distinguishable in the one dialog where the stakes are real.
-                egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
+                ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
                     for PendingSave { photo: p, .. } in &pending {
                         let folder = p
                             .parent()
@@ -609,7 +609,7 @@ impl Commands<'_> {
                         self.workspace.set_status(t.clone());
                         self.workspace.toast(ToastKind::Error, t);
                     } else {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ctx.send_viewport_cmd(ViewportCommand::Close);
                     }
                 }
                 Some(e) => {
@@ -629,7 +629,7 @@ impl Commands<'_> {
             // the user's decision can end the question.
             self.workspace.open_mut().discard_requested = true;
             self.workspace.ui_mut().confirm_quit = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd(ViewportCommand::Close);
         } else if cancel || !open {
             self.workspace.ui_mut().confirm_quit = false;
         }

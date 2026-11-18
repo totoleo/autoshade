@@ -4,7 +4,7 @@ use crate::*;
 
 
 impl PanelView<'_, '_> {
-    pub(crate) fn settings_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn settings_ui(&mut self, ui: &mut Ui) {
         let mut do_save = false;
         let mut fetch: Option<ModelRole> = None;
         // `lang` is a Copy snapshot so `tr`/`trf` never borrow `self` — the
@@ -150,7 +150,7 @@ impl PanelView<'_, '_> {
             let f = &mut self.workspace.ui_mut().settings;
             ui.row(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut f.out_dir)
+                    TextEdit::singleline(&mut f.out_dir)
                         .desired_width(FIELD_W_MAX.min(ui.avail_width() - 90.0).max(80.0))
                         .hint_text(autoshade::config::DEFAULT_DELIVERY_ROOT),
                 )
@@ -218,7 +218,7 @@ impl PanelView<'_, '_> {
             let f = &mut self.workspace.ui_mut().settings;
             ui.row(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut f.python_bin)
+                    TextEdit::singleline(&mut f.python_bin)
                         .desired_width(FIELD_W_MAX.min(ui.avail_width() - 90.0).max(80.0))
                         .hint_text(autoshade::config::default_python_bin()),
                 )

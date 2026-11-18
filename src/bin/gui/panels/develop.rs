@@ -17,7 +17,7 @@ impl Commands<'_> {
 
 
 
-    pub(crate) fn develop_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn develop_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         let mut changed = false;
         ui.gap(SPACE_LG);
@@ -79,7 +79,7 @@ impl Commands<'_> {
     /// 反推 — with a live developed thumbnail. Click a card to switch (lossless;
     /// each variant keeps its own base + recipe), × to drop one. This is the
     /// selector that makes an AI develop a first-class, non-reverting version.
-    pub(crate) fn variant_strip(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn variant_strip(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let accent = self.workspace.ui().theme.colors().accent_text; // Copy — safe in closures
         // ONE deferred action for the whole strip (R24-5): the five separate
@@ -125,18 +125,18 @@ impl Commands<'_> {
         let strip_left = ui.max_rect().left();
         let title_galley = ui.painter().layout_no_wrap(
             tr(lang, K_DEVELOP_VARIANTS__2).to_owned(),
-            egui::TextStyle::Body.resolve(ui.style()),
+            TextStyle::Body.resolve(ui.style()),
             ui.visuals().strong_text_color(),
         );
         let title_w = title_galley.size().x;
-        let title_pos = egui::pos2(
+        let title_pos = pos2(
             strip_left + SPACE_SM,
             row_top + (card_h - title_galley.size().y) / 2.0,
         );
         #[cfg(test)]
         {
             self.seams.strip_title_rect =
-                Some(egui::Rect::from_min_size(title_pos, title_galley.size()));
+                Some(Rect::from_min_size(title_pos, title_galley.size()));
         }
         ui.painter().galley(title_pos, title_galley, ui.visuals().strong_text_color());
         // The divider, at full card height — the stock separator filled the
@@ -144,14 +144,14 @@ impl Commands<'_> {
         let sep_x = strip_left + SPACE_SM + title_w + SPACE_SM + 3.0;
         ui.painter().vline(
             sep_x,
-            egui::Rangef::new(row_top, row_top + card_h),
+            Rangef::new(row_top, row_top + card_h),
             ui.visuals().widgets.noninteractive.bg_stroke,
         );
         ui.row(|ui| {
             // Horizontal footprint of the PAINTED title + divider: width
             // only, zero height (the invariant above).
             ui.gap(SPACE_SM + title_w + SPACE_SM + 6.0 + SPACE_SM);
-            egui::ScrollArea::horizontal().show(ui, |ui| {
+            ScrollArea::horizontal().show(ui, |ui| {
                 ui.row(|ui| {
                     for i in 0..self.editor.doc().variants.len() {
                         let active = i == self.editor.doc().active;
@@ -164,10 +164,10 @@ impl Commands<'_> {
                                 let h = STRIP_THUMB_H;
                                 let w = (s.x / s.y.max(1.0) * h).clamp(30.0, 104.0);
                                 let (rect, resp) =
-                                    ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::click());
-                                let uv = egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 0.0),
-                                    egui::pos2(1.0, 1.0),
+                                    ui.allocate_exact_size(vec2(w, h), Sense::click());
+                                let uv = Rect::from_min_max(
+                                    pos2(0.0, 0.0),
+                                    pos2(1.0, 1.0),
                                 );
                                 // Card chrome tokens (L15-1): the glow is
                                 // the chrome accent at low alpha and its
@@ -181,7 +181,7 @@ impl Commands<'_> {
                                     ui.painter().rect_filled(
                                         rect.expand(GLOW_EXPAND),
                                         CARD_RADIUS + GLOW_EXPAND,
-                                        egui::Color32::from_rgba_unmultiplied(
+                                        Color32::from_rgba_unmultiplied(
                                             ring.r(),
                                             ring.g(),
                                             ring.b(),
@@ -189,18 +189,18 @@ impl Commands<'_> {
                                         ),
                                     );
                                 }
-                                ui.painter().image(t.id(), rect, uv, egui::Color32::WHITE);
+                                ui.painter().image(t.id(), rect, uv, Color32::WHITE);
                                 if active {
                                     ui.painter().rect_stroke(
                                         rect,
                                         CARD_RADIUS,
-                                        egui::Stroke::new(2.0, ring),
-                                        egui::StrokeKind::Middle,
+                                        Stroke::new(2.0, ring),
+                                        StrokeKind::Middle,
                                     );
                                 }
                                 resp
                             } else {
-                                ui.add_sized([64.0, STRIP_THUMB_H], egui::Button::new("…"))
+                                ui.add_sized([64.0, STRIP_THUMB_H], Button::new("…"))
                             };
                             if resp
                                 .on_hover_text(tr(
@@ -270,7 +270,7 @@ impl Commands<'_> {
                                             // identity (and drop the caret)
                                             // the moment an async push
                                             // renumbered the strip.
-                                            egui::TextEdit::singleline(buf)
+                                            TextEdit::singleline(buf)
                                                 .id(ui.make_persistent_id((
                                                     "variant_name",
                                                     card_id.as_str(),
@@ -303,7 +303,7 @@ impl Commands<'_> {
                                             .weak(),
                                     };
                                     let resp = ui
-                                        .add(egui::Label::new(shown).sense(egui::Sense::click()))
+                                        .add(Label::new(shown).sense(Sense::click()))
                                         .on_hover_text(tr(lang, K_DEVELOP_NAME_THIS_VARIANT));
                                     #[cfg(test)]
                                     {
@@ -366,7 +366,7 @@ impl Commands<'_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_versions(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_versions(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
 
         // --- 版本: recipe snapshots ≈ LR virtual copies (gap batch G) --------
@@ -485,7 +485,7 @@ impl Commands<'_> {
                                 }
                             })
                             .response
-                            .interact(egui::Sense::click());
+                            .interact(Sense::click());
                         // The whole label row is the switch target — the same
                         // gesture the strip's thumbnail offers, on the row that
                         // names the card. A BACKGROUND row only: re-selecting
@@ -575,7 +575,7 @@ impl Commands<'_> {
                                     .expect("checked just above")
                                     .3;
                                 ui.add(
-                                    egui::TextEdit::singleline(buf)
+                                    TextEdit::singleline(buf)
                                         .id(field_id)
                                         .desired_width(110.0)
                                         .hint_text(tr(lang, K_DEVELOP_NAME)),
@@ -608,7 +608,7 @@ impl Commands<'_> {
                                 None => Text::new(shown).weak(),
                             };
                             if ui
-                                .add(egui::Label::new(text).sense(egui::Sense::click()))
+                                .add(Label::new(text).sense(Sense::click()))
                                 .on_hover_text(tr(lang, K_DEVELOP_NAME_THIS_SNAPSHOT))
                                 .clicked()
                             {

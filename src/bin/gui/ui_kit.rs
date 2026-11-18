@@ -9,14 +9,14 @@
 use crate::*;
 
 /// Text styled by role, not by framework widget: a thin builder over the
-/// subset of `egui::RichText` the GUI uses. A panel writes
+/// subset of `RichText` the GUI uses. A panel writes
 /// `Text::new(tr(...)).weak().small()`; the egui type stays in this module.
 #[derive(Clone)]
-pub(crate) struct Text(egui::RichText);
+pub(crate) struct Text(RichText);
 
 impl Text {
     pub(crate) fn new(text: impl Into<String>) -> Self {
-        Self(egui::RichText::new(text))
+        Self(RichText::new(text))
     }
 
     pub(crate) fn small(self) -> Self {
@@ -51,12 +51,12 @@ impl Text {
         Self(self.0.size(px))
     }
 
-    pub(crate) fn color(self, color: egui::Color32) -> Self {
+    pub(crate) fn color(self, color: Color32) -> Self {
         Self(self.0.color(color))
     }
 }
 
-impl From<Text> for egui::WidgetText {
+impl From<Text> for WidgetText {
     fn from(text: Text) -> Self {
         text.0.into()
     }
@@ -74,48 +74,48 @@ pub(crate) trait UiExt {
     fn menu(
         &mut self,
         id: impl std::hash::Hash,
-        selected: impl Into<egui::WidgetText>,
+        selected: impl Into<WidgetText>,
         width: Option<f32>,
-        body: impl FnOnce(&mut egui::Ui),
-    ) -> egui::Response;
+        body: impl FnOnce(&mut Ui),
+    ) -> Response;
 
-    fn row<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
-    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
-    fn column<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
+    fn row<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>;
+    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>;
+    fn column<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R>;
     fn gap(&mut self, px: f32);
     fn rule(&mut self);
     fn avail_width(&self) -> f32;
     fn enabled<R>(
         &mut self,
         enabled: bool,
-        add: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> egui::InnerResponse<R>;
+        add: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R>;
 }
 
-impl UiExt for egui::Ui {
+impl UiExt for Ui {
     fn menu(
         &mut self,
         id: impl std::hash::Hash,
-        selected: impl Into<egui::WidgetText>,
+        selected: impl Into<WidgetText>,
         width: Option<f32>,
-        body: impl FnOnce(&mut egui::Ui),
-    ) -> egui::Response {
-        let mut combo = egui::ComboBox::from_id_salt(id).selected_text(selected);
+        body: impl FnOnce(&mut Ui),
+    ) -> Response {
+        let mut combo = ComboBox::from_id_salt(id).selected_text(selected);
         if let Some(width) = width {
             combo = combo.width(width);
         }
         combo.show_ui(self, body).response
     }
 
-    fn row<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    fn row<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         self.horizontal(add)
     }
 
-    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         self.horizontal_wrapped(add)
     }
 
-    fn column<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    fn column<R>(&mut self, add: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         self.vertical(add)
     }
 
@@ -134,8 +134,8 @@ impl UiExt for egui::Ui {
     fn enabled<R>(
         &mut self,
         enabled: bool,
-        add: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> egui::InnerResponse<R> {
+        add: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R> {
         self.add_enabled_ui(enabled, add)
     }
 }

@@ -14,7 +14,7 @@ impl Commands<'_> {
     /// is full-frame at preview resolution; pointer→canvas goes through the
     /// view transform so painting stays accurate at any zoom, and the brush
     /// radius converts display px → canvas px by the current pixel scale.
-    pub(crate) fn handle_paint(&mut self, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_paint(&mut self, resp: &Response, xf: ViewXform) {
         let brush = self.workspace.masks().brush;
         let tip = self.workspace.brush_tip();
         let (dims, deg, dist) = self.editor.geom_ctx();
@@ -36,7 +36,7 @@ impl Commands<'_> {
         let (mw, mh) = (m.width() as f32, m.height() as f32);
         // The canvas lives in the ORIGINAL frame (fill/heal edit source
         // pixels), so pointer positions map out of the transformed view.
-        let to_mask = |p: egui::Pos2| {
+        let to_mask = |p: Pos2| {
             let (nx, ny) = xf.to_norm(p);
             let (ox, oy) = view_norm_to_orig(nx, ny, dims, deg, &dist);
             (ox * mw, oy * mh)
@@ -48,7 +48,7 @@ impl Commands<'_> {
         // dependent original-frame extent — the old constant horizontal-UV
         // conversion mismatched the painted footprint there. Neutral geometry
         // degenerates to exactly the old constant.
-        let brush_at = |p: egui::Pos2| {
+        let brush_at = |p: Pos2| {
             let a = to_mask(p);
             // Probe BOTH directions and keep the larger. `ViewXform::to_norm`
             // CLAMPS to the viewport, so a rightward-only probe mapped to the
@@ -58,7 +58,7 @@ impl Commands<'_> {
             // where the user was painting along that edge. The chain is
             // smooth, so the direction with room measures the same radius.
             let probe = |dx: f32| {
-                let b = to_mask(p + egui::vec2(dx, 0.0));
+                let b = to_mask(p + vec2(dx, 0.0));
                 ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt()
             };
             probe(brush).max(probe(-brush)).max(1.0)
@@ -87,7 +87,7 @@ impl Commands<'_> {
         // or middle drag is the caller's pan — and never with Space held, the
         // pan chord, whose press frame comes before the caller sees a drag.
         let down = resp.is_pointer_button_down_on()
-            && resp.ctx.input(|i| i.pointer.primary_down() && !i.key_down(egui::Key::Space));
+            && resp.ctx.input(|i| i.pointer.primary_down() && !i.key_down(view::Key::Space));
         if down {
             if let Some(p) = resp.interact_pointer_pos().or(resp.hover_pos()) {
                 let cur = to_mask(p);
@@ -136,10 +136,10 @@ impl Commands<'_> {
     /// the original frame like every pixel-path coordinate); plain drags paint
     /// the target into the Stamp's own area. The picked source stays marked
     /// with a crosshair ring so the offset is always visible.
-    pub(crate) fn handle_clone(&mut self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) {
+    pub(crate) fn handle_clone(&mut self, ui: &Ui, resp: &Response, xf: ViewXform) {
         let alt = ui.input(|i| i.modifiers.alt);
         if alt {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+            ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
             if resp.clicked()
                 && let Some(q) = resp.interact_pointer_pos()
             {
@@ -163,14 +163,14 @@ impl Commands<'_> {
             // ACCENT, per the two-tier colour rule: on-canvas tool overlays
             // never wear the PILL chrome gold — a source pin sampled on skin,
             // sand or a sunset sky simply vanished in gold.
-            p.circle_stroke(q, 9.0, egui::Stroke::new(2.0, ACCENT));
+            p.circle_stroke(q, 9.0, Stroke::new(2.0, ACCENT));
             p.line_segment(
-                [q - egui::vec2(13.0, 0.0), q + egui::vec2(13.0, 0.0)],
-                egui::Stroke::new(1.0, ACCENT),
+                [q - vec2(13.0, 0.0), q + vec2(13.0, 0.0)],
+                Stroke::new(1.0, ACCENT),
             );
             p.line_segment(
-                [q - egui::vec2(0.0, 13.0), q + egui::vec2(0.0, 13.0)],
-                egui::Stroke::new(1.0, ACCENT),
+                [q - vec2(0.0, 13.0), q + vec2(0.0, 13.0)],
+                Stroke::new(1.0, ACCENT),
             );
         }
     }
@@ -283,34 +283,34 @@ impl Commands<'_> {
     /// changes ([ / ] or the slider) the ring also shows with the size beside
     /// it, at the canvas centre when the pointer is off the canvas. Erasing
     /// marks the centre with a minus.
-    pub(crate) fn draw_brush_cursor(&self, ui: &egui::Ui, resp: &egui::Response, rect: egui::Rect) {
+    pub(crate) fn draw_brush_cursor(&self, ui: &Ui, resp: &Response, rect: Rect) {
         let now = ui.input(|i| i.time);
         let resized = self.workspace.masks().brush_resized_at.is_some_and(|t| now - t < BRUSH_SIZE_FLASH_S);
         let Some(c) = resp.hover_pos().or_else(|| resized.then(|| rect.center())) else { return };
         if resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::None);
+            ui.ctx().set_cursor_icon(CursorIcon::None);
         }
         let p = ui.painter_at(rect);
         let r = self.workspace.masks().brush;
-        p.circle_stroke(c, r, egui::Stroke::new(3.0, egui::Color32::from_black_alpha(150)));
-        p.circle_stroke(c, r, egui::Stroke::new(1.25, egui::Color32::from_white_alpha(235)));
+        p.circle_stroke(c, r, Stroke::new(3.0, Color32::from_black_alpha(150)));
+        p.circle_stroke(c, r, Stroke::new(1.25, Color32::from_white_alpha(235)));
         // Lightroom's second ring: where the feather starts to fade.
         let inner = r * (1.0 - self.workspace.masks().brush_feather);
         if self.workspace.masks().brush_feather > 0.005 && inner > 2.0 {
-            p.circle_stroke(c, inner, egui::Stroke::new(1.0, egui::Color32::from_white_alpha(140)));
+            p.circle_stroke(c, inner, Stroke::new(1.0, Color32::from_white_alpha(140)));
         }
         if self.workspace.masks().mask_brush.is_some_and(|(_, erase)| erase) {
             let s = (r * 0.35).clamp(3.0, 8.0);
-            p.line_segment([c - egui::vec2(s, 0.0), c + egui::vec2(s, 0.0)], egui::Stroke::new(1.5, egui::Color32::WHITE));
+            p.line_segment([c - vec2(s, 0.0), c + vec2(s, 0.0)], Stroke::new(1.5, Color32::WHITE));
         } else {
-            p.circle_filled(c, 1.5, egui::Color32::WHITE);
+            p.circle_filled(c, 1.5, Color32::WHITE);
         }
         if resized {
             let label = format!("{} {:.0}", tr(self.lang, K_RETOUCH_BRUSH_SIZE), r);
-            let at = c + egui::vec2(0.0, r + 8.0);
-            let font = egui::TextStyle::Small.resolve(ui.style());
-            p.text(at + egui::vec2(1.0, 1.0), egui::Align2::CENTER_TOP, &label, font.clone(), egui::Color32::from_black_alpha(200));
-            p.text(at, egui::Align2::CENTER_TOP, &label, font, egui::Color32::WHITE);
+            let at = c + vec2(0.0, r + 8.0);
+            let font = TextStyle::Small.resolve(ui.style());
+            p.text(at + vec2(1.0, 1.0), Align2::CENTER_TOP, &label, font.clone(), Color32::from_black_alpha(200));
+            p.text(at, Align2::CENTER_TOP, &label, font, Color32::WHITE);
             // Keep frames coming until the flash has run out.
             ui.ctx().request_repaint();
         }
@@ -325,7 +325,7 @@ impl Commands<'_> {
     /// toggle and the clear verb share a two-cell row; the radius slider
     /// follows while this tool's brush is armed. The Clone Stamp arms through
     /// its own 「⎘ Enter stamp」 toggle and lays its row itself.
-    pub(crate) fn brush_row(&mut self, ui: &mut egui::Ui, owner: BrushOwner) {
+    pub(crate) fn brush_row(&mut self, ui: &mut Ui, owner: BrushOwner) {
         let lang = self.lang;
         let armed = self.workspace.brush_armed(owner);
         ui.row(|ui| {
@@ -357,7 +357,7 @@ impl Commands<'_> {
     /// card — and its opacity under it. Every change is a recipe edit like a
     /// slider's, so Ctrl+Z covers it; the file in `./out` is never deleted,
     /// so an undone removal has its pixels to come back to.
-    fn layer_rows(&mut self, ui: &mut egui::Ui) {
+    fn layer_rows(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         if self.editor.doc().recipe.pixel_layers.is_empty() {
             return;
@@ -403,7 +403,7 @@ impl Commands<'_> {
         }
     }
 
-    pub(crate) fn retouch_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn retouch_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_RETOUCH_RETOUCH), false, |_| {});
@@ -500,7 +500,7 @@ impl Commands<'_> {
                     // across three panels, and this is the only one still gated
                     // RAW-only — a distinction its label could not carry while it
                     // was a twin of the other three.
-                    ui.add_enabled(src_is_raw, egui::Checkbox::new(&mut self.workspace.genai_mut().fill_fullres, tr(lang, K_RETOUCH_FULL_RES_FILL)))
+                    ui.add_enabled(src_is_raw, Checkbox::new(&mut self.workspace.genai_mut().fill_fullres, tr(lang, K_RETOUCH_FULL_RES_FILL)))
                         .on_hover_text(tr(lang, K_RETOUCH_COMPOSITE_ONTO_THE_FULL_SENSOR_DEVELOP_SLOW_RAW));
                 });
                 // One verb, two ways in (2026-10-12): a painted area is

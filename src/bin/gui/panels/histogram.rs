@@ -8,7 +8,7 @@ impl PanelView<'_, '_> {
     /// editor is expected to have. Sqrt-scaled so shadow detail reads.
     /// The corner triangles are LR's clipping indicators: lit when pixels sit
     /// at the J-overlay thresholds (≤1 / ≥254); clicking toggles that overlay.
-    pub(crate) fn histogram_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn histogram_ui(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let Some(hist) = &self.workspace.chrome().histogram else { return };
         let h = 72.0;
@@ -17,22 +17,22 @@ impl PanelView<'_, '_> {
         // free to grow for the curve and HSL editors, and the histogram used
         // to grow with it without limit (user report 2026-09-27).
         let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(ui.avail_width().min(FIELD_W_MAX), h),
-            egui::Sense::hover(),
+            vec2(ui.avail_width().min(FIELD_W_MAX), h),
+            Sense::hover(),
         );
         #[cfg(test)]
         {
             self.seams.histogram_rect = Some(rect);
         }
         let p = ui.painter_at(rect);
-        p.rect_filled(rect, RADIUS_SM, egui::Color32::from_gray(16));
+        p.rect_filled(rect, RADIUS_SM, Color32::from_gray(16));
         let n = hist.len().max(1);
         let bar_w = rect.width() / n as f32;
         // Additive-ish RGB: draw each channel as translucent filled bars.
         let colors = [
-            egui::Color32::from_rgba_unmultiplied(220, 70, 70, 110),
-            egui::Color32::from_rgba_unmultiplied(90, 200, 90, 110),
-            egui::Color32::from_rgba_unmultiplied(90, 130, 240, 110),
+            Color32::from_rgba_unmultiplied(220, 70, 70, 110),
+            Color32::from_rgba_unmultiplied(90, 200, 90, 110),
+            Color32::from_rgba_unmultiplied(90, 130, 240, 110),
         ];
         for (ch, color) in colors.iter().enumerate() {
             for (i, bins) in hist.iter().enumerate() {
@@ -43,24 +43,24 @@ impl PanelView<'_, '_> {
                 let x0 = rect.min.x + i as f32 * bar_w;
                 let y0 = rect.max.y - v * (h - 2.0);
                 p.rect_filled(
-                    egui::Rect::from_min_max(egui::pos2(x0, y0), egui::pos2(x0 + bar_w, rect.max.y)),
+                    Rect::from_min_max(pos2(x0, y0), pos2(x0 + bar_w, rect.max.y)),
                     0.0,
                     *color,
                 );
             }
         }
         // Luma as a thin outline on top for the overall tone shape.
-        let pts: Vec<egui::Pos2> = hist
+        let pts: Vec<Pos2> = hist
             .iter()
             .enumerate()
             .map(|(i, bins)| {
-                egui::pos2(
+                pos2(
                     rect.min.x + (i as f32 + 0.5) * bar_w,
                     rect.max.y - bins[3].sqrt() * (h - 2.0),
                 )
             })
             .collect();
-        p.add(egui::Shape::line(pts, egui::Stroke::new(1.0, egui::Color32::from_gray(210))));
+        p.add(Shape::line(pts, Stroke::new(1.0, Color32::from_gray(210))));
 
         // Clipping triangles, per-channel (the LR convention): the colour
         // names WHICH channels sit in the extreme bin — one channel reads as
@@ -68,11 +68,11 @@ impl PanelView<'_, '_> {
         // (a neutral crush/blow-out vs. a colour cast at a glance). Shadows
         // top-left, highlights top-right; grey when clean; click = the same
         // toggle as ▲ / J.
-        let tri_color = |bins: &[f32; 4]| -> Option<egui::Color32> {
+        let tri_color = |bins: &[f32; 4]| -> Option<Color32> {
             let (r, g, b) = (bins[0] > 0.0, bins[1] > 0.0, bins[2] > 0.0);
             (r || g || b).then(|| {
                 let c = |on: bool| if on { 255u8 } else { 45 };
-                egui::Color32::from_rgb(c(r), c(g), c(b))
+                Color32::from_rgb(c(r), c(g), c(b))
             })
         };
         let chan_names = |bins: &[f32; 4]| -> String {
@@ -104,7 +104,7 @@ impl PanelView<'_, '_> {
         ] {
             let s = 10.0;
             let x0 = if right { rect.max.x - s - 4.0 } else { rect.min.x + 4.0 };
-            let tri = egui::Rect::from_min_size(egui::pos2(x0, rect.min.y + 4.0), egui::vec2(s, s));
+            let tri = Rect::from_min_size(pos2(x0, rect.min.y + 4.0), vec2(s, s));
             let lit = tri_color(bins);
             let tip = match lit {
                 Some(_) => trf(
@@ -119,21 +119,21 @@ impl PanelView<'_, '_> {
                 ),
             };
             let resp = ui
-                .interact(tri, ui.id().with(("clip_tri", right)), egui::Sense::click())
+                .interact(tri, ui.id().with(("clip_tri", right)), Sense::click())
                 .on_hover_text(tip);
             let color = lit.unwrap_or(if self.workspace.chrome().show_clipping {
                 self.workspace.ui().theme.colors().clip_tri_on
             } else {
                 self.workspace.ui().theme.colors().clip_tri_off
             });
-            p.add(egui::Shape::convex_polygon(
+            p.add(Shape::convex_polygon(
                 vec![
-                    egui::pos2(tri.center().x, tri.min.y),
-                    egui::pos2(tri.max.x, tri.max.y),
-                    egui::pos2(tri.min.x, tri.max.y),
+                    pos2(tri.center().x, tri.min.y),
+                    pos2(tri.max.x, tri.max.y),
+                    pos2(tri.min.x, tri.max.y),
                 ],
                 color,
-                egui::Stroke::NONE,
+                Stroke::NONE,
             ));
             if resp.clicked() {
                 toggle = true;
@@ -152,7 +152,7 @@ impl PanelView<'_, '_> {
     /// adds a point ON the curve, dragging moves it (inputs stay strictly
     /// increasing), dragging well outside the box deletes it — the Lightroom
     /// gestures. Returns true when the recipe changed this frame.
-    pub(crate) fn curve_editor(&mut self, ui: &mut egui::Ui) -> bool {
+    pub(crate) fn curve_editor(&mut self, ui: &mut Ui) -> bool {
         self.curve_editor_for(ui, CurveTarget::Global)
     }
 
@@ -164,7 +164,7 @@ impl PanelView<'_, '_> {
     /// engine-faithful line to drift.
     pub(crate) fn curve_editor_for(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         target: CurveTarget,
     ) -> bool {
         // A stale mask index addresses no curve (see `curve_points`): draw
@@ -202,7 +202,7 @@ impl PanelView<'_, '_> {
 
         let side = ui.avail_width().clamp(160.0, 240.0);
         let (rect, resp) =
-            ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::click_and_drag());
+            ui.allocate_exact_size(vec2(side, side), Sense::click_and_drag());
         #[cfg(test)]
         {
             // Test seam (the same convention as develop_count /
@@ -212,13 +212,13 @@ impl PanelView<'_, '_> {
         }
         let p = ui.painter_at(rect);
         let accent = CURVE_CHANNELS[self.workspace.curve_channel()].1;
-        p.rect_filled(rect, RADIUS_SM, egui::Color32::from_gray(16));
+        p.rect_filled(rect, RADIUS_SM, Color32::from_gray(16));
 
         // Value space: x = input 0..1 (left→right), y = output 0..1 (bottom→top).
         let to_screen = |x: f32, y: f32| {
-            egui::pos2(rect.min.x + x * rect.width(), rect.max.y - y * rect.height())
+            pos2(rect.min.x + x * rect.width(), rect.max.y - y * rect.height())
         };
-        let to_val = |q: egui::Pos2| {
+        let to_val = |q: Pos2| {
             (
                 ((q.x - rect.min.x) / rect.width().max(1.0)).clamp(0.0, 1.0),
                 ((rect.max.y - q.y) / rect.height().max(1.0)).clamp(0.0, 1.0),
@@ -231,7 +231,7 @@ impl PanelView<'_, '_> {
             let ch = [3usize, 0, 1, 2][self.workspace.curve_channel()];
             let bar_w = rect.width() / hist.len().max(1) as f32;
             let fill =
-                egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 34);
+                Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 34);
             for (i, bins) in hist.iter().enumerate() {
                 let v = bins[ch].sqrt();
                 if v <= 0.0 {
@@ -239,9 +239,9 @@ impl PanelView<'_, '_> {
                 }
                 let x0 = rect.min.x + i as f32 * bar_w;
                 p.rect_filled(
-                    egui::Rect::from_min_max(
-                        egui::pos2(x0, rect.max.y - v * (rect.height() - 2.0)),
-                        egui::pos2(x0 + bar_w, rect.max.y),
+                    Rect::from_min_max(
+                        pos2(x0, rect.max.y - v * (rect.height() - 2.0)),
+                        pos2(x0 + bar_w, rect.max.y),
                     ),
                     0.0,
                     fill,
@@ -250,7 +250,7 @@ impl PanelView<'_, '_> {
         }
 
         // Quarter grid + the identity diagonal for reference.
-        let grid = egui::Stroke::new(1.0, egui::Color32::from_gray(38));
+        let grid = Stroke::new(1.0, Color32::from_gray(38));
         for i in 1..4 {
             let t = i as f32 / 4.0;
             p.line_segment([to_screen(t, 0.0), to_screen(t, 1.0)], grid);
@@ -258,7 +258,7 @@ impl PanelView<'_, '_> {
         }
         p.line_segment(
             [to_screen(0.0, 0.0), to_screen(1.0, 1.0)],
-            egui::Stroke::new(1.0, egui::Color32::from_gray(56)),
+            Stroke::new(1.0, Color32::from_gray(56)),
         );
 
         // --- interaction (mutates the active channel's control points) --------
@@ -324,12 +324,12 @@ impl PanelView<'_, '_> {
 
         // Engine-faithful curve line: all 256 samples straight from the shared LUT.
         let lut = autoshade::render::curve_lut(pts);
-        let line: Vec<egui::Pos2> = lut
+        let line: Vec<Pos2> = lut
             .iter()
             .enumerate()
             .map(|(i, &y)| to_screen(i as f32 / 255.0, y))
             .collect();
-        p.add(egui::Shape::line(line, egui::Stroke::new(1.6, accent)));
+        p.add(Shape::line(line, Stroke::new(1.6, accent)));
 
         // Control-point handles (the dragged one filled with the channel colour).
         for (i, c) in pts.iter().enumerate() {
@@ -337,8 +337,8 @@ impl PanelView<'_, '_> {
             if drag_here(self.workspace.curve_drag()) == Some(i) {
                 p.circle_filled(q, 5.0, accent);
             } else {
-                p.circle_filled(q, 3.5, egui::Color32::from_gray(230));
-                p.circle_stroke(q, 3.5, egui::Stroke::new(1.0, egui::Color32::from_gray(60)));
+                p.circle_filled(q, 3.5, Color32::from_gray(230));
+                p.circle_stroke(q, 3.5, Stroke::new(1.0, Color32::from_gray(60)));
             }
         }
 

@@ -132,7 +132,7 @@ impl Commands<'_> {
 
     /// The panel: a first-level heading and the four groups, behind the same
     /// mid-open gate as the shared panels.
-    pub(crate) fn portrait_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn portrait_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let editable = !self.workspace.open().open_in_flight;
         ui.gap(SPACE_LG);
@@ -154,7 +154,7 @@ impl Commands<'_> {
 
 
     /// Group 1 — the people and the background, and the AI portrait look.
-    fn portrait_people(&mut self, ui: &mut egui::Ui) {
+    fn portrait_people(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_PEOPLE_AND_BACKGROUND));
         let ready = self.editor.photo().src_path.is_some() && self.editor.photo().base_preview.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight;
@@ -196,7 +196,7 @@ impl Commands<'_> {
     }
 
     /// Group 2 — the skin: soften, warmth, colour, the guardrail switch.
-    fn portrait_skin(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_skin(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_SKIN));
         let gate = self.editor.portrait_face_gate(&self.workspace, lang);
@@ -248,7 +248,7 @@ impl Commands<'_> {
     }
 
     /// Group 3 — the eyes: brighten, crisp.
-    fn portrait_eyes(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_eyes(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_EYES));
         let gate = self.editor.portrait_face_gate(&self.workspace, lang).or_else(|| {
@@ -273,7 +273,7 @@ impl Commands<'_> {
 
     /// Group 4 — the background: the blur (with the person kept sharp), and
     /// darken / fade on the background mask.
-    fn portrait_background(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_background(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_BACKGROUND));
         let mut changed = false;
@@ -292,7 +292,7 @@ impl Commands<'_> {
             changed |= slider_hinted(ui, lang, tr(lang, K_PORTRAIT_SHARP_RANGE), &mut lb.range, 0.0, 100.0, 10.0, tr(lang, K_PORTRAIT_HOW_DEEP_THE_SHARP_PART_OF_THE_PICTURE_IS_AROUND));
             let mut keep = lb.protect.is_some();
             let toggled = ui
-                .add_enabled(subject.is_some() || keep, egui::Checkbox::new(&mut keep, tr(lang, K_PORTRAIT_KEEP_THE_PERSON_SHARP)))
+                .add_enabled(subject.is_some() || keep, Checkbox::new(&mut keep, tr(lang, K_PORTRAIT_KEEP_THE_PERSON_SHARP)))
                 .on_hover_text(tr(lang, K_PORTRAIT_THE_WHOLE_PERSON_STAYS_SHARP_HOWEVER_FAR_THE_BLU))
                 .on_disabled_hover_text(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP))
                 .changed();
@@ -325,7 +325,7 @@ impl Commands<'_> {
 }
 
 /// A group's sub-heading.
-pub(crate) fn portrait_group(ui: &mut egui::Ui, title: &str) {
+pub(crate) fn portrait_group(ui: &mut Ui, title: &str) {
     ui.gap(SPACE_MD);
     ui.label(Text::new(title).strong());
 }

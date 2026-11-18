@@ -8,7 +8,7 @@ use super::*;
 /// so a changed selection, a re-saved entry or a different photo rebuilds it.
 pub(crate) struct RecipePreview {
     pub(crate) key: String,
-    pub(crate) texture: egui::TextureHandle,
+    pub(crate) texture: TextureHandle,
 }
 
 pub(crate) struct AutoShadeApp {
@@ -298,7 +298,7 @@ impl AutoShadeApp {
         )
     }
 
-    pub(crate) fn poll_workers(&mut self, ctx: &egui::Context) {
+    pub(crate) fn poll_workers(&mut self, ctx: &Context) {
         // UI-thread language for the status/toast strings built HERE, at
         // landing. Worker results carry typed FACTS (FitOutcome, RetouchNote,
         // PasteOutcome, …) that the landing arms render in the language live
@@ -600,7 +600,7 @@ impl AutoShadeApp {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
     // pub(crate): the zoom-keys test drives a real headless frame through it.
-    pub(crate) fn upd_shortcuts(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_shortcuts(&mut self, ctx: &Context) {
         // Tab's egui focus traversal fired last frame despite the consume (see
         // `defocus_next`): drop that focus now so the panel toggle doesn't
         // leave a surprise-focused widget eating every later shortcut.
@@ -755,10 +755,10 @@ impl AutoShadeApp {
                 // ours and the event is removed so nothing double-fires.
                 if i.modifiers.command && i.modifiers.shift {
                     let n = i.events.len();
-                    i.events.retain(|e| !matches!(e, egui::Event::Copy));
+                    i.events.retain(|e| !matches!(e, Event::Copy));
                     do_copy |= i.events.len() < n;
                     let n = i.events.len();
-                    i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
+                    i.events.retain(|e| !matches!(e, Event::Paste(_)));
                     do_paste |= i.events.len() < n;
                 }
                 if Chord::ESCAPE.consume(i) { do_escape = true; }
@@ -960,7 +960,7 @@ impl AutoShadeApp {
             if self.editor.photo().src_path.is_some() {
                 if do_fit {
                     self.workspace.view_mut().zoom_target = 1.0;
-                    self.workspace.view_mut().pan = egui::vec2(0.5, 0.5);
+                    self.workspace.view_mut().pan = vec2(0.5, 0.5);
                 }
                 if do_one {
                     self.workspace.view_mut().zoom_target = self.workspace.view().one_to_one.clamp(1.0, 12.0);
@@ -1013,32 +1013,32 @@ impl AutoShadeApp {
     // entry per phase so `run_frame` and the headless tests keep their call
     // shape (`app.upd_top_bar(ctx)`), and this impl does not grow a body per
     // overlay.
-    fn upd_dropped_and_title(&mut self, ctx: &egui::Context) {
+    fn upd_dropped_and_title(&mut self, ctx: &Context) {
         self.commands().upd_dropped_and_title(ctx);
     }
 
-    pub(crate) fn upd_top_bar(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_top_bar(&mut self, ctx: &Context) {
         self.commands().upd_top_bar(ctx);
     }
 
-    pub(crate) fn upd_status_bar(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_status_bar(&mut self, ctx: &Context) {
         self.commands().upd_status_bar(ctx);
     }
 
     #[cfg(test)]
-    pub(crate) fn controls_column(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn controls_column(&mut self, ui: &mut Ui) {
         self.commands().controls_column(ui);
     }
 
-    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Context) {
         self.commands().upd_strips_and_side_panels(ctx);
     }
 
-    pub(crate) fn upd_central(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_central(&mut self, ctx: &Context) {
         self.commands().upd_central(ctx);
     }
 
-    pub(crate) fn upd_sheets(&mut self, ctx: &egui::Context) {
+    pub(crate) fn upd_sheets(&mut self, ctx: &Context) {
         self.commands().upd_sheets(ctx);
 
     }
@@ -1066,14 +1066,14 @@ impl Default for AutoShadeApp {
 
 impl AutoShadeApp {
     /// One frame of the app: the whole of `update` but the prefs flush, so a
-    /// headless test can drive it with a bare `egui::Context`.
-    pub(crate) fn run_frame(&mut self, ctx: &egui::Context) {
+    /// headless test can drive it with a bare `Context`.
+    pub(crate) fn run_frame(&mut self, ctx: &Context) {
         // First frame: re-issue the OS-titlebar theme. install_theme sends it
         // from the creation closure, but viewport commands sent before the
         // event loop runs are dropped — a FIRST-ever launch (no prefs, so no
         // second install) kept the OS-default titlebar over dark chrome.
         if !std::mem::replace(&mut self.workspace.ui_mut().os_theme_synced, true) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(self.workspace.ui().theme.system()));
+            ctx.send_viewport_cmd(ViewportCommand::SetTheme(self.workspace.ui().theme.system()));
             // …and say which system faces the font chain turned away.
             // `install_fonts` runs before this app exists and can only reach
             // stderr, which a windowed build does not have — so the first
@@ -1102,7 +1102,7 @@ impl AutoShadeApp {
         // SAME guard below as the title-bar ✕ rather than a parallel dialog
         // that would have to be kept in step with it.
         if crate::quit::take_close_request() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd(ViewportCommand::Close);
         }
         // Window-close guard: the unsaved-edit protection (● + nav_stash)
         // used to stop at photo switching — the title-bar ✕ dropped the open
@@ -1125,7 +1125,7 @@ impl AutoShadeApp {
                 // A running export / retouch / paid AI generation dies with
                 // the process — the ✕ used to bypass every guard mid-flight.
                 // Block and say why; close again once the worker lands.
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(ViewportCommand::CancelClose);
                 let t = tr(self.lang, K_APP_AN_OPERATION_IS_STILL_RUNNING_WAIT_FOR_IT_TO_FIN).to_string();
                 self.workspace.toast(ToastKind::Error, t);
             } else if !self.workspace.open().discard_requested
@@ -1133,7 +1133,7 @@ impl AutoShadeApp {
                     || !self.workspace.open().nav_stash.is_empty()
                     || self.editor.inactive_dirty_variants(&self.workspace, ) > 0)
             {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                ctx.send_viewport_cmd(ViewportCommand::CancelClose);
                 self.workspace.ui_mut().confirm_quit = true;
                 // Surrender any widget focus NOW: the layer's Enter-saves
                 // default is gated on "no widget focused", and a text field
@@ -1224,9 +1224,9 @@ impl AutoShadeApp {
         // Gated like drop PROCESSING is: while a modal layer is up, drops are
         // deliberately discarded — promising "Drop to open" there was a lie.
         if !self.workspace.modal_up() && ctx.input(|i| !i.raw.hovered_files.is_empty()) {
-            let painter = ctx.layer_painter(egui::LayerId::new(
-                egui::Order::Foreground,
-                egui::Id::new("drop_overlay"),
+            let painter = ctx.layer_painter(LayerId::new(
+                Order::Foreground,
+                Id::new("drop_overlay"),
             ));
             let rect = ctx.content_rect();
             // Chrome-side veil → the chrome accent's family (see the colour
@@ -1234,13 +1234,13 @@ impl AutoShadeApp {
             // in every theme.
             let a = self.workspace.ui().theme.colors().accent_fill;
             let dim = |v: u8| (f32::from(v) * 0.29).round() as u8;
-            painter.rect_filled(rect, 0.0, egui::Color32::from_rgba_unmultiplied(dim(a.r()), dim(a.g()), dim(a.b()), 150));
+            painter.rect_filled(rect, 0.0, Color32::from_rgba_unmultiplied(dim(a.r()), dim(a.g()), dim(a.b()), 150));
             painter.text(
                 rect.center(),
-                egui::Align2::CENTER_CENTER,
+                Align2::CENTER_CENTER,
                 tr(self.lang, K_APP_DROP_TO_OPEN),
-                egui::FontId::proportional(28.0),
-                egui::Color32::WHITE,
+                FontId::proportional(28.0),
+                Color32::WHITE,
             );
         }
 
@@ -1251,15 +1251,15 @@ impl AutoShadeApp {
         if !self.workspace.chrome().toasts.is_empty() {
             let mut dismiss: Option<usize> = None;
             let mut fading = false;
-            egui::Area::new(egui::Id::new("toasts"))
-                .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0 + MOTION_TOAST_SLIDE, -40.0))
+            Area::new(Id::new("toasts"))
+                .anchor(Align2::RIGHT_BOTTOM, vec2(-12.0 + MOTION_TOAST_SLIDE, -40.0))
                 .constrain(false)
-                .order(egui::Order::Foreground)
+                .order(Order::Foreground)
                 .show(ctx, |ui| {
                     let c = self.workspace.ui().theme.colors();
                     // Right-aligned rows: a toast slides in from the right
                     // edge by a shrinking right-hand gap.
-                    ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+                    ui.with_layout(Layout::top_down(Align::Max), |ui| {
                     for (idx, t) in self.workspace.chrome().toasts.iter().enumerate() {
                         let (bg, fg) = match t.kind {
                             ToastKind::Success => (c.toast_ok_bg, c.toast_ok_fg),
@@ -1275,18 +1275,18 @@ impl AutoShadeApp {
                         // all where the photo matched the toast colour.
                         let mut shadow = ui.visuals().popup_shadow;
                         shadow.color = shadow.color.gamma_multiply(fade);
-                        let r = ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        let r = ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                         // The area's right edge sits MOTION_TOAST_SLIDE past
                         // the old anchor (unconstrained, so it may leave the
                         // window); a settled toast keeps that gap, an
                         // arriving one starts with none — off to the right.
                         ui.gap(arrive * MOTION_TOAST_SLIDE);
-                        egui::Frame::NONE
+                        Frame::NONE
                             .fill(bg.gamma_multiply(fade))
-                            .stroke(egui::Stroke::new(1.0, fg.gamma_multiply(0.35 * fade)))
+                            .stroke(Stroke::new(1.0, fg.gamma_multiply(0.35 * fade)))
                             .shadow(shadow)
-                            .corner_radius(egui::CornerRadius::same(RADIUS_MD.round() as u8))
-                            .inner_margin(egui::Margin::symmetric(10, 8))
+                            .corner_radius(CornerRadius::same(RADIUS_MD.round() as u8))
+                            .inner_margin(Margin::symmetric(10, 8))
                             .show(ui, |ui| {
                                 // Named token (#14a): this 420 is a WRAPPED
                                 // paragraph's measure, not the prompt-field
@@ -1300,16 +1300,16 @@ impl AutoShadeApp {
                                 // text ignored the measure and ran past the
                                 // window's edge as one line.
                                 ui.add(
-                                    egui::Label::new(Text::new(&t.text).color(fg.gamma_multiply(fade)))
+                                    Label::new(Text::new(&t.text).color(fg.gamma_multiply(fade)))
                                         .wrap(),
                                 );
                             })
                             .response
-                            .interact(egui::Sense::click())
+                            .interact(Sense::click())
                         })
                         .inner;
                         if r.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
                         }
                         if r.clicked() {
                             dismiss = Some(idx);
@@ -1343,7 +1343,7 @@ impl AutoShadeApp {
 }
 
 impl eframe::App for AutoShadeApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.run_frame(ctx);
     }
 

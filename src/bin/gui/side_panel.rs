@@ -26,26 +26,26 @@ const CONTROLS_ID: &str = "controls";
 /// overflowing row is clipped by the panel (egui clips it already) instead of
 /// becoming next frame's width.
 pub(crate) fn controls_side_panel<R>(
-    ctx: &egui::Context,
-    add_contents: impl FnOnce(&mut egui::Ui) -> R,
-) -> egui::InnerResponse<R> {
-    let id = egui::Id::new(CONTROLS_ID);
+    ctx: &Context,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> InnerResponse<R> {
+    let id = Id::new(CONTROLS_ID);
     let range = CONTROLS_W_MIN..=controls_w_max(&ctx.style());
-    let stored = egui::containers::panel::PanelState::load(ctx, id).map(|s| s.rect.width());
-    let response = egui::SidePanel::left(id)
+    let stored = panel::PanelState::load(ctx, id).map(|s| s.rect.width());
+    let response = SidePanel::left(id)
         .default_width(CONTROLS_W_DEFAULT)
         .width_range(range.clone())
         .show(ctx, add_contents);
     let rect = response.response.rect;
-    let drag = ctx.read_response(id.with("__resize")).filter(egui::Response::dragged);
+    let drag = ctx.read_response(id.with("__resize")).filter(Response::dragged);
     let laid = match drag.and_then(|d| d.interact_pointer_pos()) {
         Some(pointer) => pointer.x - rect.left(),
         None => stored.unwrap_or(CONTROLS_W_DEFAULT),
     };
     let laid = laid.clamp(*range.start(), *range.end()).min(ctx.content_rect().width());
     if (rect.width() - laid).abs() > 0.5 {
-        let rect = egui::Rect::from_min_size(rect.min, egui::vec2(laid, rect.height()));
-        ctx.data_mut(|d| d.insert_persisted(id, egui::containers::panel::PanelState { rect }));
+        let rect = Rect::from_min_size(rect.min, vec2(laid, rect.height()));
+        ctx.data_mut(|d| d.insert_persisted(id, panel::PanelState { rect }));
     }
     response
 }

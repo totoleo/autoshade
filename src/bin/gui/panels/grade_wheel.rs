@@ -18,21 +18,21 @@ pub(crate) const GRADE_VIEWS: [&str; 2] = ["3-way", "Global"];
 /// muted brightness so the wheel reads as hue and chroma only — a
 /// full-brightness rainbow was the loudest object in a dark panel, where
 /// Lightroom's wheels sit a step above mid-grey.
-fn wheel_colour(hue: f32, s: f32) -> egui::Color32 {
-    egui::ecolor::Hsva::new(hue.rem_euclid(360.0) / 360.0, 0.8 * s.clamp(0.0, 1.0), 0.62, 1.0).into()
+fn wheel_colour(hue: f32, s: f32) -> Color32 {
+    ecolor::Hsva::new(hue.rem_euclid(360.0) / 360.0, 0.8 * s.clamp(0.0, 1.0), 0.62, 1.0).into()
 }
 
 /// The offset of a wheel point at `hue` (degrees, counter-clockwise from
 /// 3 o'clock, red there) and `sat` (0..=100) for a wheel of radius `r`.
-pub(crate) fn wheel_offset(hue: f32, sat: f32, r: f32) -> egui::Vec2 {
+pub(crate) fn wheel_offset(hue: f32, sat: f32, r: f32) -> Vec2 {
     let a = hue.to_radians();
-    egui::vec2(a.cos(), -a.sin()) * (sat / 100.0).clamp(0.0, 1.0) * r
+    vec2(a.cos(), -a.sin()) * (sat / 100.0).clamp(0.0, 1.0) * r
 }
 
 /// The hue / saturation a wheel point `d` (offset from the centre) stands
 /// for, in the recipe's whole-number steps (hue below 360, the recipe wraps
 /// it; a centred puck has no hue).
-pub(crate) fn wheel_value(d: egui::Vec2, r: f32) -> (f32, f32) {
+pub(crate) fn wheel_value(d: Vec2, r: f32) -> (f32, f32) {
     let sat = (d.length() / r * 100.0).clamp(0.0, 100.0).round();
     if sat == 0.0 {
         return (0.0, 0.0);
@@ -46,7 +46,7 @@ pub(crate) fn wheel_value(d: egui::Vec2, r: f32) -> (f32, f32) {
 /// a quarter of the motion, double-click to return to neutral. Returns
 /// whether hue or saturation changed.
 pub(crate) fn grade_wheel(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     title: &str,
     diameter: f32,
@@ -56,7 +56,7 @@ pub(crate) fn grade_wheel(
     let mut changed = false;
     ui.vertical_centered(|ui| {
         ui.label(Text::new(title).small().color(ui.visuals().weak_text_color()));
-        let (rect, resp) = ui.allocate_exact_size(egui::vec2(diameter, diameter), egui::Sense::click_and_drag());
+        let (rect, resp) = ui.allocate_exact_size(vec2(diameter, diameter), Sense::click_and_drag());
         let resp = resp.on_hover_text(tr(
             lang,
             K_GRADING_DRAG_ANGLE_HUE_DISTANCE_FROM_THE_CENTRE_SATURATI,
@@ -100,10 +100,10 @@ pub(crate) fn grade_wheel(
 
 /// The disc (hue round, saturation out), its rim and centre cross, and the
 /// puck.
-fn paint_wheel(ui: &egui::Ui, c: egui::Pos2, r: f32, hue: f32, sat: f32, hot: bool) {
+fn paint_wheel(ui: &Ui, c: Pos2, r: f32, hue: f32, sat: f32, hot: bool) {
     const SEGMENTS: u32 = 96;
     const RINGS: u32 = 8;
-    let mut mesh = egui::Mesh::default();
+    let mut mesh = Mesh::default();
     mesh.colored_vertex(c, wheel_colour(0.0, 0.0));
     for ring in 1..=RINGS {
         let t = ring as f32 / RINGS as f32;
@@ -124,14 +124,14 @@ fn paint_wheel(ui: &egui::Ui, c: egui::Pos2, r: f32, hue: f32, sat: f32, hot: bo
         }
     }
     let p = ui.painter();
-    p.add(egui::Shape::mesh(mesh));
+    p.add(Shape::mesh(mesh));
     p.circle_stroke(c, r, ui.visuals().widgets.noninteractive.bg_stroke);
-    let cross = egui::Stroke::new(1.0, egui::Color32::from_black_alpha(70));
-    p.line_segment([c - egui::vec2(4.0, 0.0), c + egui::vec2(4.0, 0.0)], cross);
-    p.line_segment([c - egui::vec2(0.0, 4.0), c + egui::vec2(0.0, 4.0)], cross);
+    let cross = Stroke::new(1.0, Color32::from_black_alpha(70));
+    p.line_segment([c - vec2(4.0, 0.0), c + vec2(4.0, 0.0)], cross);
+    p.line_segment([c - vec2(0.0, 4.0), c + vec2(0.0, 4.0)], cross);
     let puck = c + wheel_offset(hue, sat, r);
     let pr = if hot { 6.5 } else { 5.5 };
-    p.circle_filled(puck, pr + 1.5, egui::Color32::from_black_alpha(140));
+    p.circle_filled(puck, pr + 1.5, Color32::from_black_alpha(140));
     p.circle_filled(puck, pr, wheel_colour(hue, sat / 100.0));
-    p.circle_stroke(puck, pr, egui::Stroke::new(1.5, egui::Color32::WHITE));
+    p.circle_stroke(puck, pr, Stroke::new(1.5, Color32::WHITE));
 }

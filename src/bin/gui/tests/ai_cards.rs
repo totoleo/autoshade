@@ -1337,10 +1337,10 @@
         // Every window in the frame carries a fixed egui id: the localised
         // title would reset its state on a language switch.
         let mut seen = 0;
-        for (start, _) in src.match_indices("egui::Window::") {
+        for (start, _) in src.match_indices("Window::new(") {
             let end = src[start..].find(".show(ctx").expect("the window's show call") + start;
             let builder = &src[start..end];
-            assert!(builder.contains(".id(egui::Id::new("), "a window whose id is its localised title, so its state resets with the language");
+            assert!(builder.contains(".id(Id::new("), "a window whose id is its localised title, so its state resets with the language");
             seen += 1;
         }
         assert!(seen >= 2, "premise: the Settings and Shortcuts windows are both built here ({seen} found)");

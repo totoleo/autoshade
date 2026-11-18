@@ -72,13 +72,13 @@ impl Chord {
     }
 
     /// Consume this chord from the frame's input, if it is a fresh press.
-    pub(crate) fn consume(self, i: &mut egui::InputState) -> bool {
+    pub(crate) fn consume(self, i: &mut InputState) -> bool {
         i.consume_key(self.mods.egui(), self.key.egui())
     }
 
     /// Whether the chord's key is held down right now (the modifiers are not
     /// part of a held-key test).
-    pub(crate) fn held(self, i: &egui::InputState) -> bool {
+    pub(crate) fn held(self, i: &InputState) -> bool {
         i.key_down(self.key.egui())
     }
 
@@ -158,48 +158,48 @@ impl Chord {
 }
 
 impl Key {
-    fn egui(self) -> egui::Key {
+    fn egui(self) -> view::Key {
         match self {
-            Key::Escape => egui::Key::Escape,
-            Key::Enter => egui::Key::Enter,
-            Key::F1 => egui::Key::F1,
-            Key::Question => egui::Key::Questionmark,
-            Key::O => egui::Key::O,
-            Key::E => egui::Key::E,
-            Key::S => egui::Key::S,
-            Key::Z => egui::Key::Z,
-            Key::Y => egui::Key::Y,
-            Key::J => egui::Key::J,
-            Key::R => egui::Key::R,
-            Key::W => egui::Key::W,
-            Key::Q => egui::Key::Q,
-            Key::K => egui::Key::K,
-            Key::M => egui::Key::M,
-            Key::B => egui::Key::B,
-            Key::Backslash => egui::Key::Backslash,
-            Key::Tab => egui::Key::Tab,
-            Key::OpenBracket => egui::Key::OpenBracket,
-            Key::CloseBracket => egui::Key::CloseBracket,
-            Key::Plus => egui::Key::Plus,
-            Key::Equals => egui::Key::Equals,
-            Key::Minus => egui::Key::Minus,
-            Key::Num0 => egui::Key::Num0,
-            Key::Num1 => egui::Key::Num1,
-            Key::ArrowRight => egui::Key::ArrowRight,
-            Key::ArrowLeft => egui::Key::ArrowLeft,
-            Key::ArrowUp => egui::Key::ArrowUp,
-            Key::ArrowDown => egui::Key::ArrowDown,
+            Key::Escape => view::Key::Escape,
+            Key::Enter => view::Key::Enter,
+            Key::F1 => view::Key::F1,
+            Key::Question => view::Key::Questionmark,
+            Key::O => view::Key::O,
+            Key::E => view::Key::E,
+            Key::S => view::Key::S,
+            Key::Z => view::Key::Z,
+            Key::Y => view::Key::Y,
+            Key::J => view::Key::J,
+            Key::R => view::Key::R,
+            Key::W => view::Key::W,
+            Key::Q => view::Key::Q,
+            Key::K => view::Key::K,
+            Key::M => view::Key::M,
+            Key::B => view::Key::B,
+            Key::Backslash => view::Key::Backslash,
+            Key::Tab => view::Key::Tab,
+            Key::OpenBracket => view::Key::OpenBracket,
+            Key::CloseBracket => view::Key::CloseBracket,
+            Key::Plus => view::Key::Plus,
+            Key::Equals => view::Key::Equals,
+            Key::Minus => view::Key::Minus,
+            Key::Num0 => view::Key::Num0,
+            Key::Num1 => view::Key::Num1,
+            Key::ArrowRight => view::Key::ArrowRight,
+            Key::ArrowLeft => view::Key::ArrowLeft,
+            Key::ArrowUp => view::Key::ArrowUp,
+            Key::ArrowDown => view::Key::ArrowDown,
         }
     }
 }
 
 impl Mods {
-    fn egui(self) -> egui::Modifiers {
+    fn egui(self) -> Modifiers {
         match self {
-            Mods::None => egui::Modifiers::NONE,
-            Mods::Shift => egui::Modifiers::SHIFT,
-            Mods::Primary => egui::Modifiers::COMMAND,
-            Mods::PrimaryShift => egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            Mods::None => Modifiers::NONE,
+            Mods::Shift => Modifiers::SHIFT,
+            Mods::Primary => Modifiers::COMMAND,
+            Mods::PrimaryShift => Modifiers::COMMAND | Modifiers::SHIFT,
         }
     }
 }

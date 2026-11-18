@@ -5,7 +5,7 @@
 use crate::*;
 
 impl Commands<'_> {
-pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<anyhow::Result<OpenedBase>>) {
+pub(crate) fn on_opened(&mut self, ctx: &Context, lang: Lang, boxed: Box<anyhow::Result<OpenedBase>>) {
                 // `keep` distinguishes a fresh open from a preview-resolution
                 // re-decode (the px combo): consumed whether the open
                 // succeeds or fails so a failure can't leak it into a later
@@ -839,7 +839,7 @@ pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<a
                         // View + tool state is per-photo.
                         self.workspace.view_mut().zoom = 1.0;
                         self.workspace.view_mut().zoom_target = 1.0; // instant — no glide across photos
-                        self.workspace.view_mut().pan = egui::vec2(0.5, 0.5);
+                        self.workspace.view_mut().pan = vec2(0.5, 0.5);
                         self.workspace.disarm_tools(&mut self.editor);
                         // The \-latch is per-photo transient state:
                         // carried across an open, the new photo arrived
@@ -962,7 +962,7 @@ pub(crate) fn on_opened(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<a
 
 pub(crate) fn on_base_redeveloped(
     &mut self,
-    ctx: &egui::Context,
+    ctx: &Context,
     path: PathBuf,
     part: autoshade::render::BasePart,
     img: anyhow::Result<Arc<image::DynamicImage>>,

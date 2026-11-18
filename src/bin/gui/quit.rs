@@ -37,6 +37,8 @@
 //! call and the two `NSApplicationTerminateReply` constants; it is
 //! `cfg(target_os = "macos")` and can be checked, but never run, here.
 
+use crate::view::*;
+
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::OnceLock;
 
@@ -145,7 +147,7 @@ pub(crate) fn decide(state: QuitState) -> (TerminateReply, bool) {
 
 static STATE: AtomicU8 = AtomicU8::new(0);
 static CLOSE_REQUESTED: AtomicBool = AtomicBool::new(false);
-static CTX: OnceLock<egui::Context> = OnceLock::new();
+static CTX: OnceLock<Context> = OnceLock::new();
 
 /// Record what quitting would cost right now. Called once per frame.
 pub(crate) fn publish(state: QuitState) {
@@ -163,7 +165,7 @@ pub(crate) fn state() -> QuitState {
 /// idle: egui is a lazy repainter, so without this the confirm layer would not
 /// appear until the user happened to move the mouse. Set once, from the app's
 /// creation closure.
-pub(crate) fn set_ctx(ctx: &egui::Context) {
+pub(crate) fn set_ctx(ctx: &Context) {
     let _ = CTX.set(ctx.clone());
 }
 

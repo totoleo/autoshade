@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""egui-surface gate: the framework boundary only shrinks.
+"""View-boundary gate: one module owns the UI framework.
 
 GATES (exit 1 on any):
 
-  * a production file (`src/bin/gui`, tests excluded) that is not on the
-    allowlist mentions `egui::`;
-  * the `egui::` count outside the adapter modules exceeds CALLSITE_BUDGET;
-  * an allowlisted file no longer mentions `egui::` (the list must shrink with
-    each migration slice, not rot).
+  * a production file (`src/bin/gui`, tests excluded) that is not `view.rs`
+    mentions `egui::`;
+  * a production file outside {view.rs, main.rs, app.rs} mentions `eframe::`;
+  * the door stopped being the door (`view.rs` no longer re-exports
+    `eframe::egui`), or an entry point stopped being the entry.
 
-`ui_kit.rs` and `shortcuts.rs` are the adapters: framework types belong there,
-so their mentions do not count against the budget. Every other file is a call
-site, and the call-site count may only go down.
+Production code gets the framework's names from `view.rs` (unqualified, through
+the crate prelude) and never spells the framework namespace itself. `eframe`
+stays at the entry: the door re-exports the context, and `main.rs` / `app.rs`
+own `run_native`, `impl eframe::App` and the storage hooks. A framework change
+starts in the door.
 
 Run: py -3 scripts/check_egui_surface.py
 """
@@ -24,109 +26,60 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 GUI = REPO / "src" / "bin" / "gui"
 
-TOKEN = "egui::"
-
-# Production files permitted to mention egui. One entry disappears when a
-# slice moves the file's last mention behind the vocabulary.
-ALLOWED = frozenset(
-    {
-        "ai_start_actions.rs",
-        "app.rs",
-        "buttons.rs",
-        "canvas.rs",
-        "canvas_masters.rs",
-        "canvas_plates.rs",
-        "controls.rs",
-        "editor.rs",
-        "forms.rs",
-        "headings.rs",
-        "history_actions.rs",
-        "i18n.rs",
-        "landing_canvas.rs",
-        "landing_worker.rs",
-        "main.rs",
-        "model.rs",
-        "panel_view.rs",
-        "panels/ai.rs",
-        "panels/develop.rs",
-        "panels/develop_forms.rs",
-        "panels/develop_widgets.rs",
-        "panels/gallery.rs",
-        "panels/grade_wheel.rs",
-        "panels/histogram.rs",
-        "panels/normal.rs",
-        "panels/portrait.rs",
-        "panels/recipes.rs",
-        "panels/retouch.rs",
-        "panels/settings.rs",
-        "quit.rs",
-        "sections.rs",
-        "services.rs",
-        "shell.rs",
-        "shortcuts.rs",
-        "side_panel.rs",
-        "sliders.rs",
-        "theme.rs",
-        "ui_kit.rs",
-        "util.rs",
-        "variant_actions.rs",
-        "window_chrome.rs",
-        "workspace.rs",
-    }
-)
-
-# The adapter modules: framework types are expected here, so they are exempt
-# from the budget. The call-site count may only go down.
-ADAPTERS = frozenset({"ui_kit.rs", "shortcuts.rs"})
-CALLSITE_BUDGET = 1112
+EGUI = "egui::"
+EFRAME = "eframe::"
+DOOR = "view.rs"
+ENTRY = {"main.rs", "app.rs"}
 
 
 def production_sources() -> list[Path]:
     return sorted(
         path
         for path in GUI.rglob("*.rs")
-        if "tests" not in path.relative_to(GUI).parts
-        and path.name != "tests.rs"
+        if "tests" not in path.relative_to(GUI).parts and path.name != "tests.rs"
     )
 
 
 def main() -> int:
-    counts: dict[str, int] = {}
+    counts: dict[str, tuple[int, int]] = {}
     for path in production_sources():
         rel = path.relative_to(GUI).as_posix()
-        counts[rel] = path.read_text(encoding="utf-8").count(TOKEN)
+        src = path.read_text(encoding="utf-8")
+        counts[rel] = (src.count(EGUI), src.count(EFRAME))
 
     failures: list[str] = []
 
-    unknown = sorted(rel for rel, n in counts.items() if n and rel not in ALLOWED)
-    for rel in unknown:
-        failures.append(
-            f"{rel}: mentions `{TOKEN}` but is not on the allowlist "
-            "(route it through the vocabulary or extend the allowlist)"
-        )
+    for rel, (egui, _) in sorted(counts.items()):
+        if rel != DOOR and egui:
+            failures.append(
+                f"{rel}: names the framework namespace (`{EGUI}`) — import the "
+                "name from `view.rs` instead"
+            )
 
-    stale = sorted(rel for rel in ALLOWED if not counts.get(rel))
-    for rel in stale:
-        failures.append(
-            f"{rel}: allowlisted but no longer mentions `{TOKEN}` — "
-            "drop the entry, the list only shrinks"
-        )
+    for rel, (_, eframe) in sorted(counts.items()):
+        if rel not in {"view.rs", "main.rs", "app.rs"} and eframe:
+            failures.append(
+                f"{rel}: reaches for `{EFRAME}` — only the door and the two "
+                "entry points may name the framework shell"
+            )
 
-    total = sum(counts.values())
-    callsites = sum(n for rel, n in counts.items() if rel not in ADAPTERS)
-    if callsites > CALLSITE_BUDGET:
-        failures.append(
-            f"call-site `{TOKEN}` count {callsites} exceeds the budget {CALLSITE_BUDGET}"
-        )
+    door = (GUI / DOOR).read_text(encoding="utf-8") if (GUI / DOOR).is_file() else ""
+    if "eframe::egui" not in door:
+        failures.append(f"{DOOR}: no longer re-exports `eframe::egui` — the door is gone")
+
+    for entry in sorted(ENTRY):
+        if counts.get(entry, (0, 0))[1] == 0:
+            failures.append(f"{entry}: no `{EFRAME}` left — the entry stopped being the entry")
 
     for failure in failures:
         print(f"FAIL {failure}")
 
-    files = sum(1 for n in counts.values() if n)
+    egui_outside = sum(n for rel, (n, _) in counts.items() if rel != DOOR)
+    eframe_files = [rel for rel, (_, n) in counts.items() if n]
     verdict = "PASS" if not failures else "FAIL"
     print(
-        f"check_egui_surface: {verdict} — {total} `{TOKEN}` occurrences in "
-        f"{files} files, {callsites} at call sites (budget {CALLSITE_BUDGET})"
+        f"check_view_boundary: {verdict} — {egui_outside} `{EGUI}` outside the door; "
+        f"`{EFRAME}` in {', '.join(sorted(eframe_files))}"
     )
     return 0 if not failures else 1
 

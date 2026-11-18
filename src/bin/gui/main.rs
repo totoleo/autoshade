@@ -16,8 +16,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use eframe::egui;
-
 // NOTE: `MaskRole` is addressed only by method here (`m.role.en_name()` in the
 // mask row), never named as a type, so it is intentionally NOT imported — the
 // enum lives in recipe.rs and is set by the engine, not constructed in the GUI.
@@ -27,12 +25,14 @@ use image::GenericImageView;
 // Native-GUI text: the resources live in the library (`autoshade::text`), the
 // GUI binds them with the platform's modifier hint and re-exports the key
 // constants. See i18n.rs.
+mod view;
 mod i18n;
 mod landing_analysis;
 mod landing_canvas;
 mod landing_worker;
 mod landing_persist;
 use i18n::*;
+use view::*;
 
 mod model;
 mod services;
@@ -320,12 +320,12 @@ fn adopt_pre_rename_prefs() -> &'static str {
 }
 
 /// Decode the embedded AutoShade icon for the window title bar / taskbar.
-fn app_icon() -> egui::IconData {
+fn app_icon() -> IconData {
     let img = image::load_from_memory(include_bytes!("../../../assets/icon_256.png"))
         .expect("embedded icon decodes")
         .to_rgba8();
     let (width, height) = img.dimensions();
-    egui::IconData { rgba: img.into_raw(), width, height }
+    IconData { rgba: img.into_raw(), width, height }
 }
 
 fn main() -> eframe::Result<()> {
@@ -339,7 +339,7 @@ fn main() -> eframe::Result<()> {
     // trade-off in budget.rs).
     budget::clamp_global_rayon();
     let opts = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
+        viewport: ViewportBuilder::default()
             .with_inner_size([1400.0, 880.0])
             // Below this the wrapped toolbar rows + two side panels leave no
             // usable canvas; wrapping (not clipping) covers everything above.

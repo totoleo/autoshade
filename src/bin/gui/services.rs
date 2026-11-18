@@ -2,6 +2,8 @@
 //! worker wakes. They are NOT photo state — replacing the executor or the event
 //! loop should not touch the document, the panels or the history.
 
+use crate::view::*;
+
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::model::Msg;
@@ -12,13 +14,13 @@ use crate::model::Msg;
 pub(crate) struct Services {
     pub(crate) rx: Option<Receiver<Msg>>,
     pub(crate) tx: Sender<Msg>,
-    pub(crate) egui_ctx: egui::Context,
+    pub(crate) egui_ctx: Context,
 }
 
 impl Default for Services {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
-        Self { rx: Some(rx), tx, egui_ctx: egui::Context::default() }
+        Self { rx: Some(rx), tx, egui_ctx: Context::default() }
     }
 }
 
