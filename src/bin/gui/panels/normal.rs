@@ -317,10 +317,7 @@ impl Commands<'_> {
             save = primary_in(ui, cell, ready, tr(lang, K_NORMAL_SAVE_AS_JPG))
                 .on_hover_text(tr(lang, K_NORMAL_SAVES_THE_PHOTO_WITH_THIS_LOOK_AS_A_JPG_THE_ORIG))
                 .clicked();
-            egui::ComboBox::from_id_salt("normal_quality")
-                .selected_text(format!("{} · {}", tr(lang, K_NORMAL_QUALITY), self.workspace.normal().quality.label(lang)))
-                .width(cell.x)
-                .show_ui(ui, |ui| {
+            ui.menu("normal_quality", format!("{} · {}", tr(lang, K_NORMAL_QUALITY), self.workspace.normal().quality.label(lang)), Some(cell.x), |ui| {
                     for q in SaveQuality::ALL {
                         ui.selectable_value(&mut self.workspace.normal_mut().quality, q, q.label(lang));
                     }

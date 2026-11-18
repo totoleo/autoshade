@@ -906,10 +906,7 @@ pub(crate) fn same_base(a: &str, b: &str) -> bool {
 /// next to a text field so any custom id can still be typed. Both edit `value`.
 pub(crate) fn model_picker(ui: &mut egui::Ui, salt: &str, value: &mut String, options: &[String], lang: Lang) {
     let sel = if value.trim().is_empty() { tr(lang, K_GUI_SELECT).to_owned() } else { value.clone() };
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu(salt, sel, Some(200.0), |ui| {
             for opt in options {
                 ui.selectable_value(value, opt.clone(), opt.as_str());
             }
@@ -941,10 +938,7 @@ pub(crate) fn effort_picker(
     } else {
         value.clone()
     };
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu(salt, sel, Some(200.0), |ui| {
             ui.selectable_value(value, String::new(), tr(lang, K_GUI_PROVIDER_DEFAULT));
             for t in tiers {
                 ui.selectable_value(value, (*t).to_string(), *t);
@@ -990,15 +984,11 @@ pub(crate) fn api_family_picker(ui: &mut egui::Ui, value: &mut String, lang: Lan
         .find(|(v, _)| *v == current)
         .map(|(_, label)| tr(lang, label).to_owned())
         .unwrap_or_else(|| tr(lang, CHOICES[0].1).to_owned());
-    egui::ComboBox::from_id_salt("set_image_api_family")
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu("set_image_api_family", sel, Some(200.0), |ui| {
             for (v, label) in CHOICES {
                 ui.selectable_value(value, v.to_string(), tr(lang, label));
             }
         })
-        .response
         .on_hover_text(tr(
             lang,
             K_GUI_WHICH_REQUEST_SHAPE_THE_IMAGE_ROLE_SENDS_AUTO_TR,

@@ -293,15 +293,11 @@ impl Commands<'_> {
                 // the recipe KEPT (the keep_recipe path from batch B).
                 let before = self.workspace.genai().preview_edge;
                 ui.add_enabled_ui(!self.workspace.busy(), |ui| {
-                    egui::ComboBox::from_id_salt("preview_edge")
-                        .selected_text(format!("{}px", self.workspace.genai().preview_edge))
-                        .width(64.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("preview_edge", format!("{}px", self.workspace.genai().preview_edge), Some(64.0), |ui| {
                             ui.selectable_value(&mut self.workspace.genai_mut().preview_edge, 1280, tr(lang, K_CANVAS_1280PX_FLUID));
                             ui.selectable_value(&mut self.workspace.genai_mut().preview_edge, 2560, "2560px");
                             ui.selectable_value(&mut self.workspace.genai_mut().preview_edge, 4096, tr(lang, K_CANVAS_4096PX_INSPECT));
                         })
-                        .response
                         .on_hover_text(tr(lang, K_CANVAS_WORKING_PREVIEW_RESOLUTION_1280_IS_SMOOTHEST_ON));
                 });
                 if self.workspace.genai().preview_edge != before

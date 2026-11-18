@@ -487,14 +487,11 @@ impl Commands<'_> {
                 // that wraps when short; the verb fills the row under them
                 // (2026-09-27: a row's one verb takes the whole row).
                 ui.horizontal_wrapped(|ui| {
-                    egui::ComboBox::from_id_salt("fill_quality")
-                        .selected_text(tr(lang, ["high", "medium", "low"][self.workspace.genai().fill_quality.min(2)]))
-                        .show_ui(ui, |ui| {
+                    ui.menu("fill_quality", tr(lang, ["high", "medium", "low"][self.workspace.genai().fill_quality.min(2)]), None, |ui| {
                             ui.selectable_value(&mut self.workspace.genai_mut().fill_quality, 0, tr(lang, K_AI_HIGH));
                             ui.selectable_value(&mut self.workspace.genai_mut().fill_quality, 1, tr(lang, K_AI_MEDIUM));
                             ui.selectable_value(&mut self.workspace.genai_mut().fill_quality, 2, tr(lang, K_AI_LOW));
                         })
-                        .response
                         .on_hover_text(tr(lang, K_AI_GPT_IMAGE_RENDER_QUALITY_HIGHER_LOOKS_BETTER_AND));
                     let src_is_raw = self.editor.active_source_path()
                         .is_some_and(|p| autoshade::decode::is_raw(&p));

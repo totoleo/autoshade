@@ -61,3 +61,32 @@ impl From<Text> for egui::WidgetText {
         text.0.into()
     }
 }
+
+/// A dropdown box: `id` salts the popup, `selected` is what the box shows while
+/// closed, `width` caps it (`None` = fit the content), and `body` adds the
+/// choices. The `ComboBox` construction and its builder chain stay here.
+pub(crate) trait UiExt {
+    fn menu(
+        &mut self,
+        id: impl std::hash::Hash,
+        selected: impl Into<egui::WidgetText>,
+        width: Option<f32>,
+        body: impl FnOnce(&mut egui::Ui),
+    ) -> egui::Response;
+}
+
+impl UiExt for egui::Ui {
+    fn menu(
+        &mut self,
+        id: impl std::hash::Hash,
+        selected: impl Into<egui::WidgetText>,
+        width: Option<f32>,
+        body: impl FnOnce(&mut egui::Ui),
+    ) -> egui::Response {
+        let mut combo = egui::ComboBox::from_id_salt(id).selected_text(selected);
+        if let Some(width) = width {
+            combo = combo.width(width);
+        }
+        combo.show_ui(self, body).response
+    }
+}

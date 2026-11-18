@@ -754,10 +754,7 @@ impl PanelView<'_, '_> {
                     autoshade::recipe::MaskCombine::Subtract => tr(lang, K_DEVELOP_SUBTRACT),
                     autoshade::recipe::MaskCombine::Intersect => tr(lang, K_DEVELOP_INTERSECT),
                 };
-                egui::ComboBox::from_id_salt("comp_mode")
-                    .selected_text(mode_label(self.workspace.masks().component_mode))
-                    .width(96.0)
-                    .show_ui(ui, |ui| {
+                ui.menu("comp_mode", mode_label(self.workspace.masks().component_mode), Some(96.0), |ui| {
                         for m in [
                             autoshade::recipe::MaskCombine::Add,
                             autoshade::recipe::MaskCombine::Subtract,
@@ -827,14 +824,11 @@ impl PanelView<'_, '_> {
                         self.workspace.masks_mut().sel_component = if selected { None } else { Some(c) };
                     }
                     let mut mode = comp.mode;
-                    egui::ComboBox::from_id_salt(("comp_row_mode", c))
-                        .selected_text(match mode {
+                    ui.menu(("comp_row_mode", c), match mode {
                             autoshade::recipe::MaskCombine::Add => tr(lang, K_DEVELOP_ADD__2),
                             autoshade::recipe::MaskCombine::Subtract => tr(lang, K_DEVELOP_SUBTRACT__2),
                             autoshade::recipe::MaskCombine::Intersect => tr(lang, K_DEVELOP_INTERSECT__2),
-                        })
-                        .width(88.0)
-                        .show_ui(ui, |ui| {
+                        }, Some(88.0), |ui| {
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Add, tr(lang, K_DEVELOP_ADD__2));
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Subtract, tr(lang, K_DEVELOP_SUBTRACT__2));
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Intersect, tr(lang, K_DEVELOP_INTERSECT__2));
@@ -913,10 +907,7 @@ impl PanelView<'_, '_> {
             let mut sel = cur;
             ui.horizontal(|ui| {
                 ui.label(tr(lang, K_DEVELOP_RANGE_MASK));
-                egui::ComboBox::from_id_salt("range_kind")
-                    .selected_text([tr(lang, K_DEVELOP_NONE), tr(lang, K_DEVELOP_LUMINANCE), tr(lang, K_DEVELOP_COLOR)][sel])
-                    .width(70.0)
-                    .show_ui(ui, |ui| {
+                ui.menu("range_kind", [tr(lang, K_DEVELOP_NONE), tr(lang, K_DEVELOP_LUMINANCE), tr(lang, K_DEVELOP_COLOR)][sel], Some(70.0), |ui| {
                         ui.selectable_value(&mut sel, 0, tr(lang, K_DEVELOP_NONE));
                         ui.selectable_value(&mut sel, 1, tr(lang, K_DEVELOP_LUMINANCE));
                         ui.selectable_value(&mut sel, 2, tr(lang, K_DEVELOP_COLOR));
@@ -1409,10 +1400,7 @@ impl PanelView<'_, '_> {
                 // hiding under the encoder dials.
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, K_DEVELOP_DESTINATION));
-                    egui::ComboBox::from_id_salt("exp_dest")
-                        .selected_text(tr(lang, self.workspace.exp().dest.label()))
-                        .width(170.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("exp_dest", tr(lang, self.workspace.exp().dest.label()), Some(170.0), |ui| {
                             for d in ExportDest::ALL {
                                 ui.selectable_value(&mut self.workspace.exp_mut().dest, d, tr(lang, d.label()));
                             }
@@ -1433,10 +1421,7 @@ impl PanelView<'_, '_> {
                 // horizontal overflowed the 320px panel in Chinese.
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, K_DEVELOP_FORMAT));
-                    egui::ComboBox::from_id_salt("save_fmt")
-                        .selected_text(tr(lang, self.workspace.exp().format.label()))
-                        .width(130.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("save_fmt", tr(lang, self.workspace.exp().format.label()), Some(130.0), |ui| {
                             for f in ExportFormat::ALL {
                                 ui.selectable_value(&mut self.workspace.exp_mut().format, f, tr(lang, f.label()));
                             }
@@ -1444,14 +1429,11 @@ impl PanelView<'_, '_> {
                 });
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, K_DEVELOP_LONG_EDGE));
-                    egui::ComboBox::from_id_salt("exp_long_edge")
-                        .selected_text(if self.workspace.exp().long_edge == 0 {
+                    ui.menu("exp_long_edge", if self.workspace.exp().long_edge == 0 {
                             tr(lang, K_EXPORT_ORIGINAL_SIZE).to_string()
                         } else {
                             format!("{} px", self.workspace.exp().long_edge)
-                        })
-                        .width(110.0)
-                        .show_ui(ui, |ui| {
+                        }, Some(110.0), |ui| {
                             ui.selectable_value(&mut self.workspace.exp_mut().long_edge, 0, tr(lang, K_EXPORT_ORIGINAL_SIZE));
                             for px in [1600u32, 2048, 2560, 3840, 5120] {
                                 ui.selectable_value(&mut self.workspace.exp_mut().long_edge, px, format!("{px} px"));
@@ -1466,10 +1448,7 @@ impl PanelView<'_, '_> {
                 });
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, K_DEVELOP_COLOUR_SPACE));
-                    egui::ComboBox::from_id_salt("exp_space")
-                        .selected_text(tr(lang, EXPORT_SPACES[(self.workspace.exp().space as usize).min(2)]))
-                        .width(170.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("exp_space", tr(lang, EXPORT_SPACES[(self.workspace.exp().space as usize).min(2)]), Some(170.0), |ui| {
                             for (i, name) in EXPORT_SPACES.iter().enumerate() {
                                 ui.selectable_value(&mut self.workspace.exp_mut().space, i as u8, tr(lang, name));
                             }
@@ -1688,10 +1667,7 @@ impl PanelView<'_, '_> {
                 ui.horizontal(|ui| {
                     ui.label(Text::new(tr(lang, K_DEVELOP_ASPECT)).weak().small());
                     let prev_aspect = self.workspace.crop().aspect;
-                    egui::ComboBox::from_id_salt("crop_aspect")
-                        .selected_text(tr(lang, CROP_ASPECTS[self.workspace.crop().aspect].0))
-                        .width(70.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("crop_aspect", tr(lang, CROP_ASPECTS[self.workspace.crop().aspect].0), Some(70.0), |ui| {
                             for (i, (name, _)) in CROP_ASPECTS.iter().enumerate() {
                                 ui.selectable_value(&mut self.workspace.crop_mut().aspect, i, tr(lang, name));
                             }
@@ -2096,14 +2072,11 @@ impl PanelView<'_, '_> {
         section_fold(ui, "sec_stack", section_title(tr(lang, K_DEVELOP_STACK), has), false, false, |ui| {
                 explainer(ui, lang, tr(lang, K_DEVELOP_MERGE_SEVERAL_FRAMES_OF_ONE_SCENE_INTO_A_NEW_NEG));
                 ui.add_space(SPACE_SM);
-                egui::ComboBox::from_id_salt("stack_kind")
-                    .selected_text(tr(lang, self.workspace.tools().stack_kind.label()))
-                    .show_ui(ui, |ui| {
+                ui.menu("stack_kind", tr(lang, self.workspace.tools().stack_kind.label()), None, |ui| {
                         for k in autoshade::stack::merge::StackKind::ALL {
                             ui.selectable_value(&mut self.workspace.tools_mut().stack_kind, k, tr(lang, k.label()));
                         }
                     })
-                    .response
                     .on_hover_text(tr(
                         lang,
                         K_DEVELOP_HDR_MERGE_AN_EXPOSURE_BRACKET_INTO_ONE_FRAME_HOL,
@@ -2363,10 +2336,7 @@ impl PanelView<'_, '_> {
                 let mut mode = self.editor.doc().recipe.perspective_upright.round().clamp(0.0, 5.0) as usize;
                 ui.horizontal(|ui| {
                     ui.label(Text::new(tr(lang, K_DEVELOP_UPRIGHT)).small());
-                    egui::ComboBox::from_id_salt("upright_mode")
-                        .selected_text(tr(lang, MODES[mode]))
-                        .width(90.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("upright_mode", tr(lang, MODES[mode]), Some(90.0), |ui| {
                             for (i, name) in MODES.iter().enumerate() {
                                 ui.selectable_value(&mut mode, i, tr(lang, name));
                             }

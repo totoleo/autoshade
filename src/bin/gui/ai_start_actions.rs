@@ -145,7 +145,7 @@ impl Commands<'_> {
                     .unwrap_or_else(|| automatic.clone());
                     // The fold's menu, the ▣ original first: Automatic stays
                     // offered, after the cards it chooses among.
-                    egui::ComboBox::from_id_salt("fit_prompt_from").selected_text(shown).show_ui(ui, |ui| {
+                    ui.menu("fit_prompt_from", shown, None, |ui| {
                         for (id, label) in &sources {
                             let on = prompt.from.as_deref() == Some(id.as_str());
                             if ui.selectable_label(on, label).clicked() {

@@ -26,9 +26,7 @@ impl PanelView<'_, '_> {
         // English is the skeleton; Chinese is an overlay. Switching takes effect
         // next frame (every label re-reads `self.lang`), no restart/save needed.
         // `from_id_salt` is egui 0.29's name for the old `from_id_source`.
-        egui::ComboBox::from_id_salt("lang_picker")
-            .selected_text(self.lang.label())
-            .show_ui(ui, |ui| {
+        ui.menu("lang_picker", self.lang.label(), None, |ui| {
                 ui.selectable_value(&mut self.lang, Lang::En, Lang::En.label());
                 ui.selectable_value(&mut self.lang, Lang::Zh, Lang::Zh.label());
             });
@@ -38,9 +36,7 @@ impl PanelView<'_, '_> {
         // ThemeColors) — switching either re-installs the egui style this
         // frame and persists with the other prefs.
         let before = (self.workspace.ui().theme, self.workspace.ui().accent);
-        egui::ComboBox::from_id_salt("theme_picker")
-            .selected_text(tr(lang, self.workspace.ui().theme.label()))
-            .show_ui(ui, |ui| {
+        ui.menu("theme_picker", tr(lang, self.workspace.ui().theme.label()), None, |ui| {
                 for t in ThemePref::ALL {
                     ui.selectable_value(&mut self.workspace.ui_mut().theme, t, tr(lang, t.label()));
                 }

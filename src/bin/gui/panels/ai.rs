@@ -661,14 +661,11 @@ impl Commands<'_> {
                 {
                     self.seams.prompt_rects.push(_field.rect);
                 }
-                egui::ComboBox::from_id_salt("adjust_quality")
-                    .selected_text(tr(lang, ["high", "medium", "low"][self.workspace.genai().adjust_quality.min(2)]))
-                    .show_ui(ui, |ui| {
+                ui.menu("adjust_quality", tr(lang, ["high", "medium", "low"][self.workspace.genai().adjust_quality.min(2)]), None, |ui| {
                         ui.selectable_value(&mut self.workspace.genai_mut().adjust_quality, 0, tr(lang, K_AI_HIGH));
                         ui.selectable_value(&mut self.workspace.genai_mut().adjust_quality, 1, tr(lang, K_AI_MEDIUM));
                         ui.selectable_value(&mut self.workspace.genai_mut().adjust_quality, 2, tr(lang, K_AI_LOW));
                     })
-                    .response
                     .on_hover_text(tr(lang, K_AI_GPT_IMAGE_RENDER_QUALITY_HIGHER_LOOKS_BETTER_AND));
                 // This fold's own brush and painted area (2026-09-27): it used
                 // to read the Retouch panel's shared mask with no control here.
