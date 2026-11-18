@@ -44,7 +44,7 @@ pub(crate) fn panel_heading(
         );
         job.into()
     } else {
-        egui::RichText::new(title).heading().strong().into()
+        Text::new(title).heading().strong().into()
     };
     let row = ui.horizontal(|ui| {
         lead(ui);
@@ -71,7 +71,7 @@ pub(crate) fn panel_heading(
 pub(crate) fn group_caption(ui: &mut egui::Ui, title: &str) {
     ui.add_space(SPACE_LG + SPACE_SM);
     ui.label(
-        egui::RichText::new(title)
+        Text::new(title)
             .small()
             .strong()
             .extra_letter_spacing(0.8)
@@ -100,7 +100,7 @@ pub(crate) fn paint_chevron(ui: &mut egui::Ui, openness: f32, response: &egui::R
 /// where it used to show three to six. Status lines and warnings stay plain
 /// labels — only explanation goes here.
 pub(crate) fn explainer(ui: &mut egui::Ui, lang: Lang, text: &str) -> egui::Response {
-    ui.label(egui::RichText::new(tr(lang, K_HEADING_HOW_THIS_WORKS)).small().weak()).on_hover_ui(|ui| {
+    ui.label(Text::new(tr(lang, K_HEADING_HOW_THIS_WORKS)).small().weak()).on_hover_ui(|ui| {
         ui.set_max_width(EXPLAINER_W);
         ui.label(text);
     })
@@ -115,7 +115,7 @@ pub(crate) const EXPLAINER_W: f32 = 320.0;
 /// block it is.
 pub(crate) fn sub_caption(ui: &mut egui::Ui, title: &str) {
     ui.add_space(SPACE_MD);
-    ui.label(egui::RichText::new(title).weak().small());
+    ui.label(Text::new(title).weak().small());
 }
 
 /// A fold drawn as a CARD while it is open (2026-10-12, user: 「UI 美观继续打磨，

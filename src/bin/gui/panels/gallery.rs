@@ -25,7 +25,7 @@ impl PanelView<'_, '_> {
             let dir = d.display().to_string();
             let cnt = self.workspace.gal().gallery.len().to_string();
             ui.label(
-                egui::RichText::new(trf(lang, K_GALLERY_PHOTOS, &[("dir", &dir), ("count", &cnt)]))
+                Text::new(trf(lang, K_GALLERY_PHOTOS, &[("dir", &dir), ("count", &cnt)]))
                     .weak()
                     .small(),
             );
@@ -112,7 +112,7 @@ impl PanelView<'_, '_> {
                 tr(lang, K_GALLERY_OPEN_A_FOLDER_TO_BROWSE_YOUR_PHOTOS_HERE)
             };
             ui.add_space(SPACE_MD);
-            ui.label(egui::RichText::new(hint).weak());
+            ui.label(Text::new(hint).weak());
             return;
         }
 
@@ -227,7 +227,7 @@ impl PanelView<'_, '_> {
                                     to_request.push(i);
                                 }
                                 ui.vertical(|ui| {
-                                    let mut name = egui::RichText::new(autoshade::pipeline::stem(path)).small();
+                                    let mut name = Text::new(autoshade::pipeline::stem(path)).small();
                                     if is_sel {
                                         name = name.strong().color(colors.accent_text);
                                     }
@@ -245,13 +245,13 @@ impl PanelView<'_, '_> {
                                     let baked = !autoshade::decode::is_raw(path);
                                     ui.horizontal(|ui| {
                                         if is_multi {
-                                            ui.label(egui::RichText::new(tr(lang, K_GALLERY_SELECTED)).color(colors.accent_text).small());
+                                            ui.label(Text::new(tr(lang, K_GALLERY_SELECTED)).color(colors.accent_text).small());
                                         }
                                         if baked {
-                                            ui.label(egui::RichText::new("PNG/TIFF").color(colors.accent_text).small());
+                                            ui.label(Text::new("PNG/TIFF").color(colors.accent_text).small());
                                         }
                                         if edited {
-                                            ui.label(egui::RichText::new(tr(lang, K_GALLERY_EDITED)).color(colors.accent_text).small());
+                                            ui.label(Text::new(tr(lang, K_GALLERY_EDITED)).color(colors.accent_text).small());
                                         }
                                     });
                                 });

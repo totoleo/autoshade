@@ -428,7 +428,7 @@ impl Commands<'_> {
                 self.editor.doc().recipe.retouch.iter().filter(|a| a.origin.is_synthesised()).count();
             sub_caption(ui, tr(lang, K_RETOUCH_IMPORTED_REMOVAL));
             ui.label(
-                egui::RichText::new(trf(
+                Text::new(trf(
                     lang,
                     K_RETOUCH_LIGHTROOM_REMOVED_AREA_S_HERE_RE_SOLVED_FROM_THI,
                     &[("n", &total.to_string())],
@@ -441,7 +441,7 @@ impl Commands<'_> {
                 // the picture on screen is THIS app's repair, and Adobe's own
                 // result is not in the sidecar to be shown.
                 ui.label(
-                    egui::RichText::new(trf(
+                    Text::new(trf(
                         lang,
                         K_RETOUCH_OF_THEM_WERE_SYNTHESISED_BY_ADOBE_THOSE_PIXELS_A,
                         &[("n", &synth.to_string())],

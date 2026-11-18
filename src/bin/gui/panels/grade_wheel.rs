@@ -55,7 +55,7 @@ pub(crate) fn grade_wheel(
 ) -> bool {
     let mut changed = false;
     ui.vertical_centered(|ui| {
-        ui.label(egui::RichText::new(title).small().color(ui.visuals().weak_text_color()));
+        ui.label(Text::new(title).small().color(ui.visuals().weak_text_color()));
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(diameter, diameter), egui::Sense::click_and_drag());
         let resp = resp.on_hover_text(tr(
             lang,
@@ -90,7 +90,7 @@ pub(crate) fn grade_wheel(
             paint_wheel(ui, c, r, *hue, *sat, resp.hovered() || resp.dragged());
         }
         ui.label(
-            egui::RichText::new(format!("{} {:.0}°  ·  {} {:.0}", tr(lang, K_DEVELOP_HUE), hue, tr(lang, K_DEVELOP_SATURATION), sat))
+            Text::new(format!("{} {:.0}°  ·  {} {:.0}", tr(lang, K_DEVELOP_HUE), hue, tr(lang, K_DEVELOP_SATURATION), sat))
                 .small()
                 .color(ui.visuals().weak_text_color()),
         );

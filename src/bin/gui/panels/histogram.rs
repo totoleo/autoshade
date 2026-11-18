@@ -181,7 +181,7 @@ impl PanelView<'_, '_> {
                 if ui
                     .selectable_label(
                         self.workspace.curve_channel() == i,
-                        egui::RichText::new(tr(lang, name)).color(label_colors[i]).small(),
+                        Text::new(tr(lang, name)).color(label_colors[i]).small(),
                     )
                     .clicked()
                 {

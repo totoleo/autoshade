@@ -66,6 +66,7 @@ ALLOWED = frozenset(
         "side_panel.rs",
         "sliders.rs",
         "theme.rs",
+        "ui_kit.rs",
         "util.rs",
         "variant_actions.rs",
         "window_chrome.rs",
@@ -74,7 +75,7 @@ ALLOWED = frozenset(
 )
 
 # The count after the last slice. It may only go down.
-BUDGET = 1306
+BUDGET = 1169
 
 
 def production_sources() -> list[Path]:

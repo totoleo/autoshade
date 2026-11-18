@@ -1330,7 +1330,7 @@ impl AutoShadeApp {
                 // ever push it out of view at narrow widths.
                 if self.editor.unsaved_marker_dirty() {
                     ui.label(
-                        egui::RichText::new(tr(self.lang, K_APP_UNSAVED))
+                        Text::new(tr(self.lang, K_APP_UNSAVED))
                             .color(ui.visuals().warn_fg_color),
                     )
                     .on_hover_text(tr(
@@ -1408,11 +1408,11 @@ impl AutoShadeApp {
                         // bare left-aligned label read as a stuck error.
                         ui.add_space(24.0);
                         ui.vertical_centered(|ui| {
-                            ui.label(egui::RichText::new("🖼").size(26.0).weak());
+                            ui.label(Text::new("🖼").size(26.0).weak());
                             ui.add_space(SPACE_SM);
-                            ui.label(egui::RichText::new(tr(self.lang, K_APP_NO_PHOTO_OPEN)).weak());
+                            ui.label(Text::new(tr(self.lang, K_APP_NO_PHOTO_OPEN)).weak());
                             ui.label(
-                                egui::RichText::new(tr(
+                                Text::new(tr(
                                     self.lang,
                                     K_APP_CLICK_A_THUMBNAIL_IN_THE_LIBRARY_OR_PRESS_CTRL_O,
                                 ))
@@ -1423,7 +1423,7 @@ impl AutoShadeApp {
                             // Round-13 easter egg — quiet enough to miss,
                             // which is the point of an easter egg.
                             ui.label(
-                                egui::RichText::new(tr(
+                                Text::new(tr(
                                     self.lang,
                                     K_APP_FUN_FACT_THIS_EMPTY_STATE_FINISHED_LOADING_WHILE,
                                 ))
@@ -1493,7 +1493,7 @@ impl AutoShadeApp {
                 ui.vertical_centered(|ui| {
                     ui.add_space(ui.available_height() * 0.32);
                     ui.heading("AutoShade");
-                    ui.label(egui::RichText::new(tr(self.lang, K_APP_AI_AUTO_EDIT_RAW_PROCESSING)).weak());
+                    ui.label(Text::new(tr(self.lang, K_APP_AI_AUTO_EDIT_RAW_PROCESSING)).weak());
                     ui.add_space(SPACE_LG);
                     ui.horizontal(|ui| {
                         // Center the button pair by padding half the leftover width.
@@ -1512,7 +1512,7 @@ impl AutoShadeApp {
                     });
                     ui.add_space(8.0);
                     ui.label(
-                        egui::RichText::new(tr(self.lang, K_APP_OR_DRAG_A_RAW_IMAGE_STRAIGHT_INTO_THE_WINDOW_DRA))
+                        Text::new(tr(self.lang, K_APP_OR_DRAG_A_RAW_IMAGE_STRAIGHT_INTO_THE_WINDOW_DRA))
                             .weak()
                             .small(),
                     );
@@ -1539,7 +1539,7 @@ impl AutoShadeApp {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
                             ui.label(
-                                egui::RichText::new(tr(self.lang, K_APP_BEFORE_SOURCE))
+                                Text::new(tr(self.lang, K_APP_BEFORE_SOURCE))
                                     .weak()
                                     .small(),
                             );
@@ -1656,7 +1656,7 @@ impl AutoShadeApp {
                             ui,
                             |ui| {
                                 for (keys, what) in rows {
-                                    ui.label(egui::RichText::new(keys).monospace().color(accent));
+                                    ui.label(Text::new(keys).monospace().color(accent));
                                     ui.label(what);
                                     ui.end_row();
                                 }
@@ -1666,7 +1666,7 @@ impl AutoShadeApp {
                     ui.add_space(SPACE_SM);
                     // Round-13 easter egg: the pricing model, disclosed.
                     ui.label(
-                        egui::RichText::new(tr(
+                        Text::new(tr(
                             lang,
                             K_APP_EVERY_SHORTCUT_ABOVE_SHIPS_FREE_NO_CREATIVE_TIER,
                         ))
@@ -1937,7 +1937,7 @@ impl AutoShadeApp {
                                 // text ignored the measure and ran past the
                                 // window's edge as one line.
                                 ui.add(
-                                    egui::Label::new(egui::RichText::new(&t.text).color(fg.gamma_multiply(fade)))
+                                    egui::Label::new(Text::new(&t.text).color(fg.gamma_multiply(fade)))
                                         .wrap(),
                                 );
                             })

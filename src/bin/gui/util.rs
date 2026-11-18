@@ -970,7 +970,7 @@ pub(crate) fn tiers_note(ui: &mut egui::Ui, none: bool, lang: Lang) {
     } else {
         tr(lang, K_GUI_TIERS_PER_MODELS)
     };
-    ui.label(egui::RichText::new(text).weak().small());
+    ui.label(Text::new(text).weak().small());
 }
 
 /// The image role's request-shape picker: `auto`, `responses` or `chat`

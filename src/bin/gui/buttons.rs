@@ -199,7 +199,7 @@ pub(crate) fn group<R>(
 }
 
 fn primary_text(text: impl Into<String>) -> egui::WidgetText {
-    egui::RichText::new(text).color(PRIMARY_FG).into()
+    Text::new(text).color(PRIMARY_FG).into()
 }
 
 /// A secondary text verb at its own width.

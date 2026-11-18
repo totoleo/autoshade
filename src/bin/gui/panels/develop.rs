@@ -212,7 +212,7 @@ impl Commands<'_> {
                                 act = Some(VariantAction::Switch(i));
                             }
                             ui.horizontal(|ui| {
-                                let label = egui::RichText::new(tr(lang, kind.label())).small();
+                                let label = Text::new(tr(lang, kind.label())).small();
                                 let label = ui.label(if active { label.strong().color(accent) } else { label });
                                 // The immutability rule, said where the card
                                 // is (2026-09-13): a ✨ card never takes an
@@ -297,8 +297,8 @@ impl Commands<'_> {
                                     }
                                 } else if active {
                                     let shown = match &named {
-                                        Some(n) => egui::RichText::new(format!("「{n}」")).small(),
-                                        None => egui::RichText::new(tr(lang, K_DEVELOP_NAME__2).to_string())
+                                        Some(n) => Text::new(format!("「{n}」")).small(),
+                                        None => Text::new(tr(lang, K_DEVELOP_NAME__2).to_string())
                                             .small()
                                             .weak(),
                                     };
@@ -313,7 +313,7 @@ impl Commands<'_> {
                                         act = Some(VariantAction::Rename(card_id.clone()));
                                     }
                                 } else if let Some(n) = &named {
-                                    ui.label(egui::RichText::new(format!("「{n}」")).small().weak());
+                                    ui.label(Text::new(format!("「{n}」")).small().weak());
                                 }
                                 if let Some(a) = self.with_panel(|p| p.variant_card_buttons(
                                     ui,
@@ -426,7 +426,7 @@ impl Commands<'_> {
                 if n_var > 0 {
                     let accent = self.workspace.ui().theme.colors().accent_text;
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_DEVELOP_VARIANTS,
                             &[("n", &n_var.to_string())],
@@ -448,37 +448,37 @@ impl Commands<'_> {
                         self.seams.edit_list_rows.push(format!("variant:{}", kind.store_str()));
                         let hit = ui
                             .horizontal(|ui| {
-                                let label = egui::RichText::new(tr(lang, kind.label())).small();
+                                let label = Text::new(tr(lang, kind.label())).small();
                                 ui.label(if i == active_i {
                                     label.strong().color(accent)
                                 } else {
                                     label
                                 });
                                 if let Some(n) = &name {
-                                    ui.label(egui::RichText::new(format!("「{n}」")).small());
+                                    ui.label(Text::new(format!("「{n}」")).small());
                                 }
                                 if i == active_i {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_CURRENT))
+                                        Text::new(tr(lang, K_DEVELOP_CURRENT))
                                             .weak()
                                             .small(),
                                     );
                                 }
                                 if kind == VariantKind::Edited {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_DEVELOP_OVER_AI_PIXELS_NO_XMP))
+                                        Text::new(tr(lang, K_DEVELOP_DEVELOP_OVER_AI_PIXELS_NO_XMP))
                                             .weak()
                                             .small(),
                                     );
                                 } else if !kind.is_source_based() {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_PIXEL_STATE_NO_XMP))
+                                        Text::new(tr(lang, K_DEVELOP_PIXEL_STATE_NO_XMP))
                                             .weak()
                                             .small(),
                                     );
                                 } else if on_pixels {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_ON_BAKED_PIXELS))
+                                        Text::new(tr(lang, K_DEVELOP_ON_BAKED_PIXELS))
                                             .weak()
                                             .small(),
                                     );
@@ -604,8 +604,8 @@ impl Commands<'_> {
                                 None => tr(lang, K_DEVELOP_NAME__2).to_string(),
                             };
                             let text = match &named {
-                                Some(_) => egui::RichText::new(shown),
-                                None => egui::RichText::new(shown).weak(),
+                                Some(_) => Text::new(shown),
+                                None => Text::new(shown).weak(),
                             };
                             if ui
                                 .add(egui::Label::new(text).sense(egui::Sense::click()))
@@ -636,7 +636,7 @@ impl Commands<'_> {
                                 _ => None,
                             };
                             if let Some(note) = note {
-                                ui.label(egui::RichText::new(note).weak().small());
+                                ui.label(Text::new(note).weak().small());
                             }
                         }
                         if action(ui, true, tr(lang, K_DEVELOP_LOAD)).on_hover_text(tr(lang, K_DEVELOP_REPLACE_CURRENT_PARAMETERS_ONE_CTRL_Z_TO_UNDO)).clicked() {
@@ -652,7 +652,7 @@ impl Commands<'_> {
                 }
                 if hidden > 0 {
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_DEVELOP_HIDDEN_SAVED_FROM_ANOTHER_VARIANT,
                             &[("n", &hidden.to_string())],

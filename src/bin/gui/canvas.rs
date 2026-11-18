@@ -179,7 +179,7 @@ impl Commands<'_> {
             // hang, a spinner reads as work.
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(egui::RichText::new(tr(lang, K_CANVAS_PREPARING_PREVIEW)).weak());
+                ui.label(Text::new(tr(lang, K_CANVAS_PREPARING_PREVIEW)).weak());
             });
             return;
         };
@@ -260,9 +260,9 @@ impl Commands<'_> {
         let armed = !comparing && self.workspace.tool_armed();
         ui.horizontal(|ui| {
             if armed {
-                ui.label(egui::RichText::new(hint).color(self.workspace.ui().theme.colors().armed_hint).small());
+                ui.label(Text::new(hint).color(self.workspace.ui().theme.colors().armed_hint).small());
             } else {
-                ui.label(egui::RichText::new(hint).weak().small());
+                ui.label(Text::new(hint).weak().small());
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if action(ui, true, "1:1").on_hover_text(tr(lang, K_CANVAS_PREVIEW_PIXELS_1_1_DOUBLE_CLICK_THE_IMAGE_TO_TOG)).clicked() {
@@ -287,7 +287,7 @@ impl Commands<'_> {
                     let ctx = ui.ctx().clone();
                     self.with_panel(|p| p.toggle_clipping(&ctx)); // instant — no redevelop
                 }
-                ui.label(egui::RichText::new(format!("{:.0}%", scale * 100.0)).weak().small());
+                ui.label(Text::new(format!("{:.0}%", scale * 100.0)).weak().small());
                 // --- preview resolution (gap batch E): 1:1 that actually
                 // resolves detail. Switching re-decodes the current photo with
                 // the recipe KEPT (the keep_recipe path from batch B).

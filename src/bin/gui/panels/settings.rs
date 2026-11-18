@@ -14,7 +14,7 @@ impl PanelView<'_, '_> {
             // "& Theme", not "& Reverse-fit": the reverse-fit switch this
             // sentence used to point at now lives in the AI panel (R22 #4), and
             // Theme is the other control here that applies without a save.
-            egui::RichText::new(tr(
+            Text::new(tr(
                 lang,
                 K_SETTINGS_LANGUAGE_THEME_APPLY_IMMEDIATELY_THE_PROVIDER_SE,
             ))
@@ -74,7 +74,7 @@ impl PanelView<'_, '_> {
             Some(p) => autoshade::store::develop_dir(p),
             None => autoshade::store::store_root(),
         };
-        ui.label(egui::RichText::new(abs_display(&shown)).small().weak()).on_hover_text(tr(
+        ui.label(Text::new(abs_display(&shown)).small().weak()).on_hover_text(tr(
             lang,
             K_SETTINGS_WHERE_SAVED_DEVELOPS_LIVE_RECIPES_LIGHTROOM_XMP,
         ));
@@ -106,7 +106,7 @@ impl PanelView<'_, '_> {
         // them — this row names the folder and opens it.
         let masters = autoshade::store::masters_dir();
         ui.label(
-            egui::RichText::new(trf(lang, K_SETTINGS_PIXEL_MASTERS, &[("path", &abs_display(&masters))]))
+            Text::new(trf(lang, K_SETTINGS_PIXEL_MASTERS, &[("path", &abs_display(&masters))]))
                 .small()
                 .weak(),
         )
@@ -180,7 +180,7 @@ impl PanelView<'_, '_> {
         // relative to — the same reason the export summary spells its target
         // out in full. Reflects the SAVED value, so it only moves after
         // 「Save settings」.
-        ui.label(egui::RichText::new(abs_display(&resolved)).small().weak());
+        ui.label(Text::new(abs_display(&resolved)).small().weak());
         // --- the PYTHON INTERPRETER (M1-3) -----------------------------------
         // WRITABLE here, unlike the sidecar path below, and that is not the
         // same ruling softened. `AUTOSHADE_PYTHON` stays `Trust::Destination`
@@ -217,7 +217,7 @@ impl PanelView<'_, '_> {
                     ui.add(egui::TextEdit::singleline(field).desired_width(width(ui)));
                 });
             }
-            ui.label(egui::RichText::new(tr(lang, K_SETTINGS_BLANK_DEFAULT)).small().weak());
+            ui.label(Text::new(tr(lang, K_SETTINGS_BLANK_DEFAULT)).small().weak());
         }
         // One resolved config for this row and the sidecar row below; the
         // panel used to load it once per row.
@@ -271,7 +271,7 @@ impl PanelView<'_, '_> {
         // spelling and an `AUTOSHADE_PYTHON` in the environment outranks it,
         // so a user whose environment already answers would otherwise be
         // looking at an empty box.
-        ui.label(egui::RichText::new(cfg_now.sidecar_python()).small().weak());
+        ui.label(Text::new(cfg_now.sidecar_python()).small().weak());
         // The managed environment: an app-owned interpreter carrying the
         // sidecars' wheels. Prepared only on request — the CUDA set is a
         // multi-gigabyte download, so it is never fetched in the background.
@@ -279,14 +279,14 @@ impl PanelView<'_, '_> {
             ui.label(tr(lang, K_SETTINGS_MANAGED_PYTHON));
             match autoshade::python_env::readiness() {
                 autoshade::python_env::Readiness::Ready(p) => {
-                    ui.label(egui::RichText::new(p.display().to_string()).small())
+                    ui.label(Text::new(p.display().to_string()).small())
                         .on_hover_text(tr(
                             lang,
                             K_SETTINGS_THE_AI_SIDECARS_RUN_IN_THIS_ENVIRONMENT_UNLESS_Y,
                         ));
                 }
                 autoshade::python_env::Readiness::NotPrepared => {
-                    ui.label(egui::RichText::new(tr(lang, K_SETTINGS_NOT_PREPARED)).small().weak());
+                    ui.label(Text::new(tr(lang, K_SETTINGS_NOT_PREPARED)).small().weak());
                 }
             }
         });
@@ -302,7 +302,7 @@ impl PanelView<'_, '_> {
             )]);
         }
         if let Some(line) = &self.workspace.ui().python_env_line {
-            ui.label(egui::RichText::new(line).small().weak());
+            ui.label(Text::new(line).small().weak());
         }
         // What the sidecars will actually launch — the launch check's answer,
         // which is the only place a wrong interpreter becomes visible before a
@@ -328,7 +328,7 @@ impl PanelView<'_, '_> {
                 )),
             };
             if let Some(fact) = fact {
-                ui.label(egui::RichText::new(fact).small().weak());
+                ui.label(Text::new(fact).small().weak());
             }
         }
         // --- the SEGMENTATION SIDECAR path (R25, closing R22-1) --------------
@@ -355,7 +355,7 @@ impl PanelView<'_, '_> {
         ui.heading(tr(lang, K_SETTINGS_SEGMENTATION_HELPER));
         let seg = cfg_now.segment_script;
         let seg_path = std::path::PathBuf::from(&seg);
-        ui.label(egui::RichText::new(abs_display(&seg_path)).small().weak()).on_hover_text(tr(
+        ui.label(Text::new(abs_display(&seg_path)).small().weak()).on_hover_text(tr(
             lang,
             K_SETTINGS_SET_WITH_THE_AUTOSHADE_SEGMENT_SCRIPT_ENVIRONMEN,
         ));
@@ -364,7 +364,7 @@ impl PanelView<'_, '_> {
         // buttons can never disagree about whether the helper is there.
         if !segment_helper_available() {
             ui.label(
-                egui::RichText::new(tr(lang,
+                Text::new(tr(lang,
                     K_DEVELOP_THIS_FEATURE_NEEDS_AUTOSHADE_S_PYTHON_HELPER_WHI,
                 ))
                 .small()
@@ -500,7 +500,7 @@ impl PanelView<'_, '_> {
                     }
                     if !f.analysis_models.chat.is_empty() {
                         ui.label(
-                            egui::RichText::new(trf(
+                            Text::new(trf(
                                 lang,
                                 K_SETTINGS_CHAT,
                                 &[("chat", &f.analysis_models.chat.len().to_string())],
@@ -552,7 +552,7 @@ impl PanelView<'_, '_> {
                     let cn = f.image_models.chat.len().to_string();
                     let im = f.image_models.image_gen.len().to_string();
                     ui.label(
-                        egui::RichText::new(trf(lang, K_SETTINGS_CHAT_IMAGE, &[("chat", &cn), ("image", &im)]))
+                        Text::new(trf(lang, K_SETTINGS_CHAT_IMAGE, &[("chat", &cn), ("image", &im)]))
                             .weak()
                             .small(),
                     );
@@ -570,7 +570,7 @@ impl PanelView<'_, '_> {
                 // otherwise only say at the first paid call.
                 if f.image_models.vision_of(&f.image_model) == Some(false) {
                     ui.label(
-                        egui::RichText::new(tr(lang, K_SETTINGS_TAKES_NO_IMAGES_PER_MODELS))
+                        Text::new(tr(lang, K_SETTINGS_TAKES_NO_IMAGES_PER_MODELS))
                             .color(ui.visuals().warn_fg_color)
                             .small(),
                     );
@@ -627,21 +627,21 @@ impl PanelView<'_, '_> {
             } else {
                 tr(lang, K_SETTINGS_TIP_GPT_IMAGE_1_5_KEEPS_THE_PHOTO_MOST_FAITHFUL)
             };
-            ui.label(egui::RichText::new(note).weak().small());
+            ui.label(Text::new(note).weak().small());
             ui.separator();
             ui.horizontal(|ui| {
                 if primary(ui, true, tr(lang, K_SETTINGS_SAVE_SETTINGS)).clicked() {
                     do_save = true;
                 }
                 if !f.status.is_empty() {
-                    ui.label(egui::RichText::new(&f.status).weak().small());
+                    ui.label(Text::new(&f.status).weak().small());
                 }
             });
         }
         // The icon's fine print (round-13 easter egg).
         ui.add_space(SPACE_SM);
         ui.label(
-            egui::RichText::new(tr(
+            Text::new(tr(
                 lang,
                 K_SETTINGS_SKYMANBP_S_AS_THE_AS_STANDS_FOR_AUTOSHADE_NOT_AN,
             ))

@@ -132,9 +132,9 @@ impl Commands<'_> {
             .show(ctx, |ui| {
                 ui.label(fit_explainer(lang));
                 // The landing's own reading, without its ` · ` joint.
-                ui.label(egui::RichText::new(fidelity.trim_start_matches(" · ")).small().weak());
+                ui.label(Text::new(fidelity.trim_start_matches(" · ")).small().weak());
                 if let Some(to) = &to {
-                    ui.label(egui::RichText::new(to).small().weak());
+                    ui.label(Text::new(to).small().weak());
                 }
                 ui.horizontal(|ui| {
                     ui.label(tr(lang, K_ACTIONS_FROM));
@@ -157,7 +157,7 @@ impl Commands<'_> {
                         }
                     });
                 });
-                ui.label(egui::RichText::new(&in_force).small().weak());
+                ui.label(Text::new(&in_force).small().weak());
                 ui.checkbox(&mut prompt.dont_ask, tr(lang, K_ACTIONS_DON_T_ASK_AGAIN_AFTER_GENERATING))
                     .on_hover_text(tr(lang, K_ACTIONS_TURN_IT_BACK_ON_IN_THE_AI_PANEL_S_REVERSE_FIT_FO));
                 ui.add_space(SPACE_MD);
@@ -308,7 +308,7 @@ impl Commands<'_> {
                             .and_then(|s| s.to_str())
                             .unwrap_or("");
                         ui.label(
-                            egui::RichText::new(format!(
+                            Text::new(format!(
                                 "{folder}/{}",
                                 autoshade::pipeline::stem(p)
                             ))
@@ -323,7 +323,7 @@ impl Commands<'_> {
                     // are rescued WITH their photo, not lost.
                     ui.add_space(SPACE_MD);
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_ACTIONS_OTHER_VARIANT_S_HOLD_EDITS_SAVE_ALL_SAVES_EACH_P,
                             &[("n", &orphan_variants.to_string())],
@@ -340,7 +340,7 @@ impl Commands<'_> {
                     cancel |= action(ui, true, tr(lang, K_ACTIONS_CANCEL)).on_hover_text("Esc").clicked();
                     ui.add_space(18.0);
                     let warn = ui.visuals().warn_fg_color;
-                    discard_quit = action(ui, true, egui::RichText::new(tr(lang, K_ACTIONS_DISCARD_QUIT)).color(warn))
+                    discard_quit = action(ui, true, Text::new(tr(lang, K_ACTIONS_DISCARD_QUIT)).color(warn))
                         .on_hover_text(tr(lang, K_ACTIONS_QUIT_WITHOUT_SAVING_THESE_EDITS_ARE_GONE_FOR_GOO))
                         .clicked();
                     save_quit |= primary(ui, true, tr(lang, K_ACTIONS_SAVE_ALL_QUIT))

@@ -183,7 +183,7 @@ impl Commands<'_> {
             if self.workspace.portrait().line == PortraitLine::Finding || (self.workspace.portrait().line == PortraitLine::Looking && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
-            ui.label(egui::RichText::new(line).small());
+            ui.label(Text::new(line).small());
         });
         if find {
             self.apply_actions(vec![logic::Action::Portrait(
@@ -242,7 +242,7 @@ impl Commands<'_> {
             )]);
         }
         if let Some(why) = gate {
-            ui.label(egui::RichText::new(why).weak().small());
+            ui.label(Text::new(why).weak().small());
         }
         changed
     }
@@ -266,7 +266,7 @@ impl Commands<'_> {
             }
         });
         if let Some(why) = gate {
-            ui.label(egui::RichText::new(why).weak().small());
+            ui.label(Text::new(why).weak().small());
         }
         changed
     }
@@ -318,7 +318,7 @@ impl Commands<'_> {
             }
         });
         if !has_bg {
-            ui.label(egui::RichText::new(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP)).weak().small());
+            ui.label(Text::new(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP)).weak().small());
         }
         changed
     }
@@ -327,5 +327,5 @@ impl Commands<'_> {
 /// A group's sub-heading.
 pub(crate) fn portrait_group(ui: &mut egui::Ui, title: &str) {
     ui.add_space(SPACE_MD);
-    ui.label(egui::RichText::new(title).strong());
+    ui.label(Text::new(title).strong());
 }

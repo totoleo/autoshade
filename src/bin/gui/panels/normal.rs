@@ -180,7 +180,7 @@ impl Commands<'_> {
                 }
             });
         }
-        ui.vertical_centered(|ui| ui.label(egui::RichText::new(tr(lang, K_NORMAL_OR)).weak().small()));
+        ui.vertical_centered(|ui| ui.label(Text::new(tr(lang, K_NORMAL_OR)).weak().small()));
         let pick = action_row(ui, ready, tr(lang, K_NORMAL_MATCH_MY_REFERENCE_PHOTOS))
             .on_hover_text(tr(
                 lang,
@@ -189,7 +189,7 @@ impl Commands<'_> {
             .clicked();
         if let Some(dir) = &self.workspace.normal().ref_dir {
             let name = dir.file_name().map_or_else(|| abs_display(dir), |n| n.to_string_lossy().into_owned());
-            ui.label(egui::RichText::new(trf(lang, K_NORMAL_CHOSEN, &[("name", &name)])).weak().small());
+            ui.label(Text::new(trf(lang, K_NORMAL_CHOSEN, &[("name", &name)])).weak().small());
         }
         slider_pct_hinted(
             ui,
@@ -205,11 +205,11 @@ impl Commands<'_> {
             if self.workspace.normal().building || (self.workspace.normal().line == NormalLine::Working && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
-            ui.label(egui::RichText::new(line).small());
+            ui.label(Text::new(line).small());
         });
         if self.workspace.normal().key_present == Some(false) {
             ui.label(
-                egui::RichText::new(tr(lang, K_NORMAL_TO_MAKE_LOOKS_WITH_AI_ADD_A_SERVICE_KEY_IN_SETTI))
+                Text::new(tr(lang, K_NORMAL_TO_MAKE_LOOKS_WITH_AI_ADD_A_SERVICE_KEY_IN_SETTI))
                     .weak()
                     .small(),
             );
@@ -299,7 +299,7 @@ impl Commands<'_> {
             )]);
         }
         for line in self.editor.noise_lines(&self.workspace, lang, helper) {
-            ui.label(egui::RichText::new(line).weak().small());
+            ui.label(Text::new(line).weak().small());
         }
     }
 
@@ -342,7 +342,7 @@ impl Commands<'_> {
             ),
         };
         let full = self.workspace.export_dest_dir().map(|d| abs_display(&d)).unwrap_or_default();
-        ui.label(egui::RichText::new(place).weak().small()).on_hover_text(full);
+        ui.label(Text::new(place).weak().small()).on_hover_text(full);
         let all = action_row(ui, ready && !self.workspace.gal().gallery.is_empty(), tr(lang, K_NORMAL_APPLY_THIS_LOOK_TO_EVERY_PHOTO_IN_THE_FOLDER))
             .on_hover_text(tr(lang, K_NORMAL_GIVES_EVERY_PHOTO_IN_THE_OPEN_FOLDER_THIS_LOOK_A))
             .on_disabled_hover_text(tr(lang, K_NORMAL_OPEN_A_FOLDER_FIRST_THE_LIBRARY_ON_THE_LEFT))

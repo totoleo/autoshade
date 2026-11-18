@@ -297,7 +297,7 @@ impl Commands<'_> {
                     Some(autoshade::library::Summary::Absent | autoshade::library::Summary::Unusable(_))
                 ) {
                     ui.label(
-                        egui::RichText::new(tr(lang, K_AI_NO_LIBRARY))
+                        Text::new(tr(lang, K_AI_NO_LIBRARY))
                             .color(ui.visuals().warn_fg_color)
                             .small(),
                     )
@@ -429,7 +429,7 @@ impl Commands<'_> {
                     } else {
                         tr(lang, K_AI_STYLE_IS_AT_0_THE_ANALYSIS_READS_NO_LIBRARY)
                     };
-                    ui.label(egui::RichText::new(why).weak().small());
+                    ui.label(Text::new(why).weak().small());
                 }
                 ui.add_enabled_ui(reads_a_library, |ui| {
                     #[cfg(test)]
@@ -503,7 +503,7 @@ impl Commands<'_> {
                 Some(d) => abs_display(d),
                 None => tr(lang, K_AI_NO_RAW_FOLDER_REFERENCES_GO_WITHOUT_SETTINGS).to_string(),
             };
-            ui.label(egui::RichText::new(raw_note).small().weak());
+            ui.label(Text::new(raw_note).small().weak());
             if pick_raw {
                 self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::PickRawFolder)]);
             }
@@ -514,7 +514,7 @@ impl Commands<'_> {
         });
         if let Some((stage, done, total)) = self.workspace.ai().style_build_progress {
             ui.label(
-                egui::RichText::new(trf(
+                Text::new(trf(
                     lang,
                     K_AI_PHOTOS,
                     &[("stage", tr(lang, stage.label())), ("done", &done.to_string()), ("total", &total.to_string())],
@@ -680,7 +680,7 @@ impl Commands<'_> {
                 } else {
                     tr(lang, K_AI_WHOLE_IMAGE_PAINT_AN_AREA_TO_LIMIT_IT)
                 };
-                ui.label(egui::RichText::new(note).weak().small());
+                ui.label(Text::new(note).weak().small());
                 let resp = primary_row(ui, self.editor.can_adjust(&self.workspace, ), tr(lang, K_AI_ADJUST))
                     .on_hover_text(tr(lang,
                         K_AI_CHANGE_THE_GENERATED_PICTURE_WITH_THE_PROMPT_THE,
@@ -715,7 +715,7 @@ impl Commands<'_> {
                     tr(lang,
                         K_AI_PICK_A_REFERENCE_BELOW_OR_GENERATE_AN_IMAGE_AND)
                 };
-                ui.label(egui::RichText::new(note).weak().small());
+                ui.label(Text::new(note).weak().small());
             }
             // ── the SOURCE row (2026-09-30, user decision): which negative the
             // fit solves FROM — the ▣ card or any ◈ / ▦ master — named and
@@ -778,7 +778,7 @@ impl Commands<'_> {
             // ── the TARGET, named when it is the active card (a picked
             // reference file names itself in the row below).
             if let Some(to) = to {
-                ui.label(egui::RichText::new(to).weak().small());
+                ui.label(Text::new(to).weak().small());
             }
             // ── the REFERENCE row (R23-6 B): any finished rendition of this same
             // frame — your own Lightroom export, the camera's JPEG, another RAW
@@ -824,7 +824,7 @@ impl Commands<'_> {
                         {
                             clear_ref = true;
                         }
-                        ui.add(egui::Label::new(egui::RichText::new(name).weak().small()).truncate())
+                        ui.add(egui::Label::new(Text::new(name).weak().small()).truncate())
                             .on_hover_text(p.display().to_string());
                     });
                 }
@@ -995,7 +995,7 @@ pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshad
     use autoshade::rationale::keys;
     let lang = lang;
     ui.add_space(SPACE_SM);
-    ui.label(egui::RichText::new(tr(lang, K_AI_DEEP_THINKING_ITS_WORKING)).small().strong());
+    ui.label(Text::new(tr(lang, K_AI_DEEP_THINKING_ITS_WORKING)).small().strong());
     for n in working {
         // The lead is OURS (one catalogue literal per key, so the i18n
         // audit sees each); the body is the note's single arg, the
@@ -1009,7 +1009,7 @@ pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshad
         };
         let Some((_, body)) = n.args.first() else { continue };
         ui.horizontal_wrapped(|ui| {
-            ui.label(egui::RichText::new(lead).strong());
+            ui.label(Text::new(lead).strong());
             ui.add(egui::Label::new(body.as_str()).selectable(true));
         });
     }

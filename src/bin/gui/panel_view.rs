@@ -194,7 +194,7 @@ impl PanelView<'_, '_> {
             ));
         if built && !self.aip.style_embed {
             ui.label(
-                egui::RichText::new(tr(lang, K_AI_BUILT_BUT_NOT_SEARCHED_THE_SWITCH_ABOVE_IS_OFF))
+                Text::new(tr(lang, K_AI_BUILT_BUT_NOT_SEARCHED_THE_SWITCH_ABOVE_IS_OFF))
                     .color(ui.visuals().warn_fg_color)
                     .small(),
             );
@@ -237,20 +237,20 @@ impl PanelView<'_, '_> {
                         trf(lang, K_AI_BUILT_D_AGO, &[("days", &(secs / (24 * HOUR)).to_string())])
                     });
                 }
-                egui::RichText::new(t).small()
+                Text::new(t).small()
             }
-            Some(autoshade::library::Summary::Unusable(err)) => egui::RichText::new(trf(
+            Some(autoshade::library::Summary::Unusable(err)) => Text::new(trf(
                 lang,
                 K_AI_THE_REFERENCE_LIBRARY_COULD_NOT_BE_READ_REBUILD,
                 &[("err", err)],
             ))
             .color(ui.visuals().warn_fg_color)
             .small(),
-            Some(autoshade::library::Summary::Absent) => egui::RichText::new(tr(lang,
+            Some(autoshade::library::Summary::Absent) => Text::new(tr(lang,
                 K_AI_NO_REFERENCE_LIBRARY_YET_THE_STYLE_SLIDER_ABOVE,
             ))
             .small(),
-            None => egui::RichText::new(tr(lang, K_AI_READING_THE_REFERENCE_LIBRARY)).weak().small(),
+            None => Text::new(tr(lang, K_AI_READING_THE_REFERENCE_LIBRARY)).weak().small(),
         };
         ui.label(line).on_hover_text(trf(
             lang,
@@ -503,9 +503,9 @@ impl PanelView<'_, '_> {
                             if dead.is_empty() { "" } else { "  ⚠" }
                         );
                         let label = if enabled {
-                            egui::RichText::new(label)
+                            Text::new(label)
                         } else {
-                            egui::RichText::new(label).weak()
+                            Text::new(label).weak()
                         };
                         ui.dnd_drag_source(ui.id().with(("mask_row", i)), i, |ui| {
                             ui.label("☰");
@@ -730,7 +730,7 @@ impl PanelView<'_, '_> {
             // list with no adjustments under it and no reason why.
             ui.add_space(SPACE_XS);
             ui.label(
-                egui::RichText::new(tr(lang, K_DEVELOP_SELECT_A_MASK_ABOVE_TO_EDIT_ITS_ADJUSTMENTS))
+                Text::new(tr(lang, K_DEVELOP_SELECT_A_MASK_ABOVE_TO_EDIT_ITS_ADJUSTMENTS))
                     .weak()
                     .small(),
             );
@@ -1381,7 +1381,7 @@ impl PanelView<'_, '_> {
         if n_masks == 0 {
             ui.add_space(SPACE_XS);
             ui.label(
-                egui::RichText::new(tr(
+                Text::new(tr(
                     lang,
                     K_DEVELOP_NO_MASKS_YET_DRAW_ONE_WITH_THE_TOOLS_ABOVE_AI_AN,
                 ))
@@ -1422,7 +1422,7 @@ impl PanelView<'_, '_> {
                 // whichever directory the app was launched from, and "last used
                 // folder" says nothing about which folder that is.
                 ui.label(
-                    egui::RichText::new(match self.workspace.export_dest_dir() {
+                    Text::new(match self.workspace.export_dest_dir() {
                         Some(d) => abs_display(&d),
                         None => tr(lang, K_DEVELOP_A_SAVE_DIALOG_OPENS_ON_EVERY_EXPORT).to_string(),
                     })
@@ -1686,7 +1686,7 @@ impl PanelView<'_, '_> {
                     }
                 });
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tr(lang, K_DEVELOP_ASPECT)).weak().small());
+                    ui.label(Text::new(tr(lang, K_DEVELOP_ASPECT)).weak().small());
                     let prev_aspect = self.workspace.crop().aspect;
                     egui::ComboBox::from_id_salt("crop_aspect")
                         .selected_text(tr(lang, CROP_ASPECTS[self.workspace.crop().aspect].0))
@@ -1856,7 +1856,7 @@ impl PanelView<'_, '_> {
                 // has no tabs — its caption stands where they do.
                 ui.horizontal(|ui| {
                     if mono {
-                        ui.label(egui::RichText::new(tr(lang, K_DEVELOP_B_W_MIX)).weak().small());
+                        ui.label(Text::new(tr(lang, K_DEVELOP_B_W_MIX)).weak().small());
                     } else {
                         for (i, name) in ["Hue", "Saturation", "Luminance"].iter().enumerate() {
                             if ui.selectable_label(self.workspace.ai().hsl_tab == i, tr(lang, name)).clicked() {
@@ -1929,7 +1929,7 @@ impl PanelView<'_, '_> {
             ui.horizontal_wrapped(|ui| {
                 // One cell of the grid beside the caption (2026-09-27).
                 let cell = columns(ui, 2);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_POINT_COLOR)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_POINT_COLOR)).weak().small());
                 let label = if self.workspace.tools().point_color_picking {
                     tr(lang, K_DEVELOP_CLICK_IN_IMAGE)
                 } else {
@@ -2175,7 +2175,7 @@ impl PanelView<'_, '_> {
         // borrow into the recipe the facade is about to change.
         let Some((enabled, amount, range)) = self.editor.doc().recipe.lens_blur.as_ref().map(|l| (l.enabled, l.amount, l.range)) else {
             let hint = tr(lang, K_LENS_ESTIMATE_THE_DEPTH_FIRST_THEN_CLICK_THE_PHOTO_TO);
-            ui.label(egui::RichText::new(hint).weak().small());
+            ui.label(Text::new(hint).weak().small());
             return actions;
         };
         let picking = self.workspace.tools().lens_focus_picking;
@@ -2206,7 +2206,7 @@ impl PanelView<'_, '_> {
             }
         });
         let carried = tr(lang, K_LENS_RENDERED_HERE_AND_IN_EVERY_EXPORT_FROM_THIS_APP);
-        ui.label(egui::RichText::new(carried).weak().small());
+        ui.label(Text::new(carried).weak().small());
         actions
     }
     /// One develop-panel section — body extracted verbatim from
@@ -2248,7 +2248,7 @@ impl PanelView<'_, '_> {
                 // Lightroom's own order and grouping: the shadows tint first,
                 // then a hue + saturation pair per primary. The group captions
                 // stay here; the rows are capability tables.
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_SHADOWS)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_SHADOWS)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::CAL_TINT);
                 for (primary, table) in [
                     (tr(lang, K_DEVELOP_RED_PRIMARY), crate::controls::CAL_RED),
@@ -2256,7 +2256,7 @@ impl PanelView<'_, '_> {
                     (tr(lang, K_DEVELOP_BLUE_PRIMARY), crate::controls::CAL_BLUE),
                 ] {
                     ui.add_space(SPACE_XS);
-                    ui.label(egui::RichText::new(primary).weak().small());
+                    ui.label(Text::new(primary).weak().small());
                     changed |= self.capability_rows(ui, table);
                 }
             });
@@ -2277,7 +2277,7 @@ impl PanelView<'_, '_> {
     
         ui.add_space(SPACE_MD);
         section_fold(ui, "sec_effects", section_title(tr(lang, K_DEVELOP_EFFECTS), effects_active), false, false, |ui| {
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_POST_CROP_VIGNETTING)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_POST_CROP_VIGNETTING)).weak().small());
                 // Two tables because the panel draws two captioned groups; the
                 // rows, their bands (the catalogue), their feels and their
                 // companion encoding live in `logic::capability`. The style row
@@ -2285,7 +2285,7 @@ impl PanelView<'_, '_> {
                 // 0 means "the sidecar named none" and only a reset reaches it.
                 changed |= self.capability_rows(ui, crate::controls::VIGNETTE);
                 ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_GRAIN)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_GRAIN)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::GRAIN);
             });
         changed
@@ -2317,9 +2317,9 @@ impl PanelView<'_, '_> {
                 }
                 changed |= self.capability_rows(ui, crate::controls::HDR_HEADROOM);
                 ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_SDR_RENDITION)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_SDR_RENDITION)).weak().small());
                 ui.label(
-                    egui::RichText::new(tr(lang, K_DEVELOP_RENDERS_ONLY_IN_HDR_MODE))
+                    Text::new(tr(lang, K_DEVELOP_RENDERS_ONLY_IN_HDR_MODE))
                         .weak()
                         .small(),
                 );
@@ -2362,7 +2362,7 @@ impl PanelView<'_, '_> {
                     ["Off", "Auto", "Level", "Vertical", "Full", "Guided"];
                 let mut mode = self.editor.doc().recipe.perspective_upright.round().clamp(0.0, 5.0) as usize;
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tr(lang, K_DEVELOP_UPRIGHT)).small());
+                    ui.label(Text::new(tr(lang, K_DEVELOP_UPRIGHT)).small());
                     egui::ComboBox::from_id_salt("upright_mode")
                         .selected_text(tr(lang, MODES[mode]))
                         .width(90.0)
@@ -2404,7 +2404,7 @@ impl PanelView<'_, '_> {
                     } else {
                         UPRIGHT_NOTES[2]
                     };
-                    ui.label(egui::RichText::new(tr(lang, upright_note)).weak().small());
+                    ui.label(Text::new(tr(lang, upright_note)).weak().small());
                 }
                 ui.add_space(SPACE_SM);
                 // One capability table: bands and resets (Rotate ±10, scale
@@ -2429,8 +2429,8 @@ impl PanelView<'_, '_> {
                     ui.add_space(SPACE_MD);
                     let pair = |ui: &mut egui::Ui, label: String, value: &str| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(label).small());
-                            ui.label(egui::RichText::new(value).small().strong());
+                            ui.label(Text::new(label).small());
+                            ui.label(Text::new(value).small().strong());
                         });
                     };
                     if !self.editor.doc().recipe.camera_profile.is_empty() {
@@ -2459,7 +2459,7 @@ impl PanelView<'_, '_> {
                         } else {
                             tr(lang, K_DEVELOP_NEITHER_ITS_CREATIVE_COLOUR_TABLE_NOR_ITS_BAKED)
                         };
-                        ui.label(egui::RichText::new(line).weak().small());
+                        ui.label(Text::new(line).weak().small());
                     }
                 }
                 if self.editor.doc().recipe.passthrough.is_empty() {
@@ -2480,12 +2480,12 @@ impl PanelView<'_, '_> {
                         return;
                     }
                     if let Some(caption) = caption {
-                        ui.label(egui::RichText::new(caption).weak().small());
+                        ui.label(Text::new(caption).weak().small());
                     }
                     for (key, value) in present {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(format!("crs:{key}")).small());
-                            ui.label(egui::RichText::new(value).small().strong());
+                            ui.label(Text::new(format!("crs:{key}")).small());
+                            ui.label(Text::new(value).small().strong());
                         });
                     }
                 };
@@ -2497,7 +2497,7 @@ impl PanelView<'_, '_> {
                 rows(ui, Some(tr(lang, K_DEVELOP_UPRIGHT_SOLVER_BOOKKEEPING)), &autoshade::xmp::PASSTHROUGH_CRS);
                 ui.add_space(SPACE_SM);
                 ui.label(
-                    egui::RichText::new(tr(
+                    Text::new(tr(
                         lang,
                         K_DEVELOP_CARRIED_THROUGH_TO_THE_SIDECAR_UNCHANGED_AUTOSHA,
                     ))
@@ -2592,7 +2592,7 @@ impl PanelView<'_, '_> {
                     ui.add_space(SPACE_MD);
                 } else if self.editor.photo().src_path.as_deref().is_some_and(autoshade::decode::is_raw) {
                     ui.label(
-                        egui::RichText::new(tr(lang, K_DEVELOP_NO_IN_CAMERA_LENS_CORRECTION_DATA_IN_THIS_FILE))
+                        Text::new(tr(lang, K_DEVELOP_NO_IN_CAMERA_LENS_CORRECTION_DATA_IN_THIS_FILE))
                             .weak()
                             .small(),
                     );
@@ -2621,10 +2621,10 @@ impl PanelView<'_, '_> {
                 // even when this photo has no profile data, so a recipe
                 // imported from Lightroom shows what it carries.
                 ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_PROFILE_CORRECTION_STRENGTH)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_PROFILE_CORRECTION_STRENGTH)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::LENS_PROFILE);
                 ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_CHROMATIC_ABERRATION_MANUAL)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_CHROMATIC_ABERRATION_MANUAL)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::LENS_CA);
                 // …and the rest of the same panel: Adobe's auto switch and the
                 // whole de-fringe block. Carried and unrendered until v1.5.0;
@@ -2641,7 +2641,7 @@ impl PanelView<'_, '_> {
                     changed = true;
                 }
                 ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_DEFRINGE)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_DEFRINGE)).weak().small());
                 // Adobe's bands and neutrals: amounts rest at 0, the hue
                 // windows at 30/70 and 40/60 (the one block whose neutral is
                 // not zero — the row resets carry them).
@@ -2692,7 +2692,7 @@ impl PanelView<'_, '_> {
                     ("reasons", &reasons.join("; ")),
                 ],
             );
-            ui.label(egui::RichText::new(text).color(col));
+            ui.label(Text::new(text).color(col));
         }
         // The deterministic tail renders LOCALIZED when its typed
         // notes ride along and still match the string's suffix
@@ -2727,7 +2727,7 @@ impl PanelView<'_, '_> {
         let shown = localized.as_deref().unwrap_or(&self.editor.analysis().rationale);
         if !shown.is_empty() {
             ui.label(
-                egui::RichText::new(format!("“{shown}”"))
+                Text::new(format!("“{shown}”"))
                     .italics()
                     .weak(),
             );
@@ -2771,9 +2771,9 @@ impl PanelView<'_, '_> {
                     tr(lang, K_DEVELOP_ENGINE_ONLY),
                 );
                 ui.label(if field.enabled {
-                    egui::RichText::new(label)
+                    Text::new(label)
                 } else {
-                    egui::RichText::new(label).weak()
+                    Text::new(label).weak()
                 })
                 .on_hover_text(tr(
                     lang,
@@ -2932,7 +2932,7 @@ impl PanelView<'_, '_> {
                 // it wraps under the note when the note is long (2026-09-27).
                 let cell = columns(ui, 2);
                 ui.label(
-                    egui::RichText::new(tr(lang, K_DEVELOP_CARRIES_REVERSE_FIT_RECOLOUR_WRITTEN_TO_XMP_AS_T))
+                    Text::new(tr(lang, K_DEVELOP_CARRIES_REVERSE_FIT_RECOLOUR_WRITTEN_TO_XMP_AS_T))
                         .weak()
                         .small(),
                 );

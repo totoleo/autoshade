@@ -42,7 +42,7 @@ impl Commands<'_> {
 
         // --- new recipe ------------------------------------------------------
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(tr(lang, K_RECIPES_NEW_RECIPE)).weak().small());
+            ui.label(Text::new(tr(lang, K_RECIPES_NEW_RECIPE)).weak().small());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if action(ui, true, tr(lang, K_RECIPES_IMPORT_FILE))
                     .on_hover_text(tr(lang, K_RECIPES_ADD_A_RECIPE_JSON_OR_A_LIGHTROOM_CAMERA_RAW_XMP))
@@ -98,7 +98,7 @@ impl Commands<'_> {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    egui::RichText::new(trf(lang, K_RECIPES_SAVED, &[("n", &n.to_string())])).weak().small(),
+                    Text::new(trf(lang, K_RECIPES_SAVED, &[("n", &n.to_string())])).weak().small(),
                 );
             });
         });
@@ -135,10 +135,10 @@ impl Commands<'_> {
                     )
                 };
                 ui.vertical_centered(|ui| {
-                    ui.label(egui::RichText::new("🖼").size(22.0).weak());
+                    ui.label(Text::new("🖼").size(22.0).weak());
                     ui.add_space(SPACE_XS);
-                    ui.label(egui::RichText::new(headline).weak());
-                    ui.label(egui::RichText::new(hint).weak().small());
+                    ui.label(Text::new(headline).weak());
+                    ui.label(Text::new(hint).weak().small());
                 });
                 ui.add_space(SPACE_LG);
             }
@@ -285,7 +285,7 @@ impl Commands<'_> {
                         );
                         if let Some(stem) = &photo_stem {
                             ui.label(
-                                egui::RichText::new(trf(lang, K_RECIPES_ON, &[("photo", stem)]))
+                                Text::new(trf(lang, K_RECIPES_ON, &[("photo", stem)]))
                                     .weak()
                                     .small(),
                             );
@@ -304,13 +304,13 @@ impl Commands<'_> {
                 }
             });
             ui.vertical(|ui| {
-                ui.label(egui::RichText::new(name).strong());
+                ui.label(Text::new(name).strong());
                 match &entry {
                     Ok(r) => {
                         let facts = recipe_facts(self.lang, r);
                         if facts.is_empty() {
                             ui.label(
-                                egui::RichText::new(tr(lang, K_RECIPES_NO_EDITS_THIS_RECIPE_IS_NEUTRAL)).weak().small(),
+                                Text::new(tr(lang, K_RECIPES_NO_EDITS_THIS_RECIPE_IS_NEUTRAL)).weak().small(),
                             );
                         } else {
                             egui::Grid::new("recipe_facts")
@@ -318,11 +318,11 @@ impl Commands<'_> {
                                 .spacing([16.0, 3.0])
                                 .show(ui, |ui| {
                                     for (label, value) in facts {
-                                        ui.label(egui::RichText::new(label).weak().small());
+                                        ui.label(Text::new(label).weak().small());
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
-                                                ui.label(egui::RichText::new(value).small());
+                                                ui.label(Text::new(value).small());
                                             },
                                         );
                                         ui.end_row();
@@ -332,7 +332,7 @@ impl Commands<'_> {
                     }
                     Err(e) => {
                         ui.label(
-                            egui::RichText::new(trf(lang, K_RECIPES_UNREADABLE__2, &[("err", &e.to_string())]))
+                            Text::new(trf(lang, K_RECIPES_UNREADABLE__2, &[("err", &e.to_string())]))
                                 .color(colors.toast_err_fg)
                                 .small(),
                         );
