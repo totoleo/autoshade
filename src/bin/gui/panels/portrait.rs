@@ -135,10 +135,10 @@ impl Commands<'_> {
     pub(crate) fn portrait_panel(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_PORTRAIT_PORTRAITS), false, |_| {});
         let mut changed = false;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
             self.portrait_people(ui);
             changed |= self.portrait_skin(ui);
             changed |= self.portrait_eyes(ui);
@@ -148,8 +148,8 @@ impl Commands<'_> {
             self.editor.doc_mut().recipe.clamp();
             self.editor.session_mut().dirty = true;
         }
-        ui.add_space(SPACE_MD);
-        ui.separator();
+        ui.gap(SPACE_MD);
+        ui.rule();
     }
 
 
@@ -160,7 +160,7 @@ impl Commands<'_> {
         let ready = self.editor.photo().src_path.is_some() && self.editor.photo().base_preview.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight;
         let mut find = false;
         let mut look = false;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 2);
             find = action_in(ui, cell, ready, tr(lang, K_PORTRAIT_FIND_PEOPLE_AND_FACES))
                 .on_hover_text(tr(lang, K_PORTRAIT_FINDS_THE_PERSON_AND_EVERY_FACE_ON_THIS_COMPUTER))
@@ -179,7 +179,7 @@ impl Commands<'_> {
             tr(lang, K_NORMAL_HOW_STRONG_THE_LOOK_IS_DOUBLE_CLICK_TO_RESET),
         );
         let line = self.workspace.portrait_line_text(lang);
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if self.workspace.portrait().line == PortraitLine::Finding || (self.workspace.portrait().line == PortraitLine::Looking && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
@@ -202,7 +202,7 @@ impl Commands<'_> {
         let gate = self.editor.portrait_face_gate(&self.workspace, lang);
         let guarded = self.editor.keep_skin_on(&self.workspace);
         let mut changed = false;
-        ui.add_enabled_ui(gate.is_none(), |ui| {
+        ui.enabled(gate.is_none(), |ui| {
             let mut probe = LocalAdjustment::default();
             let m = skin_target(&mut self.editor.doc_mut().recipe).unwrap_or(&mut probe);
             let mut soften = soften_of(m);
@@ -255,7 +255,7 @@ impl Commands<'_> {
             (!self.editor.doc().recipe.masks.iter().any(|m| m.role == MaskRole::Eyes)).then(|| tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP))
         });
         let mut changed = false;
-        ui.add_enabled_ui(gate.is_none(), |ui| {
+        ui.enabled(gate.is_none(), |ui| {
             let mut probe = LocalAdjustment::default();
             let m = role_mask(&mut self.editor.doc_mut().recipe, MaskRole::Eyes).unwrap_or(&mut probe);
             changed |= slider_hinted(ui, lang, tr(lang, K_PORTRAIT_BRIGHTEN_EYES), &mut m.exposure_ev, 0.0, EYES_BRIGHTEN_MAX_EV, 0.0, tr(lang, K_PORTRAIT_LIFTS_THE_EYES_A_LITTLE));
@@ -303,7 +303,7 @@ impl Commands<'_> {
             }
         }
         let has_bg = self.editor.doc().recipe.masks.iter().any(|m| m.role == MaskRole::Background);
-        ui.add_enabled_ui(has_bg, |ui| {
+        ui.enabled(has_bg, |ui| {
             let mut probe = LocalAdjustment::default();
             let m = role_mask(&mut self.editor.doc_mut().recipe, MaskRole::Background).unwrap_or(&mut probe);
             let mut darken = darken_of(m);
@@ -326,6 +326,6 @@ impl Commands<'_> {
 
 /// A group's sub-heading.
 pub(crate) fn portrait_group(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_MD);
+    ui.gap(SPACE_MD);
     ui.label(Text::new(title).strong());
 }

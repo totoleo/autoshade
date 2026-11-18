@@ -58,7 +58,7 @@ pub(crate) fn row_h(ui: &egui::Ui) -> f32 {
 pub(crate) fn columns(ui: &egui::Ui, n: usize) -> egui::Vec2 {
     let n = n.max(1);
     let gaps = ui.spacing().item_spacing.x * (n - 1) as f32;
-    let width = ui.available_width().min(FIELD_W_MAX);
+    let width = ui.avail_width().min(FIELD_W_MAX);
     egui::vec2(((width - gaps) / n as f32).floor().max(0.0), row_h(ui))
 }
 
@@ -192,7 +192,7 @@ pub(crate) fn group<R>(
         let r = add(ui);
         // The fence between groups, INSIDE the allocation: a separator or a
         // space of its own would wrap to a line start and sit there orphaned.
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         r
     })
     .inner

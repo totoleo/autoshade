@@ -177,7 +177,7 @@ impl Commands<'_> {
         let Some((id, tex_size)) = tex.map(|t| (t.id(), t.size_vec2())) else {
             // First develop still in flight: say so — a bare "…" read as a
             // hang, a spinner reads as work.
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.spinner();
                 ui.label(Text::new(tr(lang, K_CANVAS_PREPARING_PREVIEW)).weak());
             });
@@ -258,7 +258,7 @@ impl Commands<'_> {
         // is the passive-help style, and it was the only always-on indicator
         // when the arming control sat in a collapsed section.
         let armed = !comparing && self.workspace.tool_armed();
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             if armed {
                 ui.label(Text::new(hint).color(self.workspace.ui().theme.colors().armed_hint).small());
             } else {
@@ -292,7 +292,7 @@ impl Commands<'_> {
                 // resolves detail. Switching re-decodes the current photo with
                 // the recipe KEPT (the keep_recipe path from batch B).
                 let before = self.workspace.genai().preview_edge;
-                ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                ui.enabled(!self.workspace.busy(), |ui| {
                     ui.menu("preview_edge", format!("{}px", self.workspace.genai().preview_edge), Some(64.0), |ui| {
                             ui.selectable_value(&mut self.workspace.genai_mut().preview_edge, 1280, tr(lang, K_CANVAS_1280PX_FLUID));
                             ui.selectable_value(&mut self.workspace.genai_mut().preview_edge, 2560, "2560px");

@@ -141,7 +141,7 @@ impl Commands<'_> {
             self.workspace.normal_mut().key_present = Some(autoshade::config::Config::load().openai_api_key.is_some());
         }
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
             self.normal_one_click(ui);
             self.normal_fine_tune(ui);
             self.normal_noise(ui);
@@ -152,7 +152,7 @@ impl Commands<'_> {
     /// Group 1 — the one-click look: six fixed looks, or the reference folder.
     fn normal_one_click(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_ONE_CLICK_LOOK), false, |_| {});
         let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight && !self.workspace.normal().building;
         let names: [&str; 6] = [
@@ -167,7 +167,7 @@ impl Commands<'_> {
         let mut asked: Option<OneClick> = None;
         // Two to a row: at three, "Bright & clean" and "Black & white" are cut short.
         for row in 0..3 {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let cell = columns(ui, 2);
                 for col in 0..2 {
                     let i = row * 2 + col;
@@ -201,7 +201,7 @@ impl Commands<'_> {
             tr(lang, K_NORMAL_HOW_STRONG_THE_LOOK_IS_DOUBLE_CLICK_TO_RESET),
         );
         let line = self.workspace.normal_line_text(lang);
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if self.workspace.normal().building || (self.workspace.normal().line == NormalLine::Working && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
@@ -232,7 +232,7 @@ impl Commands<'_> {
     /// names, on top of the one-click result.
     fn normal_fine_tune(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_FINE_TUNE), false, |_| {});
         let mut changed = false;
         let r = &mut self.editor.doc_mut().recipe;
@@ -275,7 +275,7 @@ impl Commands<'_> {
     /// (`set_normal_denoise`).
     fn normal_noise(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_NOISE), false, |_| {});
         // A run that ended without its card (failed, cancelled) leaves no
         // pair behind.
@@ -308,11 +308,11 @@ impl Commands<'_> {
     /// folder.
     fn normal_save(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_SAVE), false, |_| {});
         let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy();
         let mut save = false;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 2);
             save = primary_in(ui, cell, ready, tr(lang, K_NORMAL_SAVE_AS_JPG))
                 .on_hover_text(tr(lang, K_NORMAL_SAVES_THE_PHOTO_WITH_THIS_LOOK_AS_A_JPG_THE_ORIG))

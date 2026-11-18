@@ -1257,7 +1257,7 @@ impl AutoShadeApp {
                         }
                         // `add_enabled_ui`, not a disabled Button: menu_button
                         // returns an InnerResponse and takes no enabled flag.
-                        ui.add_enabled_ui(ready, |ui| {
+                        ui.enabled(ready, |ui| {
                             ui.menu_button("▾", |ui| {
                                 if ui
                                     .button(tr(lang, K_APP_EXPORT_TO))
@@ -1302,7 +1302,7 @@ impl AutoShadeApp {
     pub(crate) fn upd_status_bar(&mut self, ctx: &egui::Context) {
         let frame = egui::Frame::side_top_panel(&ctx.style()).fill(self.workspace.ui().theme.colors().bar_fill);
         egui::TopBottomPanel::bottom("status").frame(frame).show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 if self.workspace.busy() {
                     ui.spinner();
                     // Armed by every cancellable long-run: retouch/generative
@@ -1406,10 +1406,10 @@ impl AutoShadeApp {
                         // Empty state with the same voice as the canvas hero:
                         // centered, quiet, and it says what to do next — a
                         // bare left-aligned label read as a stuck error.
-                        ui.add_space(24.0);
+                        ui.gap(24.0);
                         ui.vertical_centered(|ui| {
                             ui.label(Text::new("🖼").size(26.0).weak());
-                            ui.add_space(SPACE_SM);
+                            ui.gap(SPACE_SM);
                             ui.label(Text::new(tr(self.lang, K_APP_NO_PHOTO_OPEN)).weak());
                             ui.label(
                                 Text::new(tr(
@@ -1419,7 +1419,7 @@ impl AutoShadeApp {
                                 .weak()
                                 .small(),
                             );
-                            ui.add_space(SPACE_MD);
+                            ui.gap(SPACE_MD);
                             // Round-13 easter egg — quiet enough to miss,
                             // which is the point of an easter egg.
                             ui.label(
@@ -1491,14 +1491,14 @@ impl AutoShadeApp {
             // Empty state: a real landing surface instead of a blank canvas.
             if self.editor.photo().src_path.is_none() {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(ui.available_height() * 0.32);
+                    ui.gap(ui.available_height() * 0.32);
                     ui.heading("AutoShade");
                     ui.label(Text::new(tr(self.lang, K_APP_AI_AUTO_EDIT_RAW_PROCESSING)).weak());
-                    ui.add_space(SPACE_LG);
-                    ui.horizontal(|ui| {
+                    ui.gap(SPACE_LG);
+                    ui.row(|ui| {
                         // Center the button pair by padding half the leftover width.
                         let w = 300.0;
-                        ui.add_space((ui.available_width() - w).max(0.0) * 0.5);
+                        ui.gap((ui.avail_width() - w).max(0.0) * 0.5);
                         if primary(ui, true, tr(self.lang, K_APP_OPEN_PHOTO_CTRL_O)).clicked() {
                             self.commands().apply_actions(vec![logic::Action::Gallery(
                                 logic::gallery::GalleryAction::OpenPhotoFile,
@@ -1510,7 +1510,7 @@ impl AutoShadeApp {
                             )]);
                         }
                     });
-                    ui.add_space(8.0);
+                    ui.gap(8.0);
                     ui.label(
                         Text::new(tr(self.lang, K_APP_OR_DRAG_A_RAW_IMAGE_STRAIGHT_INTO_THE_WINDOW_DRA))
                             .weak()
@@ -1536,8 +1536,8 @@ impl AutoShadeApp {
                 ViewMode::SideBySide => {
                     let half = (avail.x - 16.0) * 0.5;
                     let uv = self.editor.view_uv(&mut self.workspace); // same window for both panes (synced zoom)
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| {
+                    ui.row(|ui| {
+                        ui.column(|ui| {
                             ui.label(
                                 Text::new(tr(self.lang, K_APP_BEFORE_SOURCE))
                                     .weak()
@@ -1552,12 +1552,12 @@ impl AutoShadeApp {
                                 ui.painter_at(rect).image(t.id(), rect, uv, egui::Color32::WHITE);
                             }
                         });
-                        ui.separator();
-                        ui.vertical(|ui| self.commands().after_view(ui, half, avail.y, comparing));
+                        ui.rule();
+                        ui.column(|ui| self.commands().after_view(ui, half, avail.y, comparing));
                     });
                 }
                 ViewMode::AfterOnly => {
-                    ui.vertical(|ui| self.commands().after_view(ui, avail.x, avail.y, comparing));
+                    ui.column(|ui| self.commands().after_view(ui, avail.x, avail.y, comparing));
                 }
             }
         });
@@ -1663,7 +1663,7 @@ impl AutoShadeApp {
                             },
                         );
                     });
-                    ui.add_space(SPACE_SM);
+                    ui.gap(SPACE_SM);
                     // Round-13 easter egg: the pricing model, disclosed.
                     ui.label(
                         Text::new(tr(
@@ -1917,7 +1917,7 @@ impl AutoShadeApp {
                         // the old anchor (unconstrained, so it may leave the
                         // window); a settled toast keeps that gap, an
                         // arriving one starts with none — off to the right.
-                        ui.add_space(arrive * MOTION_TOAST_SLIDE);
+                        ui.gap(arrive * MOTION_TOAST_SLIDE);
                         egui::Frame::NONE
                             .fill(bg.gamma_multiply(fade))
                             .stroke(egui::Stroke::new(1.0, fg.gamma_multiply(0.35 * fade)))
@@ -1951,7 +1951,7 @@ impl AutoShadeApp {
                         if r.clicked() {
                             dismiss = Some(idx);
                         }
-                        ui.add_space(SPACE_MD);
+                        ui.gap(SPACE_MD);
                     }
                     });
                 });

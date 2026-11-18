@@ -17,7 +17,7 @@ impl PanelView<'_, '_> {
         // free to grow for the curve and HSL editors, and the histogram used
         // to grow with it without limit (user report 2026-09-27).
         let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(ui.available_width().min(FIELD_W_MAX), h),
+            egui::vec2(ui.avail_width().min(FIELD_W_MAX), h),
             egui::Sense::hover(),
         );
         #[cfg(test)]
@@ -176,7 +176,7 @@ impl PanelView<'_, '_> {
         let lang = self.lang;
         let label_colors = self.workspace.ui().theme.colors().curve_labels;
         let mut changed = false;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             for (i, (name, _)) in CURVE_CHANNELS.iter().enumerate() {
                 if ui
                     .selectable_label(
@@ -200,7 +200,7 @@ impl PanelView<'_, '_> {
             }
         });
 
-        let side = ui.available_width().clamp(160.0, 240.0);
+        let side = ui.avail_width().clamp(160.0, 240.0);
         let (rect, resp) =
             ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::click_and_drag());
         #[cfg(test)]

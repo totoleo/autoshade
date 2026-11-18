@@ -46,7 +46,7 @@ pub(crate) fn panel_heading(
     } else {
         Text::new(title).heading().strong().into()
     };
-    let row = ui.horizontal(|ui| {
+    let row = ui.row(|ui| {
         lead(ui);
         ui.add(egui::Label::new(text).sense(egui::Sense::click()))
     });
@@ -56,7 +56,7 @@ pub(crate) fn panel_heading(
         [egui::pos2(title_rect.left(), y), egui::pos2(title_rect.left() + 28.0, y)],
         egui::Stroke::new(2.0, accent),
     );
-    ui.add_space(SPACE_SM);
+    ui.gap(SPACE_SM);
     row.inner
 }
 
@@ -69,7 +69,7 @@ pub(crate) fn panel_heading(
 /// band (2026-10-13): the gold tick and gold text made every band head shout
 /// as loud as the panel title above it, so the gold is now the title's alone.
 pub(crate) fn group_caption(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_LG + SPACE_SM);
+    ui.gap(SPACE_LG + SPACE_SM);
     ui.label(
         Text::new(title)
             .small()
@@ -77,7 +77,7 @@ pub(crate) fn group_caption(ui: &mut egui::Ui, title: &str) {
             .extra_letter_spacing(0.8)
             .color(ui.visuals().weak_text_color()),
     );
-    ui.add_space(SPACE_XS);
+    ui.gap(SPACE_XS);
 }
 
 /// The fold disclosure: a thin chevron that turns from › to ⌄ as the fold
@@ -114,7 +114,7 @@ pub(crate) const EXPLAINER_W: f32 = 320.0;
 /// a weak small line, no hairline — the fold's own indent already says whose
 /// block it is.
 pub(crate) fn sub_caption(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_MD);
+    ui.gap(SPACE_MD);
     ui.label(Text::new(title).weak().small());
 }
 
@@ -173,7 +173,7 @@ pub(crate) fn card_fold<R>(
                 egui::StrokeKind::Inside,
             )),
         );
-        ui.add_space(FOLD_CARD_PAD + SPACE_XS);
+        ui.gap(FOLD_CARD_PAD + SPACE_XS);
     }
     r
 }

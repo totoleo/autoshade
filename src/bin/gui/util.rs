@@ -306,7 +306,7 @@ pub(crate) fn fold_open_in_tests() -> Option<bool> {
 pub(crate) fn prompt_field(ui: &mut egui::Ui, buf: &mut String, hint: &str) -> egui::Response {
     let id = ui.next_auto_id();
     let focused = ui.memory(|m| m.has_focus(id));
-    let avail = ui.available_width();
+    let avail = ui.avail_width();
     // `TextEdit` allocates `desired_width` PLUS its own inner margin, so the
     // width it draws is 2 × `TEXT_EDIT_MARGIN_X` wider than the number asked
     // for. Ask for the text area only: the field as drawn is what the ceiling

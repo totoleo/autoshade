@@ -328,7 +328,7 @@ impl Commands<'_> {
     pub(crate) fn brush_row(&mut self, ui: &mut egui::Ui, owner: BrushOwner) {
         let lang = self.lang;
         let armed = self.workspace.brush_armed(owner);
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 2);
             if toggle_in(ui, cell, armed, tr(lang, K_RETOUCH_PAINT_AREA))
                 .on_hover_text(tr(lang, K_RETOUCH_BRUSH_OVER_THE_AREA_THIS_TOOL_WORKS_ON_BOX_SELEC))
@@ -366,7 +366,7 @@ impl Commands<'_> {
         let mut remove = None;
         let mut changed = false;
         for i in 0..self.editor.doc().recipe.pixel_layers.len() {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let layer = &mut self.editor.doc_mut().recipe.pixel_layers[i];
                 if glyph_toggle(ui, layer.enabled, "👁")
                     .on_hover_text(tr(lang, K_RETOUCH_SHOW_OR_HIDE_THIS_LAYER_A_HIDDEN_LAYER_IS_KEPT_A))
@@ -405,7 +405,7 @@ impl Commands<'_> {
 
     pub(crate) fn retouch_panel(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_RETOUCH_RETOUCH), false, |_| {});
 
         // Whole-image Reimagine + reverse-fit MOVED to the AI panel (R22 #4,
@@ -449,7 +449,7 @@ impl Commands<'_> {
                     .weak()
                     .small(),
                 );
-                ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                ui.enabled(!self.workspace.busy(), |ui| {
                     if action_row(ui, true, tr(lang, K_RETOUCH_REGENERATE_THOSE_AREAS))
                         .on_hover_text(tr(lang, K_RETOUCH_PAINT_THE_SYNTHESISED_AREAS_INTO_GENERATIVE_FILL))
                         .clicked()
@@ -470,7 +470,7 @@ impl Commands<'_> {
         // — the one 「Brush (shared)」 group that hung bare above these three
         // folds, and that the AI panel's Adjust fold read without a control of
         // its own, is gone.
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         section_fold(ui, "sec_fill", tr(lang, K_RETOUCH_GENERATIVE_FILL), false, true, |ui| {
                 // #14a: was `desired_width(f32::INFINITY)`.
                 let _field = prompt_field(
@@ -486,7 +486,7 @@ impl Commands<'_> {
                 // R38: wrapped — quality and the full-res switch share a row
                 // that wraps when short; the verb fills the row under them
                 // (2026-09-27: a row's one verb takes the whole row).
-                ui.horizontal_wrapped(|ui| {
+                ui.row_wrapped(|ui| {
                     ui.menu("fill_quality", tr(lang, ["high", "medium", "low"][self.workspace.genai().fill_quality.min(2)]), None, |ui| {
                             ui.selectable_value(&mut self.workspace.genai_mut().fill_quality, 0, tr(lang, K_AI_HIGH));
                             ui.selectable_value(&mut self.workspace.genai_mut().fill_quality, 1, tr(lang, K_AI_MEDIUM));
@@ -531,9 +531,9 @@ impl Commands<'_> {
                 // R38: the two heal verbs share one aligned row and the
                 // full-res switch sits under them — three free-width controls
                 // in a non-wrapping row overran the default panel width.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let cell = columns(ui, 2);
-                    ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                    ui.enabled(!self.workspace.busy(), |ui| {
                         // 🤖, the one AI prefix app-wide (#4): ✦ was this
                         // verb's private glyph. The tooltip carries the
                         // AI-panel cross-reference — this stays HERE, at
@@ -568,7 +568,7 @@ impl Commands<'_> {
                 // clear verb sits beside it, the radius follows while armed,
                 // and the stamp's one verb fills the row under them.
                 let armed = self.workspace.brush_armed(BrushOwner::Stamp);
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let cell = columns(ui, 2);
                     let label = if armed { tr(lang, K_DEVELOP_DONE) } else { tr(lang, K_RETOUCH_ENTER_STAMP) };
                     if action_in(ui, cell, true, label)

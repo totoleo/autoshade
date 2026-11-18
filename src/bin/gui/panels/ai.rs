@@ -58,7 +58,7 @@ impl Commands<'_> {
         // The gate wraps BOTH areas, headers included — exactly how
         // develop_panel wraps its sections, so the three read the same mid-open
         // (greyed) instead of one panel looking live beside a dead one.
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
             // ① Generation: the ● means this photo has a generated card in
             // play (the prompt is a remembered preference, not photo state —
             // see `ai_section_active`).
@@ -68,7 +68,7 @@ impl Commands<'_> {
                 app.ai_adjust(ui);
                 app.ai_reverse_fit(ui);
             });
-            ui.add_space(SPACE_MD);
+            ui.gap(SPACE_MD);
             // ② Analysis: the ● is a verdict or a Direction. Same persistent id
             // as the single heading it grew out of, so an open state a user
             // already has carries over.
@@ -86,11 +86,11 @@ impl Commands<'_> {
                 // A panel called "AI" reads as the complete inventory
                 // otherwise, and the pixel-level tools are deliberately
                 // elsewhere.
-                ui.add_space(SPACE_XS);
+                ui.gap(SPACE_XS);
                 explainer(ui, lang, tr(lang, K_AI_PIXEL_LEVEL_AI_TOOLS_STAY_AT_THEIR_TOOLS_SELECT));
             });
         });
-        ui.add_space(SPACE_MD); // fence to the Develop heading below
+        ui.gap(SPACE_MD); // fence to the Develop heading below
     }
 
     /// One first-level AI section: a panel title like Develop's and
@@ -192,7 +192,7 @@ impl Commands<'_> {
             // Library OR direction (user ruling 2026-10-14): the switch heads
             // the controls it chooses between, and greys the other side.
             use autoshade::pipeline::Guide;
-            ui.horizontal_wrapped(|ui| {
+            ui.row_wrapped(|ui| {
                 ui.label(tr(lang, K_AI_GUIDED_BY));
                 ui.radio_value(&mut self.aip.guide, Guide::Library, tr(lang, K_AI_REFERENCE_LIBRARY)).on_hover_text(tr(
                     lang,
@@ -204,7 +204,7 @@ impl Commands<'_> {
                 ));
             });
             let by_direction = self.aip.guide == Guide::Direction;
-            ui.add_enabled_ui(by_direction, |ui| {
+            ui.enabled(by_direction, |ui| {
                 // #14a: was `desired_width(f32::INFINITY)` — a full-panel ribbon on a
                 // wide side panel. `prompt_field` caps it, widens while focused and
                 // shows the whole text on hover.
@@ -263,7 +263,7 @@ impl Commands<'_> {
             // value ("30"), with the word "Style" itself off-panel, and a headless
             // frame confirms it. Adding a second dial to that row hid it outright.
             // One dial per line is also what every other slider in this app does.
-            ui.add_enabled_ui(!by_direction, |ui| ui.horizontal_wrapped(|ui| {
+            ui.enabled(!by_direction, |ui| ui.row_wrapped(|ui| {
                 #[cfg(test)]
                 {
                     self.seams.guide_gate_enabled = Some((by_direction, ui.is_enabled()));
@@ -323,7 +323,7 @@ impl Commands<'_> {
                 ),
             );
             let has_direction = by_direction && !self.workspace.ai().guidance.trim().is_empty();
-            ui.add_enabled_ui(has_direction, |ui| {
+            ui.enabled(has_direction, |ui| {
                 #[cfg(test)]
                 {
                     // The gate's own witness (same seam as `ai_gate_enabled`): a
@@ -360,7 +360,7 @@ impl Commands<'_> {
     /// undoable, and on a new ✎ card when the selected card is the pristine ✨.
     fn ai_adjust_edit(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_adjust_edit", tr(lang, K_AI_ADJUST_THE_SELECTED_VARIANT_PAID_API), true, true, |ui| {
                 explainer(ui, lang, tr(lang, K_AI_TYPE_WHAT_TO_CHANGE_ON_THE_SELECTED_CARD_THE_AI));
                 let _field = prompt_field(
@@ -412,7 +412,7 @@ impl Commands<'_> {
         if self.workspace.ai().style_info.is_none() && !self.workspace.ai().style_info_loading {
             self.apply_actions(vec![logic::Action::Ai(logic::ai::AiAction::RefreshLibraryStatus)]);
         }
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         // Read off the SAME comparison the pipeline makes
         // (`GradeRequest::library_style`), so the two can never disagree
         // about what "reads a library" means.
@@ -431,7 +431,7 @@ impl Commands<'_> {
                     };
                     ui.label(Text::new(why).weak().small());
                 }
-                ui.add_enabled_ui(reads_a_library, |ui| {
+                ui.enabled(reads_a_library, |ui| {
                     #[cfg(test)]
                     {
                         self.seams.ai_library_read_enabled = Some(ui.is_enabled());
@@ -449,7 +449,7 @@ impl Commands<'_> {
         let building = self.workspace.ai().style_build_inflight;
         let mut pick = false;
         let mut build: Option<PathBuf> = None;
-        ui.add_enabled_ui(!building, |ui| {
+        ui.enabled(!building, |ui| {
             #[cfg(test)]
             {
                 self.seams.ai_library_build_enabled = Some(ui.is_enabled());
@@ -457,7 +457,7 @@ impl Commands<'_> {
             // 🗂, the same glyph Settings uses for a folder action: the
             // embedded font subset covers it already (📂 is not in it).
             let cell = columns(ui, 2);
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
             if action_in(ui, cell, true, tr(lang, K_AI_PICK_FOLDER))
                 .on_hover_text(tr(lang,
                     K_AI_CHOOSE_A_FOLDER_OF_FINISHED_PHOTOS_WHOSE_LOOK_YO,
@@ -483,7 +483,7 @@ impl Commands<'_> {
             // The RAW folder for the settings check: optional, remembered, and
             // read on the next build.
             let mut pick_raw = false;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
             if action_in(ui, cell, true, tr(lang, K_AI_RAW_FOLDER))
                 .on_hover_text(tr(lang,
                     K_AI_OPTIONAL_THE_FOLDER_YOUR_RAWS_LIVE_IN_ON_THE_NEX,
@@ -549,12 +549,12 @@ impl Commands<'_> {
     /// 「· paid API」 is the only warning a user gets before opening it.
     fn ai_generate(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_reimagine", tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API), false, true, |ui| {
                 // This entry's OWN style prompt, right next to its trigger
                 // (it used to silently borrow the Direction field at the top
                 // of the panel — a prompt and its button belong together).
-                ui.horizontal_wrapped(|ui| {
+                ui.row_wrapped(|ui| {
                     // The prompt field's width reserve follows the BUTTON'S
                     // localized label, measured — the old fixed 130 px was
                     // one pixel SHORT of the English "✨ Generate image"
@@ -601,7 +601,7 @@ impl Commands<'_> {
                     // allocates `desired_width` PLUS its own margin, so the
                     // reserve above is subtracted from the drawn width, never
                     // asked for on top of it.
-                    let field_drawn = (ui.available_width()
+                    let field_drawn = (ui.avail_width()
                         - btn_w
                         - ui.spacing().item_spacing.x)
                         .clamp(FIELD_W_MIN, FIELD_W_MAX);
@@ -616,7 +616,7 @@ impl Commands<'_> {
                     {
                         self.seams.prompt_rects.push(_field.rect);
                     }
-                    ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                    ui.enabled(!self.workspace.busy(), |ui| {
                         let resp = ui.add(primary_button(btn_label).wrap_mode(egui::TextWrapMode::Extend));
                         #[cfg(test)]
                         {
@@ -650,7 +650,7 @@ impl Commands<'_> {
 
     fn ai_adjust(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_adjust", tr(lang, K_AI_ADJUST_GENERATED_IMAGE_PAID_API), false, true, |ui| {
                 let _field = prompt_field(
                     ui,
@@ -695,7 +695,7 @@ impl Commands<'_> {
 
     fn ai_reverse_fit(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         section_fold(ui, "sec_ai_reverse_fit", tr(lang, K_AI_MATCH_A_LOOK_REVERSE_FIT_LOCAL), true, true, |ui| {
             let can_fit = self.editor.fit_target(&self.workspace).is_some() && self.editor.photo().source_preview.is_some();
             if !can_fit {
@@ -733,7 +733,7 @@ impl Commands<'_> {
                 .unwrap_or_else(|| auto.clone());
                 let mut pick: Option<Option<String>> = None;
                 let busy = self.workspace.busy();
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     // The row's width is measured at its start, before the
                     // label, and capped at FIELD_W_MAX (`columns`), so the menu
                     // ends on the same right edge as the buttons under it;
@@ -742,7 +742,7 @@ impl Commands<'_> {
                     let row = columns(ui, 1).x;
                     let label = ui.label(tr(lang, K_ACTIONS_FROM)).rect.width();
                     let menu = (row - label - ui.spacing().item_spacing.x).max(FIELD_W_MIN);
-                    let _menu = ui.add_enabled_ui(!busy, |ui| {
+                    let _menu = ui.enabled(!busy, |ui| {
                         egui::ComboBox::from_id_salt("fit_from")
                             .width(menu)
                             .truncate()
@@ -783,7 +783,7 @@ impl Commands<'_> {
             // untouched; this one simply stops it from being the only one.
             let mut pick_ref = false;
             let mut clear_ref = false;
-            ui.horizontal_wrapped(|ui| {
+            ui.row_wrapped(|ui| {
                 // Two cells of the grid, measured at the row's start: the
                 // verb, then the file name with its ✕ (2026-09-27, 2026-10-14).
                 let cell = columns(ui, 2);
@@ -851,7 +851,7 @@ impl Commands<'_> {
                     K_AI_HOW_FAR_THE_FIT_MAY_MOVE_SLIDERS_ON_WEAK_EVIDENC,
                 ),
             );
-            ui.horizontal_wrapped(|ui| {
+            ui.row_wrapped(|ui| {
                 let cell = columns(ui, 2);
                 let can = !self.workspace.busy() && can_fit;
                 if primary_in(ui, cell, can, tr(lang, K_AI_REVERSE_FIT_RECIPE))
@@ -885,8 +885,8 @@ impl Commands<'_> {
             // (`the_generate_button_stays_one_line_and_the_panel_stays_put`
             // is the witness — that test exists because this panel's width
             // has run away once before).
-            ui.horizontal(|ui| {
-                ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+            ui.row(|ui| {
+                ui.enabled(!self.workspace.busy(), |ui| {
                     ui.checkbox(&mut self.workspace.fit_mut().fit_ai_judge, tr(lang, K_AI_AI_REVIEW))
                         .on_hover_text(tr(lang,
                             K_AI_AFTER_THE_FIT_SHOW_THE_TARGET_AND_THE_FITTED_REN,
@@ -896,7 +896,7 @@ impl Commands<'_> {
                 //「AI review」 and gated on it, because a deep fit IS that review
                 // plus a loop — a checkbox that silently switched the other one
                 // on would be two settings pretending to be one.
-                ui.add_enabled_ui(!self.workspace.busy() && self.workspace.fit().fit_ai_judge, |ui| {
+                ui.enabled(!self.workspace.busy() && self.workspace.fit().fit_ai_judge, |ui| {
                     ui.checkbox(&mut self.workspace.fit_mut().fit_deep, tr(lang, K_AI_RETRY_ONCE))
                         .on_hover_text(if self.workspace.fit().fit_ai_judge {
                             tr(lang,
@@ -991,7 +991,7 @@ pub(crate) fn fit_explainer(lang: Lang) -> &'static str {
 pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshade::rationale::Note]) {
     use autoshade::rationale::keys;
     let lang = lang;
-    ui.add_space(SPACE_SM);
+    ui.gap(SPACE_SM);
     ui.label(Text::new(tr(lang, K_AI_DEEP_THINKING_ITS_WORKING)).small().strong());
     for n in working {
         // The lead is OURS (one catalogue literal per key, so the i18n
@@ -1005,7 +1005,7 @@ pub(crate) fn thinking_notes(lang: Lang, ui: &mut egui::Ui, working: &[&autoshad
             _ => continue,
         };
         let Some((_, body)) = n.args.first() else { continue };
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             ui.label(Text::new(lead).strong());
             ui.add(egui::Label::new(body.as_str()).selectable(true));
         });

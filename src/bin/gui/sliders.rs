@@ -241,11 +241,11 @@ pub(crate) fn slider_impl(
     // A vertical child, not a scope: a caller that lays the slider in a
     // row (the Style dial and its warning) gets the two lines as one item
     // of that row instead of the rail continuing the row.
-    let scope = ui.vertical(|ui| {
+    let scope = ui.column(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.spacing_mut().interact_size.y = SLIDER_LINE_H;
-        let full = ui.available_width();
-        let head = ui.horizontal(|ui| {
+        let full = ui.avail_width();
+        let head = ui.row(|ui| {
             let name_w = (full - value_w - ui.spacing().item_spacing.x).max(0.0);
             let name = ui
                 .allocate_ui_with_layout(

@@ -20,7 +20,7 @@ impl Commands<'_> {
     pub(crate) fn develop_panel(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         let mut changed = false;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_DEVELOP_DEVELOP), false, |_| {});
         // OUTSIDE the editable gate below, deliberately (#4 review point): the
         // histogram is a READOUT. Its only interaction is the pair of clipping
@@ -33,7 +33,7 @@ impl Commands<'_> {
         // then discards by its base+recipe identity check. Greying the tone
         // readout during every open would be the bigger regression.
         self.with_panel(|p| p.histogram_ui(ui));
-        ui.add_space(SPACE_SM);
+        ui.gap(SPACE_SM);
 
         // Mid-open (decode in flight) these controls would edit the STASHED
         // photo A while B lands and replaces the whole recipe — silent input
@@ -42,7 +42,7 @@ impl Commands<'_> {
         // The AI area carries its OWN copy of this gate (panels/ai.rs) — it
         // used to ride inside this closure as `dev_ai`.
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
         // Lightroom-style grouping: a wall of 16 sliders scans terribly; four
         // titled sections (tone open, the rest by activity) scan at a glance.
         // A section whose values are non-neutral shows a ● so a collapsed
@@ -109,7 +109,7 @@ impl Commands<'_> {
         {
             self.seams.strip_row_rect = Some(ui.max_rect());
         }
-        ui.add_space(((ui.available_height() - card_h) / 2.0).max(0.0));
+        ui.gap(((ui.available_height() - card_h) / 2.0).max(0.0));
         // LAYOUT INVARIANT (probed, R14+R15): egui places the scroll area
         // centered by its 26 px DECLARED seed against the row's height at
         // placement time, then grows content DOWNWARD — (current−26)/2 of
@@ -147,16 +147,16 @@ impl Commands<'_> {
             egui::Rangef::new(row_top, row_top + card_h),
             ui.visuals().widgets.noninteractive.bg_stroke,
         );
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             // Horizontal footprint of the PAINTED title + divider: width
             // only, zero height (the invariant above).
-            ui.add_space(SPACE_SM + title_w + SPACE_SM + 6.0 + SPACE_SM);
+            ui.gap(SPACE_SM + title_w + SPACE_SM + 6.0 + SPACE_SM);
             egui::ScrollArea::horizontal().show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     for i in 0..self.editor.doc().variants.len() {
                         let active = i == self.editor.doc().active;
                         let kind = self.editor.doc().variants[i].kind;
-                        ui.vertical(|ui| {
+                        ui.column(|ui| {
                             // Developed thumbnail (or a placeholder until the
                             // variant has been developed once).
                             let resp = if let Some(t) = &self.editor.doc().variants[i].thumb {
@@ -211,7 +211,7 @@ impl Commands<'_> {
                             {
                                 act = Some(VariantAction::Switch(i));
                             }
-                            ui.horizontal(|ui| {
+                            ui.row(|ui| {
                                 let label = Text::new(tr(lang, kind.label())).small();
                                 let label = ui.label(if active { label.strong().color(accent) } else { label });
                                 // The immutability rule, said where the card
@@ -330,7 +330,7 @@ impl Commands<'_> {
                                 self.seams.strip_card_rect = Some(ui.min_rect());
                             }
                         });
-                        ui.add_space(SPACE_MD);
+                        ui.gap(SPACE_MD);
                     }
                 });
             });
@@ -391,7 +391,7 @@ impl Commands<'_> {
                 // develop. Nothing here is meaningful until the open settles,
                 // so the whole section goes inert rather than each button
                 // carrying its own guard.
-                ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                ui.enabled(!self.workspace.busy(), |ui| {
                 // R24-4 (#1, phase 2 — minimal): ONE place that answers
                 // "what edit states does this photo have". A photo is one
                 // negative + N variant CARDS + one version history, so the
@@ -507,8 +507,8 @@ impl Commands<'_> {
                         let has_actions =
                             i == active_i || (n_var > 1 && kind != VariantKind::Original);
                         if has_actions {
-                            ui.horizontal(|ui| {
-                                ui.add_space(SPACE_LG);
+                            ui.row(|ui| {
+                                ui.gap(SPACE_LG);
                                 if let Some(a) = self.with_panel(|p| p.variant_card_buttons(
                                     ui,
                                     i,
@@ -565,7 +565,7 @@ impl Commands<'_> {
                     let editing = self.workspace.cards().version_name_buf
                         .as_ref()
                         .is_some_and(|(p, j, ..)| *j == n && Some(p) == photo.as_ref());
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         ui.label(format!("v{n}"));
                         let field_id = ui.make_persistent_id(("version_name", n));
                         if editing {

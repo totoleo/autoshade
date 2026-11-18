@@ -21,7 +21,7 @@ impl PanelView<'_, '_> {
             .weak()
             .small(),
         );
-        ui.separator();
+        ui.rule();
         ui.heading(tr(lang, K_SETTINGS_LANGUAGE));
         // English is the skeleton; Chinese is an overlay. Switching takes effect
         // next frame (every label re-reads `self.lang`), no restart/save needed.
@@ -30,7 +30,7 @@ impl PanelView<'_, '_> {
                 ui.selectable_value(&mut self.lang, Lang::En, Lang::En.label());
                 ui.selectable_value(&mut self.lang, Lang::Zh, Lang::Zh.label());
             });
-        ui.separator();
+        ui.rule();
         ui.heading(tr(lang, K_SETTINGS_THEME));
         // Four surface schemes and an accent picked apart from them (see
         // ThemeColors) — switching either re-installs the egui style this
@@ -41,7 +41,7 @@ impl PanelView<'_, '_> {
                     ui.selectable_value(&mut self.workspace.ui_mut().theme, t, tr(lang, t.label()));
                 }
             });
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             ui.label(tr(lang, K_SETTINGS_ACCENT_COLOUR));
             for a in AccentPref::ALL {
                 if accent_swatch(ui, a.hue(), self.workspace.ui().accent == a).on_hover_text(tr(lang, a.label())).clicked() {
@@ -57,7 +57,7 @@ impl PanelView<'_, '_> {
         // that button — you changed it here and then went hunting for 「🎛
         // Reverse-fit」. The `zoned_fit` FIELD is untouched (same Prefs key,
         // same persistence, same `start_fit` read); only its UI row moved.
-        ui.separator();
+        ui.rule();
         // The develop store is otherwise invisible (hashed AppData folders) —
         // this is the one place that names it and rescues pre-store saves.
         ui.heading(tr(lang, K_SETTINGS_DEVELOP_STORE));
@@ -142,16 +142,16 @@ impl PanelView<'_, '_> {
         // batch renderer, the web download route, the GUI's destination
         // setting, the style-prompt writer), which is why "where did my export
         // go" had no answer but "wherever you launched the app from".
-        ui.separator();
+        ui.rule();
         ui.heading(tr(lang, K_SETTINGS_DELIVERY_FOLDER));
         let resolved = autoshade::config::delivery_root();
         let mut browse_delivery = false;
         {
             let f = &mut self.workspace.ui_mut().settings;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut f.out_dir)
-                        .desired_width(FIELD_W_MAX.min(ui.available_width() - 90.0).max(80.0))
+                        .desired_width(FIELD_W_MAX.min(ui.avail_width() - 90.0).max(80.0))
                         .hint_text(autoshade::config::DEFAULT_DELIVERY_ROOT),
                 )
                 .on_hover_text(tr(
@@ -192,7 +192,7 @@ impl PanelView<'_, '_> {
         // (`config::PYTHON_CANDIDATES`) — never a fixed machine path, never a
         // file dialog — so a value the user did not type by hand is one the
         // OS itself resolved.
-        ui.separator();
+        ui.rule();
         // ComfyUI (S5.11): the local generative backend's paths. Blank fields
         // derive the defaults (CLI from PATH, workspace/models from the Comfy
         // Desktop registry, output under the app store) — the value shown is
@@ -200,7 +200,7 @@ impl PanelView<'_, '_> {
         ui.heading(tr(lang, K_SETTINGS_COMFYUI_LOCAL_GENERATION));
         {
             let f = &mut self.workspace.ui_mut().settings;
-            let width = |ui: &egui::Ui| FIELD_W_MAX.min(ui.available_width() - 140.0).max(80.0);
+            let width = |ui: &egui::Ui| FIELD_W_MAX.min(ui.avail_width() - 140.0).max(80.0);
             for (label, field) in [
                 ("ComfyUI CLI", &mut f.comfy_cli),
                 ("ComfyUI folder", &mut f.comfy_workspace),
@@ -208,7 +208,7 @@ impl PanelView<'_, '_> {
                 ("Reimagine workflow", &mut f.comfy_reimagine_workflow),
                 ("Fill workflow", &mut f.comfy_fill_workflow),
             ] {
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, label));
                     ui.add(egui::TextEdit::singleline(field).desired_width(width(ui)));
                 });
@@ -221,10 +221,10 @@ impl PanelView<'_, '_> {
         ui.heading(tr(lang, K_SETTINGS_PYTHON_INTERPRETER));
         {
             let f = &mut self.workspace.ui_mut().settings;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut f.python_bin)
-                        .desired_width(FIELD_W_MAX.min(ui.available_width() - 90.0).max(80.0))
+                        .desired_width(FIELD_W_MAX.min(ui.avail_width() - 90.0).max(80.0))
                         .hint_text(autoshade::config::default_python_bin()),
                 )
                 .on_hover_text(tr(
@@ -271,7 +271,7 @@ impl PanelView<'_, '_> {
         // The managed environment: an app-owned interpreter carrying the
         // sidecars' wheels. Prepared only on request — the CUDA set is a
         // multi-gigabyte download, so it is never fetched in the background.
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             ui.label(tr(lang, K_SETTINGS_MANAGED_PYTHON));
             match autoshade::python_env::readiness() {
                 autoshade::python_env::Readiness::Ready(p) => {
@@ -347,7 +347,7 @@ impl PanelView<'_, '_> {
         // there; the existing 「did not ship the python sidecar」 line (the one
         // the two 🤖 buttons already show) is the answer for the missing case,
         // so the missing arm is not a second wording of the same thing.
-        ui.separator();
+        ui.rule();
         ui.heading(tr(lang, K_SETTINGS_SEGMENTATION_HELPER));
         let seg = cfg_now.segment_script;
         let seg_path = std::path::PathBuf::from(&seg);
@@ -382,9 +382,9 @@ impl PanelView<'_, '_> {
             {
                 f.analysis_models.clear();
             }
-            ui.separator();
+            ui.rule();
             ui.heading(tr(lang, K_SETTINGS_ANALYSIS_MODEL_USED_BY_AI_ANALYZE_AI_ADJUST_AND));
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_PROVIDER));
                 let r1 = ui.radio_value(&mut f.analysis_provider_api, false, tr(lang, K_SETTINGS_OAUTH_CLAUDE_CLI));
                 let r2 = ui.radio_value(&mut f.analysis_provider_api, true, tr(lang, K_SETTINGS_API_OPENAI_COMPATIBLE));
@@ -408,7 +408,7 @@ impl PanelView<'_, '_> {
             // entered below (analysis_api_key, falling back from the image
             // role's key). Without this the panel read as Claude-vs-OpenAI
             // only, which is not what this user has.
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let label = tr(lang, K_SETTINGS_USE_DEEPSEEK);
                 if action(ui, true, label)
                     .on_hover_text(tr(
@@ -431,7 +431,7 @@ impl PanelView<'_, '_> {
                     f.image_api_family = autoshade::config::DEEPSEEK_FAMILY.to_string();
                 }
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_MODEL));
                 // OAuth uses Claude CLI aliases; API uses the ids fetched from
                 // the ANALYSIS endpoint — its own probe, not the image role's.
@@ -444,7 +444,7 @@ impl PanelView<'_, '_> {
                 };
                 model_picker(ui, "set_analysis_model", &mut f.analysis_model, &opts, lang);
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_REASONING_EFFORT));
                 // The CLI and the API endpoints accept different tier names —
                 // offer the right list, and keep the free-text field for
@@ -463,11 +463,11 @@ impl PanelView<'_, '_> {
                 }
             });
             if f.analysis_provider_api {
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_SETTINGS_BASE_URL));
                     ui.text_edit_singleline(&mut f.analysis_base_url);
                 });
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_SETTINGS_API_KEY));
                     let hint = if f.analysis_key_present { tr(lang, K_SETTINGS_KEY_SET_BLANK_KEEPS_IT) } else { tr(lang, K_SETTINGS_NO_KEY_SET) };
                     if ui
@@ -479,7 +479,7 @@ impl PanelView<'_, '_> {
                         f.analysis_models.clear();
                     }
                 });
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let label = if f.analysis_models.fetching {
                         tr(lang, K_SETTINGS_FETCHING)
                     } else {
@@ -507,9 +507,9 @@ impl PanelView<'_, '_> {
                     }
                 });
             }
-            ui.separator();
+            ui.rule();
             ui.heading(tr(lang, K_SETTINGS_IMAGE_MODEL_LOOKS_AT_YOUR_PHOTO_AND_GENERATES_OR));
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_PROVIDER));
                 ui.radio_value(&mut f.image_provider_oauth, false, tr(lang, K_SETTINGS_API_OPENAI_COMPATIBLE));
                 ui.radio_value(&mut f.image_provider_oauth, true, tr(lang, K_SETTINGS_SIGN_IN_WITH_CHATGPT_VIA_THE_LOCAL_CODEX_BRIDGE));
@@ -533,7 +533,7 @@ impl PanelView<'_, '_> {
                     f.image_base_url = OPENAI_DEFAULT_URL.to_string();
                 }
             }
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let label = if f.image_models.fetching { tr(lang, K_SETTINGS_FETCHING) } else { tr(lang, K_SETTINGS_FETCH_MODELS) };
                 let clicked = action(ui, !f.image_models.fetching, label)
                     .on_hover_text(tr(
@@ -554,11 +554,11 @@ impl PanelView<'_, '_> {
                     );
                 }
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(if f.image_provider_oauth { tr(lang, K_SETTINGS_BRIDGE_URL) } else { tr(lang, K_SETTINGS_BASE_URL) });
                 ui.text_edit_singleline(&mut f.image_base_url);
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_VISION_MODEL));
                 let opts = model_opts(&f.image_models.chat, &["gpt-5.5", "gpt-4o"], &f.image_model);
                 model_picker(ui, "set_vision_model", &mut f.image_model, &opts, lang);
@@ -572,7 +572,7 @@ impl PanelView<'_, '_> {
                     );
                 }
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_REASONING_EFFORT));
                 let tiers = f.image_models.tiers_for(&f.image_model, &EFFORT_TIERS_API);
                 effort_picker(ui, "set_image_effort", &mut f.image_effort, &tiers, lang);
@@ -580,11 +580,11 @@ impl PanelView<'_, '_> {
                     tiers_note(ui, tiers.is_empty(), lang);
                 }
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_API_STYLE));
                 api_family_picker(ui, &mut f.image_api_family, lang);
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_SETTINGS_IMAGE_GEN_MODEL));
                 // OAuth (subscription) exposes gpt-image-2 first; API keys often
                 // still prefer gpt-image-1.5 for its input_fidelity lock.
@@ -596,7 +596,7 @@ impl PanelView<'_, '_> {
                 let opts = model_opts(&f.image_models.image_gen, fallbacks, &f.image_gen_model);
                 model_picker(ui, "set_imagegen_model", &mut f.image_gen_model, &opts, lang);
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(if f.image_provider_oauth { tr(lang, K_SETTINGS_BRIDGE_PASSWORD) } else { tr(lang, K_SETTINGS_API_KEY) });
                 let hint = if f.image_key_present {
                     tr(lang, K_SETTINGS_SET_BLANK_KEEPS_IT)
@@ -624,8 +624,8 @@ impl PanelView<'_, '_> {
                 tr(lang, K_SETTINGS_TIP_GPT_IMAGE_1_5_KEEPS_THE_PHOTO_MOST_FAITHFUL)
             };
             ui.label(Text::new(note).weak().small());
-            ui.separator();
-            ui.horizontal(|ui| {
+            ui.rule();
+            ui.row(|ui| {
                 if primary(ui, true, tr(lang, K_SETTINGS_SAVE_SETTINGS)).clicked() {
                     do_save = true;
                 }
@@ -635,7 +635,7 @@ impl PanelView<'_, '_> {
             });
         }
         // The icon's fine print (round-13 easter egg).
-        ui.add_space(SPACE_SM);
+        ui.gap(SPACE_SM);
         ui.label(
             Text::new(tr(
                 lang,

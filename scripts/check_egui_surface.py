@@ -5,14 +5,13 @@ GATES (exit 1 on any):
 
   * a production file (`src/bin/gui`, tests excluded) that is not on the
     allowlist mentions `egui::`;
-  * the total `egui::` occurrence count exceeds BUDGET;
+  * the `egui::` count outside the adapter modules exceeds CALLSITE_BUDGET;
   * an allowlisted file no longer mentions `egui::` (the list must shrink with
     each migration slice, not rot).
 
-The allowlist and the budget are both written down here on purpose: every
-slice of the egui-surface work updates them, so the surface cannot grow back
-between slices. Adding a framework mention to a new file means either routing
-it through `ui_kit.rs` or extending the allowlist deliberately.
+`ui_kit.rs` and `shortcuts.rs` are the adapters: framework types belong there,
+so their mentions do not count against the budget. Every other file is a call
+site, and the call-site count may only go down.
 
 Run: py -3 scripts/check_egui_surface.py
 """
@@ -74,8 +73,10 @@ ALLOWED = frozenset(
     }
 )
 
-# The count after the last slice. It may only go down.
-BUDGET = 1157
+# The adapter modules: framework types are expected here, so they are exempt
+# from the budget. The call-site count may only go down.
+ADAPTERS = frozenset({"ui_kit.rs", "shortcuts.rs"})
+CALLSITE_BUDGET = 1106
 
 
 def production_sources() -> list[Path]:
@@ -99,7 +100,7 @@ def main() -> int:
     for rel in unknown:
         failures.append(
             f"{rel}: mentions `{TOKEN}` but is not on the allowlist "
-            "(route it through ui_kit/shortcuts or extend the allowlist)"
+            "(route it through the vocabulary or extend the allowlist)"
         )
 
     stale = sorted(rel for rel in ALLOWED if not counts.get(rel))
@@ -110,8 +111,11 @@ def main() -> int:
         )
 
     total = sum(counts.values())
-    if total > BUDGET:
-        failures.append(f"total `{TOKEN}` count {total} exceeds the budget {BUDGET}")
+    callsites = sum(n for rel, n in counts.items() if rel not in ADAPTERS)
+    if callsites > CALLSITE_BUDGET:
+        failures.append(
+            f"call-site `{TOKEN}` count {callsites} exceeds the budget {CALLSITE_BUDGET}"
+        )
 
     for failure in failures:
         print(f"FAIL {failure}")
@@ -120,7 +124,7 @@ def main() -> int:
     verdict = "PASS" if not failures else "FAIL"
     print(
         f"check_egui_surface: {verdict} — {total} `{TOKEN}` occurrences in "
-        f"{files} files (budget {BUDGET})"
+        f"{files} files, {callsites} at call sites (budget {CALLSITE_BUDGET})"
     )
     return 0 if not failures else 1
 

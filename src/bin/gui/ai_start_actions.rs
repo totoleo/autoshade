@@ -136,7 +136,7 @@ impl Commands<'_> {
                 if let Some(to) = &to {
                     ui.label(Text::new(to).small().weak());
                 }
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_ACTIONS_FROM));
                     let shown = match prompt.from.as_deref() {
                         Some(id) => sources.iter().find(|(s, _)| s == id).map(|(_, l)| l.clone()),
@@ -160,10 +160,10 @@ impl Commands<'_> {
                 ui.label(Text::new(&in_force).small().weak());
                 ui.checkbox(&mut prompt.dont_ask, tr(lang, K_ACTIONS_DON_T_ASK_AGAIN_AFTER_GENERATING))
                     .on_hover_text(tr(lang, K_ACTIONS_TURN_IT_BACK_ON_IN_THE_AI_PANEL_S_REVERSE_FIT_FO));
-                ui.add_space(SPACE_MD);
+                ui.gap(SPACE_MD);
                 // The safe answer first, the primary tinted and last — the
                 // quit layer's order.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     later |= action(ui, true, tr(lang, K_ACTIONS_NOT_NOW)).on_hover_text("Esc").clicked();
                     fit |= primary(ui, true, tr(lang, K_ACTIONS_REVERSE_FIT)).on_hover_text("Enter").clicked();
                 });
@@ -321,7 +321,7 @@ impl Commands<'_> {
                     // Informational since v0.22: Save-all persists each
                     // photo's whole variant strip (variants.json), so these
                     // are rescued WITH their photo, not lost.
-                    ui.add_space(SPACE_MD);
+                    ui.gap(SPACE_MD);
                     ui.label(
                         Text::new(trf(
                             lang,
@@ -332,13 +332,13 @@ impl Commands<'_> {
                         .weak(),
                     );
                 }
-                ui.add_space(SPACE_MD);
+                ui.gap(SPACE_MD);
                 // Safe escape far left, the destructive action fenced off by
                 // space, the primary (save) tinted and last — a 4px slip from
                 // Save must not land on an unrecoverable Discard.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     cancel |= action(ui, true, tr(lang, K_ACTIONS_CANCEL)).on_hover_text("Esc").clicked();
-                    ui.add_space(18.0);
+                    ui.gap(18.0);
                     let warn = ui.visuals().warn_fg_color;
                     discard_quit = action(ui, true, Text::new(tr(lang, K_ACTIONS_DISCARD_QUIT)).color(warn))
                         .on_hover_text(tr(lang, K_ACTIONS_QUIT_WITHOUT_SAVING_THESE_EDITS_ARE_GONE_FOR_GOO))

@@ -41,7 +41,7 @@ impl Commands<'_> {
         ui.set_min_width(540.0);
 
         // --- new recipe ------------------------------------------------------
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             ui.label(Text::new(tr(lang, K_RECIPES_NEW_RECIPE)).weak().small());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if action(ui, true, tr(lang, K_RECIPES_IMPORT_FILE))
@@ -54,10 +54,10 @@ impl Commands<'_> {
                 }
             });
         });
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy();
             let button_w = 92.0;
-            let field_w = (ui.available_width() - button_w - ui.spacing().item_spacing.x).max(180.0);
+            let field_w = (ui.avail_width() - button_w - ui.spacing().item_spacing.x).max(180.0);
             let resp = ui.add_sized(
                 [field_w, row_h(ui)],
                 egui::TextEdit::singleline(&mut self.workspace.rlib_mut().recipe_name_buf).hint_text(tr(lang, K_RECIPES_RECIPE_NAME)),
@@ -79,14 +79,14 @@ impl Commands<'_> {
                 )]);
             }
         });
-        ui.separator();
+        ui.rule();
 
         // --- filter ----------------------------------------------------------
         let filter_empty = self.workspace.rlib().recipes_filter.trim().is_empty();
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let clear_w = if filter_empty { 0.0 } else { row_h(ui) + ui.spacing().item_spacing.x };
             let count_w = 80.0;
-            let w = (ui.available_width() - clear_w - count_w - ui.spacing().item_spacing.x).max(140.0);
+            let w = (ui.avail_width() - clear_w - count_w - ui.spacing().item_spacing.x).max(140.0);
             ui.add_sized(
                 [w, row_h(ui)],
                 egui::TextEdit::singleline(&mut self.workspace.rlib_mut().recipes_filter).hint_text(tr(lang, K_RECIPES_FILTER)),
@@ -119,10 +119,10 @@ impl Commands<'_> {
             .collect();
         let mut picked: Option<String> = None;
         let mut commit_rename: Option<(String, String)> = None;
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         egui::ScrollArea::vertical().id_salt("recipe_list").max_height(260.0).show(ui, |ui| {
             if rows.is_empty() {
-                ui.add_space(SPACE_LG);
+                ui.gap(SPACE_LG);
                 let (headline, hint) = if self.workspace.rlib().recipes.is_empty() {
                     (
                         tr(lang, K_RECIPES_NO_RECIPES_YET),
@@ -136,11 +136,11 @@ impl Commands<'_> {
                 };
                 ui.vertical_centered(|ui| {
                     ui.label(Text::new("🖼").size(22.0).weak());
-                    ui.add_space(SPACE_XS);
+                    ui.gap(SPACE_XS);
                     ui.label(Text::new(headline).weak());
                     ui.label(Text::new(hint).weak().small());
                 });
-                ui.add_space(SPACE_LG);
+                ui.gap(SPACE_LG);
             }
             for (name, age, masks, error) in &rows {
                 let selected = self.workspace.rlib().recipe_sel.as_deref() == Some(name.as_str());
@@ -148,7 +148,7 @@ impl Commands<'_> {
                 if editing {
                     let mut buf = self.workspace.rlib().recipe_rename.as_ref().map(|(_, b)| b.clone()).unwrap_or_default();
                     let resp = ui.add_sized(
-                        [ui.available_width(), RECIPE_ROW_H],
+                        [ui.avail_width(), RECIPE_ROW_H],
                         egui::TextEdit::singleline(&mut buf)
                             .id(egui::Id::new(("recipe_rename", name))),
                     );
@@ -207,20 +207,20 @@ impl Commands<'_> {
             self.workspace.rlib_mut().recipe_sel = Some(name);
             self.workspace.rlib_mut().recipe_delete_armed = None;
         }
-        ui.separator();
+        ui.rule();
         // The selected entry: what it looks like on this photo, what it
         // changes, and the verbs that act on IT (the library-wide verbs —
         // paste onto the selection, open the folder — stay below).
         if let Some(name) = self.workspace.rlib().recipe_sel.clone() {
             self.recipe_details_pane(ui, &name);
-            ui.separator();
+            ui.rule();
         }
 
         // --- the library-wide verbs ------------------------------------------
         let sel = self.workspace.rlib().recipe_sel.clone();
         let targets = self.workspace.gal().multi_sel.len();
         let busy = self.workspace.busy();
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if action(
                 ui,
                 sel.is_some() && targets > 0 && !busy,
@@ -268,7 +268,7 @@ impl Commands<'_> {
             const PREVIEW_W: f32 = 200.0;
             const PREVIEW_H: f32 = 140.0;
             let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(ui.ctx(), name)) } else { None };
-            ui.vertical(|ui| {
+            ui.column(|ui| {
                 let (rect, _) =
                     ui.allocate_exact_size(egui::vec2(PREVIEW_W, PREVIEW_H), egui::Sense::hover());
                 match tex {
@@ -303,7 +303,7 @@ impl Commands<'_> {
                     }
                 }
             });
-            ui.vertical(|ui| {
+            ui.column(|ui| {
                 ui.label(Text::new(name).strong());
                 match &entry {
                     Ok(r) => {
@@ -343,7 +343,7 @@ impl Commands<'_> {
         let ok = entry.is_ok();
         let has_photo = self.editor.photo().src_path.is_some();
         let busy = self.workspace.busy();
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         let running = tr(lang, K_RECIPES_A_TASK_IS_RUNNING_WAIT_FOR_IT_TO_FINISH);
         let needs_photo = || {
             if has_photo {
@@ -352,7 +352,7 @@ impl Commands<'_> {
                 tr(lang, K_RECIPES_OPEN_A_PHOTO_FIRST)
             }
         };
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if primary(ui, ok && has_photo && !busy, tr(lang, K_RECIPES_APPLY_TO_THIS_PHOTO))
                 .on_hover_text(tr(lang, K_RECIPES_REPLACES_WHAT_IS_ON_THE_CANVAS_CTRL_Z_UNDOES_IT))
                 .on_disabled_hover_text(needs_photo())
@@ -415,7 +415,7 @@ fn paint_recipe_row(
     broken: bool,
 ) -> (egui::Response, bool) {
     let (rect, resp) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), RECIPE_ROW_H), egui::Sense::click());
+        ui.allocate_exact_size(egui::vec2(ui.avail_width(), RECIPE_ROW_H), egui::Sense::click());
     if !ui.is_rect_visible(rect) {
         return (resp, false);
     }

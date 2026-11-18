@@ -13,7 +13,7 @@ impl PanelView<'_, '_> {
         // side panel sizes itself to its widest row — every row below then
         // lost its right edge. Wrapping keeps the panel at its default
         // whatever the font metrics do.
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             ui.heading(tr(lang, K_GALLERY_LIBRARY));
             if action(ui, true, tr(lang, K_APP_OPEN_FOLDER)).clicked() {
                 self.act_all(vec![logic::Action::Gallery(
@@ -60,7 +60,7 @@ impl PanelView<'_, '_> {
                 logic::gallery::GalleryAction::PasteToSelected,
             )]);
         }
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             // The last row lends ✕ (clear the selection) one square of its
             // width while there is a selection to clear.
             let wide = if n > 0 {
@@ -89,7 +89,7 @@ impl PanelView<'_, '_> {
             ui.checkbox(&mut self.workspace.genai_mut().paste_geometry, tr(lang, K_GALLERY_INCLUDE_CROP_STRAIGHTEN_WHEN_PASTING))
                 .on_hover_text(tr(lang, K_GALLERY_OFF_BY_DEFAULT_COMPOSITION_RARELY_TRANSFERS_BETW));
         }
-        ui.separator();
+        ui.rule();
         if action_row(ui, true, tr(lang, K_GALLERY_RECIPE_LIBRARY))
             .on_hover_text(tr(
                 lang,
@@ -101,7 +101,7 @@ impl PanelView<'_, '_> {
                 logic::gallery::GalleryAction::OpenRecipeLibrary,
             )]);
         }
-        ui.separator();
+        ui.rule();
         if self.workspace.gal().gallery.is_empty() {
             // Two different situations, two different messages: "no folder"
             // invites opening one; "empty folder" says the folder itself has
@@ -111,7 +111,7 @@ impl PanelView<'_, '_> {
             } else {
                 tr(lang, K_GALLERY_OPEN_A_FOLDER_TO_BROWSE_YOUR_PHOTOS_HERE)
             };
-            ui.add_space(SPACE_MD);
+            ui.gap(SPACE_MD);
             ui.label(Text::new(hint).weak());
             return;
         }
@@ -167,8 +167,8 @@ impl PanelView<'_, '_> {
                         .corner_radius(egui::CornerRadius::same(RADIUS_SM.round() as u8)) // selected-row fill follows the thumb radius
                         .inner_margin(egui::Margin::same(3))
                         .show(ui, |ui| {
-                            ui.set_min_width(ui.available_width());
-                            ui.horizontal(|ui| {
+                            ui.set_min_width(ui.avail_width());
+                            ui.row(|ui| {
                                 if let Some(t) = thumbs.get(&i) {
                                     // CONSTANT SLOT + aspect-preserving inset
                                     // (#17). The old code handed egui a
@@ -226,7 +226,7 @@ impl PanelView<'_, '_> {
                                     ui.painter().rect_filled(rect, RADIUS_SM, colors.thumb_placeholder);
                                     to_request.push(i);
                                 }
-                                ui.vertical(|ui| {
+                                ui.column(|ui| {
                                     let mut name = Text::new(autoshade::pipeline::stem(path)).small();
                                     if is_sel {
                                         name = name.strong().color(colors.accent_text);
@@ -243,7 +243,7 @@ impl PanelView<'_, '_> {
                                     // sidecar or the folder changes.
                                     let edited = logic::gallery::edited_badge(edited_badge, i, path);
                                     let baked = !autoshade::decode::is_raw(path);
-                                    ui.horizontal(|ui| {
+                                    ui.row(|ui| {
                                         if is_multi {
                                             ui.label(Text::new(tr(lang, K_GALLERY_SELECTED)).color(colors.accent_text).small());
                                         }

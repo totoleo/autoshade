@@ -47,7 +47,7 @@ pub(crate) fn toolbar_row(ui: &mut egui::Ui, lang: Lang, add: impl FnOnce(&mut e
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
         }
     }
-    let row_w = (ui.available_width() - controls_width() - SPACE_LG).max(0.0);
+    let row_w = (ui.avail_width() - controls_width() - SPACE_LG).max(0.0);
     ui.allocate_ui_with_layout(
         egui::vec2(row_w, ui.spacing().interact_size.y),
         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),

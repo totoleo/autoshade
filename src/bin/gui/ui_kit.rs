@@ -65,6 +65,11 @@ impl From<Text> for egui::WidgetText {
 /// A dropdown box: `id` salts the popup, `selected` is what the box shows while
 /// closed, `width` caps it (`None` = fit the content), and `body` adds the
 /// choices. The `ComboBox` construction and its builder chain stay here.
+///
+/// The layout verbs are the app's grammar too: `row`/`row_wrapped`/`column`
+/// arrange, `gap` and `rule` space, `avail_width` is the room a row has, and
+/// `enabled` is the disabled-group wrapper. The egui layout calls stay in this
+/// module, so a panel reads an arrangement, not a framework call.
 pub(crate) trait UiExt {
     fn menu(
         &mut self,
@@ -73,6 +78,18 @@ pub(crate) trait UiExt {
         width: Option<f32>,
         body: impl FnOnce(&mut egui::Ui),
     ) -> egui::Response;
+
+    fn row<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
+    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
+    fn column<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R>;
+    fn gap(&mut self, px: f32);
+    fn rule(&mut self);
+    fn avail_width(&self) -> f32;
+    fn enabled<R>(
+        &mut self,
+        enabled: bool,
+        add: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> egui::InnerResponse<R>;
 }
 
 impl UiExt for egui::Ui {
@@ -88,5 +105,37 @@ impl UiExt for egui::Ui {
             combo = combo.width(width);
         }
         combo.show_ui(self, body).response
+    }
+
+    fn row<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+        self.horizontal(add)
+    }
+
+    fn row_wrapped<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+        self.horizontal_wrapped(add)
+    }
+
+    fn column<R>(&mut self, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+        self.vertical(add)
+    }
+
+    fn gap(&mut self, px: f32) {
+        self.add_space(px);
+    }
+
+    fn rule(&mut self) {
+        self.separator();
+    }
+
+    fn avail_width(&self) -> f32 {
+        self.available_width()
+    }
+
+    fn enabled<R>(
+        &mut self,
+        enabled: bool,
+        add: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> egui::InnerResponse<R> {
+        self.add_enabled_ui(enabled, add)
     }
 }
