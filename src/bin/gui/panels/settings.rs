@@ -200,19 +200,14 @@ impl PanelView<'_, '_> {
         ui.heading(tr(lang, K_SETTINGS_COMFYUI_LOCAL_GENERATION));
         {
             let f = &mut self.workspace.ui_mut().settings;
-            let width = |ui: &egui::Ui| FIELD_W_MAX.min(ui.avail_width() - 140.0).max(80.0);
-            for (label, field) in [
-                ("ComfyUI CLI", &mut f.comfy_cli),
-                ("ComfyUI folder", &mut f.comfy_workspace),
-                ("Models folder", &mut f.comfy_base_dir),
-                ("Reimagine workflow", &mut f.comfy_reimagine_workflow),
-                ("Fill workflow", &mut f.comfy_fill_workflow),
-            ] {
-                ui.row(|ui| {
-                    ui.label(tr(lang, label));
-                    ui.add(egui::TextEdit::singleline(field).desired_width(width(ui)));
-                });
-            }
+            let mut rows = [
+                TextRow::reserving("ComfyUI CLI", &mut f.comfy_cli, 140.0),
+                TextRow::reserving("ComfyUI folder", &mut f.comfy_workspace, 140.0),
+                TextRow::reserving("Models folder", &mut f.comfy_base_dir, 140.0),
+                TextRow::reserving("Reimagine workflow", &mut f.comfy_reimagine_workflow, 140.0),
+                TextRow::reserving("Fill workflow", &mut f.comfy_fill_workflow, 140.0),
+            ];
+            text_rows(ui, lang, &mut rows);
             ui.label(Text::new(tr(lang, K_SETTINGS_BLANK_DEFAULT)).small().weak());
         }
         // One resolved config for this row and the sidecar row below; the
@@ -470,12 +465,9 @@ impl PanelView<'_, '_> {
                 ui.row(|ui| {
                     ui.label(tr(lang, K_SETTINGS_API_KEY));
                     let hint = if f.analysis_key_present { tr(lang, K_SETTINGS_KEY_SET_BLANK_KEEPS_IT) } else { tr(lang, K_SETTINGS_NO_KEY_SET) };
-                    if ui
-                        .add(egui::TextEdit::singleline(&mut f.analysis_api_key).password(true).hint_text(hint))
-                        .changed()
-                    {
-                        // Availability is CREDENTIAL-dependent as well as
-                        // URL-dependent — see the image role's key field.
+                    // Availability is CREDENTIAL-dependent as well as
+                    // URL-dependent — see the image role's key field.
+                    if field(ui, &mut f.analysis_api_key, Some(hint), true, None).changed() {
                         f.analysis_models.clear();
                     }
                 });
@@ -605,9 +597,7 @@ impl PanelView<'_, '_> {
                 } else {
                     tr(lang, K_SETTINGS_NO_KEY_SET)
                 };
-                if ui
-                    .add(egui::TextEdit::singleline(&mut f.image_api_key).password(true).hint_text(hint))
-                    .changed()
+                if field(ui, &mut f.image_api_key, Some(hint), true, None).changed()
                 {
                     // Model availability is CREDENTIAL-dependent, not just
                     // URL-dependent: a different key at the same endpoint can

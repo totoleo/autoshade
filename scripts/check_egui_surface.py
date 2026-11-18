@@ -38,6 +38,7 @@ ALLOWED = frozenset(
         "canvas_plates.rs",
         "controls.rs",
         "editor.rs",
+        "forms.rs",
         "headings.rs",
         "history_actions.rs",
         "i18n.rs",
@@ -76,7 +77,7 @@ ALLOWED = frozenset(
 # The adapter modules: framework types are expected here, so they are exempt
 # from the budget. The call-site count may only go down.
 ADAPTERS = frozenset({"ui_kit.rs", "shortcuts.rs"})
-CALLSITE_BUDGET = 1106
+CALLSITE_BUDGET = 1105
 
 
 def production_sources() -> list[Path]:

@@ -911,11 +911,7 @@ pub(crate) fn model_picker(ui: &mut egui::Ui, salt: &str, value: &mut String, op
                 ui.selectable_value(value, opt.clone(), opt.as_str());
             }
         });
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(170.0)
-            .hint_text(tr(lang, K_GUI_OR_TYPE_A_CUSTOM_ID)),
-    );
+    field(ui, value, Some(tr(lang, K_GUI_OR_TYPE_A_CUSTOM_ID)), false, Some(170.0));
 }
 
 /// A reasoning-effort picker: the tiers this provider documents, plus an
@@ -944,12 +940,7 @@ pub(crate) fn effort_picker(
                 ui.selectable_value(value, (*t).to_string(), *t);
             }
         });
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(170.0)
-            .hint_text(tr(lang, K_GUI_OR_TYPE_A_TIER)),
-    )
-    .on_hover_text(tr(
+    field(ui, value, Some(tr(lang, K_GUI_OR_TYPE_A_TIER)), false, Some(170.0)).on_hover_text(tr(
         lang,
         K_GUI_HOW_HARD_THE_MODEL_IS_ASKED_TO_THINK_HIGHER_TIER,
     ));
