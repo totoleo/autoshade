@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_types)]
+
 //! The one door to the UI framework.
 //!
 //! Production code speaks the app's vocabulary: it imports the framework's

@@ -1,6 +1,9 @@
 // Release builds run WITHOUT a console window — a GUI app shouldn't flash a
 // terminal on launch. Debug keeps the console so panics/logs stay visible.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// The framework quarantine is a clippy rule (see clippy.toml): only the door
+// and the harness may name the framework shell or the types it owns.
+#![warn(clippy::disallowed_types)]
 
 //! AutoShade — native desktop GUI (egui/eframe).
 //!
@@ -229,5 +232,6 @@ fn main() {
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_types)]
 mod tests;
 

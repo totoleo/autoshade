@@ -1,0 +1,14 @@
+# The anti-corruption layer owns the UI framework. These types are allowed only
+# inside `src/bin/gui/view.rs` (which carries an item-level allow); clippy
+# reports every other mention, including one hidden behind a re-exported name.
+disallowed-types = [
+    # The eframe shell: the door owns the launch, the hooks and the storage.
+    "eframe::App",
+    "eframe::Frame",
+    "eframe::Storage",
+    "eframe::CreationContext",
+    "eframe::NativeOptions",
+    # Framework types already confined to the door.
+    "egui::IconData",
+    "egui::ViewportBuilder",
+]
