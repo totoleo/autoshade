@@ -117,6 +117,14 @@
         ctx.run(input, |ctx| app.run_frame(ctx))
     }
 
+    /// One settling frame: the bookkeeping passes (the worker pump, the skin
+    /// guard, the rest of the update phases) with no input and nothing to look
+    /// at. A test that asserts an INTENT still simulates the input it means
+    /// (`app_frame` / `click_at`); this helper only advances the frame.
+    fn settle(ctx: &egui::Context, app: &mut AutoShadeApp) {
+        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+    }
+
     /// A primary click at `at`: press on one frame, release on the next.
     fn click_at(ctx: &egui::Context, app: &mut AutoShadeApp, size: egui::Vec2, frame: &mut usize, at: egui::Pos2) {
         let button = |pressed| egui::Event::PointerButton {

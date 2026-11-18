@@ -270,7 +270,7 @@
         assert!(app.editor().keep_skin_on(&app.workspace()), "a card inside the limits opens with the switch on");
         push_skin(&mut app);
         let ctx = egui::Context::default();
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&ctx, &mut app);
         let skin = autoshade::face::skin_target(&mut app.editor_mut().doc_mut().recipe).unwrap().clone();
         assert_eq!((skin.saturation, skin.sharpness, skin.texture), (15.0, 0.0, -60.0), "pulled back to the limits");
         // OFF (the user's flip): the same write stands.
@@ -324,7 +324,7 @@
         app.commands().load_version(1);
         let ctx = egui::Context::default();
         for _ in 0..2 {
-            let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+            settle(&ctx, &mut app);
         }
         let read = |app: &mut AutoShadeApp| {
             let s = autoshade::face::skin_target(&mut app.editor_mut().doc_mut().recipe).unwrap();
@@ -354,7 +354,7 @@
         app.commands().load_version(2);
         assert!(app.editor().keep_skin_on(&app.workspace()), "inside the limits: on");
         push_skin(&mut app);
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&ctx, &mut app);
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0));
         // The photo's own open decides every card of its strip the same way.
         app.workspace_mut().portrait_mut().keep_skin.clear();
@@ -614,7 +614,7 @@
         };
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0), "turned on: held");
         { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&ctx, &mut app);
         assert_eq!(read(&mut app), (60.0, 40.0, -90.0), "undone as it was");
         assert!(!app.editor().keep_skin_on(&app.workspace()), "the switch follows the edit put back");
         assert_eq!(app.editor().session().hist.redo_stack.len(), 1, "the step forward is still there");
@@ -642,10 +642,10 @@
             (s.saturation, s.sharpness, s.texture)
         };
         { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&ctx, &mut app);
         assert!(!app.editor().keep_skin_on(&app.workspace()), "undone: off");
         { let (e, w, l) = app.editor_workspace_mut(); e.redo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&ctx, &mut app);
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0), "redone: held");
         assert!(app.editor().keep_skin_on(&app.workspace()), "redone: the switch is on again");
         assert_eq!((app.editor().session().hist.undo_stack.len(), app.editor().session().hist.redo_stack.len()), (2, 0), "the frame recorded nothing");
