@@ -710,7 +710,7 @@ pub(crate) fn controls_w_max(style: &egui::Style) -> f32 {
 }
 
 /// The right gutter of the controls column: the floating scrollbar's width
-/// and a breath (see `AutoShadeApp::controls_column`).
+/// and a breath (see `Commands::controls_column`).
 pub(crate) fn controls_gutter(style: &egui::Style) -> f32 {
     style.spacing.scroll.bar_width + SPACE_SM
 }

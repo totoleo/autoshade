@@ -65,6 +65,7 @@ mod buttons;
 mod shortcuts;
 mod ui_kit;
 mod forms;
+mod shell;
 mod headings;
 mod theme;
 mod util;
