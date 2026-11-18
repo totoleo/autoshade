@@ -382,10 +382,7 @@ impl Commands<'_> {
         // Deferred like the strip's, and dispatched through the same owner
         // after the section's closures release `self` (R24-5).
         let mut act: Option<VariantAction> = None;
-        card_fold(ui, egui::CollapsingHeader::new(section_title(&trf(lang, K_DEVELOP_VERSIONS, &[("n", &n_ver_s)]), n_ver > 0))
-            .id_salt("sec_versions")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_versions", section_title(&trf(lang, K_DEVELOP_VERSIONS, &[("n", &n_ver_s)]), n_ver > 0), false, false, |ui| {
                 // Clearing the list on open (see `open_path`) already stops a
                 // STALE row from acting on the incoming photo. This is the
                 // second half: while a photo is still decoding, "Save as

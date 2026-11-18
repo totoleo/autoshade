@@ -177,3 +177,21 @@ pub(crate) fn card_fold<R>(
     }
     r
 }
+
+/// A section fold: `id` salts the persisted open state, `default_open` is the
+/// shipped default, and `open_in_tests` force-opens it for headless tests that
+/// never click a header. The card styling lives in [`card_fold`].
+pub(crate) fn section_fold<R>(
+    ui: &mut egui::Ui,
+    id: &str,
+    title: impl Into<egui::WidgetText>,
+    default_open: bool,
+    open_in_tests: bool,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::CollapsingResponse<R> {
+    let header = egui::CollapsingHeader::new(title)
+        .id_salt(id)
+        .default_open(default_open);
+    let header = if open_in_tests { header.open(fold_open_in_tests()) } else { header };
+    card_fold(ui, header, body)
+}

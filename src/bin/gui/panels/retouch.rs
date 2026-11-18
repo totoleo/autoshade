@@ -471,13 +471,7 @@ impl Commands<'_> {
         // folds, and that the AI panel's Adjust fold read without a control of
         // its own, is gone.
         ui.add_space(SPACE_XS);
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_RETOUCH_GENERATIVE_FILL))
-            .id_salt("sec_fill")
-            .default_open(false)
-            // Test-only force-open: this fold hides a width-pinned prompt row
-            // (see util::fold_open_in_tests).
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_fill", tr(lang, K_RETOUCH_GENERATIVE_FILL), false, true, |ui| {
                 // #14a: was `desired_width(f32::INFINITY)`.
                 let _field = prompt_field(
                     ui,
@@ -535,10 +529,7 @@ impl Commands<'_> {
                 self.layer_rows(ui);
             });
 
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_RETOUCH_HEAL_PIXEL))
-            .id_salt("sec_heal")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_heal", tr(lang, K_RETOUCH_HEAL_PIXEL), false, false, |ui| {
                 self.brush_row(ui, BrushOwner::Heal);
                 // R38: the two heal verbs share one aligned row and the
                 // full-res switch sits under them — three free-width controls
@@ -574,10 +565,7 @@ impl Commands<'_> {
                 explainer(ui, lang, tr(lang, K_RETOUCH_AI_AUTO_DETECTS_DUST_BLEMISHES_OR_PAINT_A_MASK_A));
             });
 
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_RETOUCH_CLONE_STAMP))
-            .id_salt("sec_clone")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_clone", tr(lang, K_RETOUCH_CLONE_STAMP), false, false, |ui| {
                 // The stamp's arm toggle IS its brush toggle (Alt+click samples
                 // a source, plain drags paint the Stamp's own area), so the
                 // clear verb sits beside it, the radius follows while armed,

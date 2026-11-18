@@ -163,15 +163,7 @@ impl Commands<'_> {
     /// Default OPEN: it is the panel's first read.
     fn ai_analysis(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_ANALYSIS_PAID_API))
-            .id_salt("sec_ai_analysis")
-            .default_open(true)
-            // Headless layout tests must see these rows — a test frame never
-            // clicks a header, and the Direction prompt carries the #14a width
-            // rule. Only `cfg(test)` forces it; a real run keeps the user's
-            // own fold state.
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_analysis", tr(lang, K_AI_ANALYSIS_PAID_API), true, true, |ui| {
             // The analysis output lives in ONE bounded box (2026-10-13, user:
             // 「思考过程输出有时候太长了会占满屏幕」): the verdict, the rationale
             // sentence and the deep-thinking working scroll inside
@@ -369,11 +361,7 @@ impl Commands<'_> {
     fn ai_adjust_edit(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.add_space(SPACE_XS);
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_ADJUST_THE_SELECTED_VARIANT_PAID_API))
-            .id_salt("sec_ai_adjust_edit")
-            .default_open(true)
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_adjust_edit", tr(lang, K_AI_ADJUST_THE_SELECTED_VARIANT_PAID_API), true, true, |ui| {
                 explainer(ui, lang, tr(lang, K_AI_TYPE_WHAT_TO_CHANGE_ON_THE_SELECTED_CARD_THE_AI));
                 let _field = prompt_field(
                     ui,
@@ -430,14 +418,7 @@ impl Commands<'_> {
         // about what "reads a library" means.
         let by_direction = self.aip.guide == autoshade::pipeline::Guide::Direction;
         let reads_a_library = !by_direction && self.aip.style_strength > 0.0;
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_REFERENCE_LIBRARY_LOCAL))
-            .id_salt("sec_ai_libraries")
-            .default_open(false)
-            // Headless layout tests must see these rows: a test frame never
-            // clicks a header, and an unopened fold makes an assertion about
-            // them silently vacuous instead of red.
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_libraries", tr(lang, K_AI_REFERENCE_LIBRARY_LOCAL), false, true, |ui| {
                 self.with_panel(|p| p.ai_library_status(ui));
                 self.ai_library_build(ui);
                 if !reads_a_library {
@@ -569,14 +550,7 @@ impl Commands<'_> {
     fn ai_generate(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.add_space(SPACE_XS);
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API))
-            .id_salt("sec_ai_reimagine")
-            .default_open(false)
-            // Headless layout tests must see this row: it carries the R19
-            // width arithmetic, and a test frame never clicks a header. Only
-            // `cfg(test)` forces it; a real run keeps the user's fold state.
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_reimagine", tr(lang, K_AI_GENERATE_WHOLE_IMAGE_PAID_API), false, true, |ui| {
                 // This entry's OWN style prompt, right next to its trigger
                 // (it used to silently borrow the Direction field at the top
                 // of the panel — a prompt and its button belong together).
@@ -677,11 +651,7 @@ impl Commands<'_> {
     fn ai_adjust(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.add_space(SPACE_XS);
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_ADJUST_GENERATED_IMAGE_PAID_API))
-            .id_salt("sec_ai_adjust")
-            .default_open(false)
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_adjust", tr(lang, K_AI_ADJUST_GENERATED_IMAGE_PAID_API), false, true, |ui| {
                 let _field = prompt_field(
                     ui,
                     &mut self.workspace.genai_mut().adjust_prompt,
@@ -729,15 +699,7 @@ impl Commands<'_> {
     fn ai_reverse_fit(&mut self, ui: &mut egui::Ui) {
         let lang = self.lang;
         ui.add_space(SPACE_XS);
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_AI_MATCH_A_LOOK_REVERSE_FIT_LOCAL))
-            .id_salt("sec_ai_reverse_fit")
-            .default_open(true)
-            // Same reason as the folds above: a headless frame never clicks a
-            // header, and this body carries the row whose width runaway
-            // `the_generate_button_stays_one_line_and_the_panel_stays_put`
-            // exists to catch.
-            .open(fold_open_in_tests())
-            , |ui| {
+        section_fold(ui, "sec_ai_reverse_fit", tr(lang, K_AI_MATCH_A_LOOK_REVERSE_FIT_LOCAL), true, true, |ui| {
             let can_fit = self.editor.fit_target(&self.workspace).is_some() && self.editor.photo().source_preview.is_some();
             if !can_fit {
                 // An ✎ card is not a fit target (`fit_target`): the fit reads

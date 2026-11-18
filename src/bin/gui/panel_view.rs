@@ -423,13 +423,10 @@ impl PanelView<'_, '_> {
         // --- 局部调整: manual masks — the SAME recipe.masks the AI writes -----
         let n_masks = self.editor.doc().recipe.masks.len();
         let n_masks_s = n_masks.to_string();
-        card_fold(ui, egui::CollapsingHeader::new(section_title(
+        section_fold(ui, "sec_local", section_title(
             &trf(lang, K_DEVELOP_LOCAL_MASKS, &[("n", &n_masks_s)]),
             self.editor.masks_section_active(),
-        ))
-        .id_salt("sec_local")
-        .default_open(false)
-        , |ui| {
+        ), false, false, |ui| {
             self.dev_mask_create_row(ui);
             self.dev_mask_ai_verbs(ui, n_masks);
             // Mask list: click to select (shows overlay + sliders), 🗑 deletes;
@@ -1404,10 +1401,7 @@ impl PanelView<'_, '_> {
         ui.add_space(SPACE_MD);
         // Delivery preferences have no per-photo neutral, so this header has
         // no adjustment dot. The toolbar's Export hover carries the summary.
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_APP_EXPORT))
-            .id_salt("sec_export")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_export", tr(lang, K_APP_EXPORT), false, false, |ui| {
                 // WHERE first (R22-7): the delivery target is now a setting
                 // rather than a property of which toolbar button was pressed,
                 // and it is the one whose wrong value sends the file somewhere
@@ -1571,10 +1565,7 @@ impl PanelView<'_, '_> {
         // & pixel → versions & export. Captions only: no section moved, no
         // fence rhythm changed.
         group_caption(ui, tr(lang, K_DEVELOP_TONE_COLOUR));
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_TONE_WB), tone_active))
-            .id_salt("sec_tone")
-            .default_open(true)
-            , |ui| {
+        section_fold(ui, "sec_tone", section_title(tr(lang, K_DEVELOP_TONE_WB), tone_active), true, false, |ui| {
                 // R38: wrapped, so the eyedropper drops under the checkbox when
                 // the row is short — the pair is 351 px at the 320 px default,
                 // and a plain `horizontal` never wraps: it widened the
@@ -1671,10 +1662,7 @@ impl PanelView<'_, '_> {
             .iter()
             .filter(|f| f.name == "framing")
             .any(|f| family_is_active(f, &self.editor.doc().recipe));
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CROP), crop_active))
-            .id_salt("sec_crop")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_crop", section_title(tr(lang, K_DEVELOP_CROP), crop_active), false, false, |ui| {
                 // The two verbs share the row as equal cells and the aspect
                 // preset sits under them on a captioned row of its own
                 // (2026-09-27): a 70 px combo between two own-width verbs was
@@ -1755,10 +1743,7 @@ impl PanelView<'_, '_> {
         // Group boundary: the group head's own air and gold caption (2026-10-01:
         // the full-width hairline that used to fence each group is gone).
         group_caption(ui, tr(lang, K_DEVELOP_DETAIL_LENS)); // #14b, group 2 of 4 here
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_DETAIL), detail_active))
-            .id_salt("sec_detail")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_detail", section_title(tr(lang, K_DEVELOP_DETAIL), detail_active), false, false, |ui| {
                 {
                     // All eleven controls render since v1.5.0
                     // (`render/detail.rs`), so none carries the "not rendered
@@ -1852,10 +1837,7 @@ impl PanelView<'_, '_> {
         let lang = self.lang;
         let mut changed = false;
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_COLOR_MIXER_HSL), hsl_active))
-            .id_salt("sec_hsl")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_hsl", section_title(tr(lang, K_DEVELOP_COLOR_MIXER_HSL), hsl_active), false, false, |ui| {
                 changed |= ui
                     .checkbox(&mut self.editor.doc_mut().recipe.convert_to_grayscale, tr(lang, K_DEVELOP_BLACK_WHITE))
                     .changed();
@@ -2033,10 +2015,7 @@ impl PanelView<'_, '_> {
         let mut changed = false;
     
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_COLOR_GRADING), grade_active))
-            .id_salt("sec_grade")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_grade", section_title(tr(lang, K_DEVELOP_COLOR_GRADING), grade_active), false, false, |ui| {
                 // Lightroom's grading panel (2026-10-13): the 3-way view shows
                 // the shadow, midtone and highlight wheels together, each with
                 // its luminance under it; Global is one wheel for the whole
@@ -2114,10 +2093,7 @@ impl PanelView<'_, '_> {
         // only state this fold owns that outlives the click.
         let has = self.editor.doc().variants.iter().any(|v| v.kind == VariantKind::Stacked);
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_STACK), has))
-            .id_salt("sec_stack")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_stack", section_title(tr(lang, K_DEVELOP_STACK), has), false, false, |ui| {
                 explainer(ui, lang, tr(lang, K_DEVELOP_MERGE_SEVERAL_FRAMES_OF_ONE_SCENE_INTO_A_NEW_NEG));
                 ui.add_space(SPACE_SM);
                 egui::ComboBox::from_id_salt("stack_kind")
@@ -2175,12 +2151,7 @@ impl PanelView<'_, '_> {
         let active = logic::lens_blur::active(&self.editor.doc().recipe);
         let mut actions = Vec::new();
         ui.add_space(SPACE_MD);
-        card_fold(
-            ui,
-            egui::CollapsingHeader::new(section_title(tr(lang, K_LENS_LENS_BLUR), active))
-                .id_salt("sec_lens_blur")
-                .default_open(false),
-            |ui| actions = self.lens_blur_body(ui),
+        section_fold(ui, "sec_lens_blur", section_title(tr(lang, K_LENS_LENS_BLUR), active), false, false, |ui| actions = self.lens_blur_body(ui),
         );
         actions
     }
@@ -2250,10 +2221,7 @@ impl PanelView<'_, '_> {
         // interrupted by sharpening. add_space fences each header so the ten
         // sections read as groups, not one undivided list.
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_PRESENCE), presence_active))
-            .id_salt("sec_presence")
-            .default_open(true)
-            , |ui| {
+        section_fold(ui, "sec_presence", section_title(tr(lang, K_DEVELOP_PRESENCE), presence_active), true, false, |ui| {
                 // Lightroom's Basic-panel order inside Presence is Texture →
                 // Clarity → Dehaze, and the engine runs them in that order too
                 // (R25 B2 put the global texture stage between clarity and
@@ -2276,10 +2244,7 @@ impl PanelView<'_, '_> {
         let lang = self.lang;
         let mut changed = false;
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CALIBRATION), calibration_active))
-            .id_salt("sec_calibration")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_calibration", section_title(tr(lang, K_DEVELOP_CALIBRATION), calibration_active), false, false, |ui| {
                 // Lightroom's own order and grouping: the shadows tint first,
                 // then a hue + saturation pair per primary. The group captions
                 // stay here; the rows are capability tables.
@@ -2311,10 +2276,7 @@ impl PanelView<'_, '_> {
         let mut changed = false;
     
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_EFFECTS), effects_active))
-            .id_salt("sec_effects")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_effects", section_title(tr(lang, K_DEVELOP_EFFECTS), effects_active), false, false, |ui| {
                 ui.label(egui::RichText::new(tr(lang, K_DEVELOP_POST_CROP_VIGNETTING)).weak().small());
                 // Two tables because the panel draws two captioned groups; the
                 // rows, their bands (the catalogue), their feels and their
@@ -2342,10 +2304,7 @@ impl PanelView<'_, '_> {
         let lang = self.lang;
         let mut changed = false;
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_HDR_SDR), hdr_active))
-            .id_salt("sec_hdr")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_hdr", section_title(tr(lang, K_DEVELOP_HDR_SDR), hdr_active), false, false, |ui| {
                 if ui
                     .checkbox(&mut self.editor.doc_mut().recipe.hdr_edit, tr(lang, K_DEVELOP_HDR_EDIT_MODE))
                     .on_hover_text(tr(
@@ -2392,10 +2351,7 @@ impl PanelView<'_, '_> {
         let lang = self.lang;
         let mut changed = false;
         ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_TRANSFORM), transform_active))
-            .id_salt("sec_transform")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_transform", section_title(tr(lang, K_DEVELOP_TRANSFORM), transform_active), false, false, |ui| {
                 // Upright is a MODE, so a dropdown and not a slider — and the
                 // one control in this panel whose answer may come from either
                 // side: Lightroom publishes the matrix its own solver found
@@ -2572,10 +2528,7 @@ impl PanelView<'_, '_> {
             .filter(|f| f.name == "lens" || f.name == "lens_effects")
             .any(|f| family_is_active(f, &self.editor.doc().recipe))
             || !self.editor.doc().recipe.lens_profile.is_as_opened();
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_LENS), lens_active))
-            .id_salt("sec_lens")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_lens", section_title(tr(lang, K_DEVELOP_LENS), lens_active), false, false, |ui| {
                 // In-camera profile corrections (lensmeta): the manufacturer's
                 // exact per-shot data read from the RAW itself — no lens
                 // database. Toggling a component ON whose data a legacy
@@ -2708,10 +2661,7 @@ impl PanelView<'_, '_> {
         ui.add_space(SPACE_MD);
         // --- 曲线: master + RGB tone curves (engine + XMP already apply them,
         // this is purely the editing surface — Lightroom's panel order) --------
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CURVES), curves_active))
-            .id_salt("sec_curves")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_curves", section_title(tr(lang, K_DEVELOP_CURVES), curves_active), false, false, |ui| {
                 changed |= self.curve_editor(ui);
                 changed |= parametric_curve(ui, lang, &mut self.editor.doc_mut().recipe);
             });

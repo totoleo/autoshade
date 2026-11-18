@@ -74,7 +74,7 @@ ALLOWED = frozenset(
 )
 
 # The count after the last slice. It may only go down.
-BUDGET = 1327
+BUDGET = 1306
 
 
 def production_sources() -> list[Path]:
