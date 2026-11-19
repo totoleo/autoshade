@@ -149,6 +149,8 @@ pub(crate) enum Event {
     PointerMoved(Pt),
     PointerButton { pos: Pt, pressed: bool },
     Key(Key),
+    /// A key pressed with the command modifier (Ctrl on Windows).
+    KeyCommand(Key),
 }
 
 /// The keys the GUI tests press, as the app's own names.
@@ -156,6 +158,8 @@ pub(crate) enum Event {
 pub(crate) enum Key {
     Escape,
     Enter,
+    E,
+    S,
 }
 
 impl Key {
@@ -163,6 +167,8 @@ impl Key {
         match self {
             Key::Escape => egui::Key::Escape,
             Key::Enter => egui::Key::Enter,
+            Key::E => egui::Key::E,
+            Key::S => egui::Key::S,
         }
     }
 }
@@ -183,6 +189,13 @@ impl Event {
                 pressed: true,
                 repeat: false,
                 modifiers: egui::Modifiers::NONE,
+            },
+            Event::KeyCommand(key) => egui::Event::Key {
+                key: key.into_egui(),
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
             },
         }
     }
@@ -615,4 +628,70 @@ pub(crate) fn full_window_shot(app: &mut crate::AutoShadeApp, theme: crate::them
     let out = last.expect("frames ran");
     let prims = ctx.tessellate(out.shapes.clone(), out.pixels_per_point);
     rasterise(&prims, &tex, egui::vec2(size.w, size.h), out.pixels_per_point, egui::Color32::BLACK)
+}
+
+/// The whole window as the app lays it in the one workspace (toolbar, status
+/// bar, strips, both side panels, canvas) over a synthetic photo, at `w`x`h`
+/// points, 1.5x; the texts, the vocabulary buttons of the last frame and the
+/// picture.
+pub(crate) fn window_frame(app: &mut crate::AutoShadeApp, w: f32, h: f32) -> (Vec<String>, Vec<crate::buttons::Drawn>, image::RgbaImage) {
+    use crate::buttons::DRAWN;
+    let theme = crate::theme::ThemePref::Dark;
+    app.workspace_mut().ui_mut().theme = theme;
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    crate::theme::install_theme(&ctx, theme);
+    let (pw, ph) = (600usize, 400usize);
+    let px: Vec<egui::Color32> = (0..pw * ph)
+        .map(|i| {
+            let (x, y) = ((i % pw) as f32 / pw as f32, (i / pw) as f32 / ph as f32);
+            egui::Color32::from_rgb((60.0 + 150.0 * y) as u8, (110.0 + 40.0 * x) as u8, (190.0 - 120.0 * y) as u8)
+        })
+        .collect();
+    app.editor_mut().plates_mut().after_tex = Some(ctx.load_texture("normal-photo", egui::ColorImage::new([pw, ph], px), egui::TextureOptions::LINEAR));
+    let mut tex = ShotTextures::default();
+    let mut last = None;
+    for i in 0..4 {
+        DRAWN.with_borrow_mut(Vec::clear);
+        let mut input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
+            time: Some(i as f64 / 2.0),
+            ..Default::default()
+        };
+        input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(1.5);
+        let out = ctx.run(input, |ctx| {
+            app.upd_top_bar(ctx);
+            app.upd_status_bar(ctx);
+            app.upd_strips_and_side_panels(ctx);
+            app.upd_central(ctx);
+        });
+        tex.apply(&out.textures_delta);
+        last = Some(out);
+    }
+    let out = last.expect("frames ran");
+    let drawn = DRAWN.with_borrow(Clone::clone);
+    let prims = ctx.tessellate(out.shapes.clone(), out.pixels_per_point);
+    (Out(out.clone()).texts(), drawn, rasterise(&prims, &tex, egui::vec2(w, h), out.pixels_per_point, egui::Color32::BLACK))
+}
+
+/// The controls panel's texts over `frames` frames of a `w`x`h` screen, every
+/// fold open (the one workspace's sidebar order tests read them).
+pub(crate) fn controls_panel_texts(app: &mut crate::AutoShadeApp, w: f32, h: f32, frames: usize) -> Vec<String> {
+    let mut ctx = Ctx::new();
+    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    let mut out = None;
+    for i in 0..frames {
+        out = Some(ctx.run_with(w, h, Some(i as f64), |ctx| {
+            ctx.memory_mut(|m| m.set_everything_is_visible(true));
+            controls_panel(ctx, app, 320.0);
+        }));
+    }
+    out.unwrap().texts()
+}
+
+/// One settling frame: the bookkeeping passes (the worker pump, the skin guard,
+/// the rest of the update phases) with no input and nothing to look at.
+pub(crate) fn settle(app: &mut crate::AutoShadeApp) {
+    let mut ctx = Ctx::new();
+    ctx.run_default(|ctx| app.run_frame(ctx));
 }

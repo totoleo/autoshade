@@ -2,50 +2,6 @@
 // four groups in the one workspace's sidebar (panels/normal.rs,
 // design-normal-mode.md, design-normal-oneclick.md; 2026-10-23).
 
-    /// One full window — toolbar, status bar, strips, both side panels and
-    /// the canvas, as `full_window_shot` lays them — and what it drew: every
-    /// text, every vocabulary button of the last frame, and the picture.
-    fn window_frame(app: &mut AutoShadeApp, size: egui::Vec2) -> (Vec<String>, Vec<crate::buttons::Drawn>, image::RgbaImage) {
-        use crate::buttons::DRAWN;
-        let theme = crate::theme::ThemePref::Dark;
-        app.workspace_mut().ui_mut().theme = theme;
-        let ctx = egui::Context::default();
-        crate::theme::install_fonts(&ctx);
-        crate::theme::install_theme(&ctx, theme);
-        let (w, h) = (600usize, 400usize);
-        let px: Vec<egui::Color32> = (0..w * h)
-            .map(|i| {
-                let (x, y) = ((i % w) as f32 / w as f32, (i / w) as f32 / h as f32);
-                egui::Color32::from_rgb((60.0 + 150.0 * y) as u8, (110.0 + 40.0 * x) as u8, (190.0 - 120.0 * y) as u8)
-            })
-            .collect();
-        app.editor_mut().plates_mut().after_tex = Some(ctx.load_texture("normal-photo", egui::ColorImage::new([w, h], px), egui::TextureOptions::LINEAR));
-        let mut tex = ShotTextures::default();
-        let mut last = None;
-        for i in 0..4 {
-            DRAWN.with_borrow_mut(Vec::clear);
-            let mut input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-                time: Some(i as f64 / 2.0),
-                ..Default::default()
-            };
-            input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(1.5);
-            let out = ctx.run(input, |ctx| {
-                app.upd_top_bar(ctx);
-                app.upd_status_bar(ctx);
-                app.upd_strips_and_side_panels(ctx);
-                app.upd_central(ctx);
-            });
-            tex.apply(&out.textures_delta);
-            last = Some(out);
-        }
-        let out = last.expect("frames ran");
-        let texts = drawn_texts(&out.shapes);
-        let drawn = DRAWN.with_borrow(Clone::clone);
-        let prims = ctx.tessellate(out.shapes.clone(), out.pixels_per_point);
-        (texts, drawn, rasterise(&prims, &tex, size, out.pixels_per_point, egui::Color32::BLACK))
-    }
-
     /// The photo with every button armed, with the key state fixed (no key:
     /// the disclosure line is drawn too). The brush is armed on the real
     /// canvas: the one workspace draws its marks.
@@ -71,21 +27,7 @@
             let mut app = app_in(lang);
             // Portraits with the people found: its panel's four groups open.
             app.editor_mut().doc_mut().recipe.masks.extend(found_masks());
-            let ctx = egui::Context::default();
-            crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let mut out = None;
-            for i in 0..3 {
-                let input = egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                    time: Some(i as f64),
-                    ..Default::default()
-                };
-                out = Some(ctx.run(input, |ctx| {
-                    ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    controls_panel(ctx, &mut app, 320.0);
-                }));
-            }
-            let texts = drawn_texts(&out.unwrap().shapes);
+            let texts = controls_panel_texts(&mut app, 1400.0, 20_000.0, 3);
             let at = |key: &str| texts.iter().position(|t| t.starts_with(key));
             // (a) Portraits, (b) Normal's four groups, (c) the shared panels.
             let order = [
@@ -119,7 +61,7 @@
             }
             // …and the full window's toolbar, library rows, canvas marks and
             // variant strip are on, on the same photo.
-            let (texts, drawn, img) = window_frame(&mut app, egui::vec2(1400.0, 1000.0));
+            let (texts, drawn, img) = window_frame(&mut app, 1400.0, 1000.0);
             let labels: Vec<&str> = drawn.iter().map(|d| d.label.as_str()).collect();
             let has_text = |s: &str| texts.iter().any(|x| x == s);
             let has_button = |s: &str| labels.contains(&s);
@@ -162,21 +104,16 @@
 
     /// Every text Normal's four groups draw on their own, in one tall frame.
     fn normal_panel_texts(app: &mut AutoShadeApp) -> Vec<String> {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_fonts(&ctx);
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut out = None;
         for i in 0..3 {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(420.0, 4000.0))),
-                time: Some(i as f64),
-                ..Default::default()
-            };
-            out = Some(ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| app.commands().normal_panel(ui));
+            out = Some(ctx.run_with(420.0, 4000.0, Some(i as f64), |ctx| {
+                harness::central_panel(ctx, |ui| app.commands().normal_panel(ui));
             }));
         }
-        drawn_texts(&out.unwrap().shapes)
+        out.unwrap().texts()
     }
 
     /// Design §5: 「没有一个术语」 — every text Normal's four groups draw, in
@@ -231,7 +168,7 @@
     }
 
     /// Poll the app's workers until the one-click's analysis has landed.
-    fn land_analysis(app: &mut AutoShadeApp, ctx: &egui::Context) {
+    fn land_analysis(app: &mut AutoShadeApp, ctx: &harness::Ctx) {
         let start = std::time::Instant::now();
         while app.workspace().tools().analyze_inflight {
             assert!(start.elapsed() < std::time::Duration::from_secs(20), "the analysis never landed");
@@ -269,20 +206,20 @@
         use crate::buttons::DRAWN;
         let (mut app, _src, _scrub) = normal_photo("preset");
         app.aip_mut().grade_strength = 0.4;
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let size = egui::vec2(1400.0, 6000.0);
+        let size = sz(1400.0, 6000.0);
         let mut frame = 0;
         app.workspace_mut().normal_mut().key_present = Some(true);
-        app_frame(&ctx, &mut app, size, frame, Vec::new());
+        ctx.frame(&mut app, size, frame, Vec::new());
         frame += 1;
         DRAWN.with_borrow_mut(Vec::clear);
-        app_frame(&ctx, &mut app, size, frame, Vec::new());
+        ctx.frame(&mut app, size, frame, Vec::new());
         frame += 1;
         let mono = DRAWN.with_borrow(|d| d.iter().find(|b| b.label == "Black & white").map(|b| (b.rect, b.cell)));
         let (rect, in_cell) = mono.expect("the Black & white card is drawn");
         assert!(in_cell, "a preset card is a grid cell");
-        click_at(&ctx, &mut app, size, &mut frame, rect.center());
+        ctx.click(&mut app, size, &mut frame, harness::rect(rect).center());
         let (req, text, library) = app.workspace_mut().normal_mut().last_request.clone().expect("the click started an analysis");
         assert_eq!(req.guide, autoshade::pipeline::Guide::Direction);
         assert_eq!(text.as_deref(), autoshade::advisor::presets::preset_guidance("mono"));
@@ -308,7 +245,7 @@
     #[test]
     fn the_folder_chain_builds_the_library_request() {
         let (mut app, src, _scrub) = normal_photo("folder");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         // What the reference-build action leaves while the folder is read.
         let building = |app: &mut AutoShadeApp| {
             app.workspace_mut().normal_mut().building = true;
@@ -341,7 +278,7 @@
     #[test]
     fn without_a_key_the_one_click_lands_the_built_in_look() {
         let (mut app, _src, _scrub) = normal_photo("nokey");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         assert_eq!(app.editor().doc().recipe.exposure_ev, 0.0);
         app.commands().apply_actions(vec![logic::Action::Look(logic::look::LookIntent::of(
             logic::look::LookKind::OneClick(crate::logic::look::OneClick::Preset("natural")),
@@ -363,7 +300,7 @@
     }
 
     /// Poll the app's workers until nothing is running.
-    fn land_all(app: &mut AutoShadeApp, ctx: &egui::Context) {
+    fn land_all(app: &mut AutoShadeApp, ctx: &harness::Ctx) {
         let start = std::time::Instant::now();
         while app.workspace().busy() {
             assert!(start.elapsed() < std::time::Duration::from_secs(60), "the worker never landed");
@@ -381,16 +318,8 @@
     /// workspace's save / export.
     #[test]
     fn the_workspace_save_keys_save_the_develop_and_export() {
-        let press = |app: &mut AutoShadeApp, ctx: &egui::Context, k: egui::Key| {
-            let mut input = egui::RawInput { modifiers: egui::Modifiers::COMMAND, ..Default::default() };
-            input.events.push(egui::Event::Key {
-                key: k,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::COMMAND,
-            });
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        let press = |app: &mut AutoShadeApp, ctx: &mut harness::Ctx, k: harness::Key| {
+            ctx.run_default_events(vec![harness::Event::KeyCommand(k)], |ctx| app.upd_shortcuts(ctx));
         };
         // Ctrl+E exports into the destination setting's folder.
         let (mut app, src, _scrub) = normal_photo("keys-export");
@@ -399,8 +328,8 @@
         let _scrub_out = Scrub(vec![out.clone()]);
         app.workspace_mut().exp_mut().dest = ExportDest::LastUsed;
         app.workspace_mut().exp_mut().last_dir = Some(out.clone());
-        let ctx = egui::Context::default();
-        press(&mut app, &ctx, egui::Key::E);
+        let mut ctx = harness::Ctx::new();
+        press(&mut app, &mut ctx, harness::Key::E);
         assert!(app.workspace().busy(), "the workspace export started");
         assert!(!app.workspace_mut().normal_mut().delivering, "not the Save group's delivery");
         assert!(app.workspace().status().contains(&out.file_name().unwrap().to_string_lossy().into_owned()), "{}", app.workspace().status());
@@ -423,8 +352,8 @@
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         app.editor_mut().doc_mut().recipe.exposure_ev = 0.4;
         assert!(app.editor().unsaved_marker_dirty(), "the edit is unsaved before Ctrl+S");
-        let ctx = egui::Context::default();
-        press(&mut app, &ctx, egui::Key::S);
+        let mut ctx = harness::Ctx::new();
+        press(&mut app, &mut ctx, harness::Key::S);
         assert!(!app.workspace_mut().normal_mut().delivering, "not the Save group's delivery");
         assert!(!app.workspace().busy());
         assert!(!app.editor().unsaved_marker_dirty(), "the develop was saved: {}", app.workspace().status());
@@ -440,7 +369,7 @@
     #[test]
     fn apply_to_every_photo_asks_for_the_folder_before_it_pastes() {
         let (mut app, src, _scrub) = normal_photo("applyall");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.workspace_mut().gal_mut().gallery = vec![src.clone()];
         app.workspace_mut().exp_mut().dest = ExportDest::Ask;
         app.workspace_mut().set_status("Recipe pasted onto 1 photo".into());
@@ -555,7 +484,7 @@
     fn the_noise_switch_is_the_retouch_denoise_and_round_trips() {
         use crate::panels::normal::DenoisePair;
         let (mut app, src, _scrub) = normal_photo("denoise");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
         app.editor_mut().doc_mut().variants = vec![Variant {
             id: ORIGINAL_VARIANT_ID.into(),
@@ -650,7 +579,7 @@
         let _scrub_out = Scrub(vec![out.clone()]);
         app.workspace_mut().exp_mut().dest = ExportDest::LastUsed;
         app.workspace_mut().exp_mut().last_dir = Some(out.clone());
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let names = ["_gui_normal_numbered.developed.jpg", "_gui_normal_numbered.developed-2.jpg", "_gui_normal_numbered.developed-3.jpg"];
         let mut sizes = Vec::new();
         for (i, name) in names.iter().enumerate() {
@@ -736,7 +665,7 @@
         let own = src.parent().unwrap().to_path_buf();
         app.workspace_mut().exp_mut().dest = ExportDest::LastUsed;
         app.workspace_mut().exp_mut().last_dir = Some(own.clone());
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.editor_mut().doc_mut().recipe.exposure_ev = 0.3;
         app.commands().start_normal_save();
         land_all(&mut app, &ctx);
@@ -805,7 +734,7 @@
         app.workspace_mut().exp_mut().dest = ExportDest::Ask;
         app.workspace_mut().normal_mut().folder_pick = Some(Some(out.clone()));
         app.workspace_mut().gal_mut().gallery = vec![src.clone(), other.clone()];
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.commands().start_apply_to_folder();
         land_all(&mut app, &ctx);
         assert!(app.workspace().status().contains('2'), "both photos saved: {}", app.workspace().status());
@@ -853,7 +782,7 @@
         app.commands().set_normal_denoise(true);
         assert!(app.workspace_mut().normal_mut().denoise_pair.is_none(), "nor the noise switch");
         // The empty folder's build lands (an error) and frees the buttons.
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let start = std::time::Instant::now();
         while app.workspace_mut().normal_mut().building {
             assert!(start.elapsed() < std::time::Duration::from_secs(60), "the build never landed");
@@ -896,7 +825,7 @@
     fn the_noise_switch_keeps_the_looks_undo_history() {
         use crate::panels::normal::DenoisePair;
         let (mut app, src, _scrub) = normal_photo("denoise-undo");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
         app.editor_mut().doc_mut().variants = vec![Variant {
             id: ORIGINAL_VARIANT_ID.into(),
@@ -960,7 +889,7 @@
         app.workspace_mut().normal_mut().file_pick = Some(Some(out.join("picked.jpg")));
         app.commands().start_normal_save();
         assert!(app.workspace().busy(), "the save runs: {}", app.workspace().status());
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         land_all(&mut app, &ctx);
         assert!(out.join("picked.jpg").is_file(), "{}", app.workspace().status());
         assert_eq!(app.workspace().export_dest_dir().as_deref(), Some(out.as_path()), "the next save goes there without asking");
