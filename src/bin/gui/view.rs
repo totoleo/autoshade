@@ -16,11 +16,6 @@ use std::path::Path;
 use crate::theme::{install_fonts, install_theme, ThemePref};
 use crate::{AutoShadeApp, Prefs};
 
-/// The framework's own namespace, for the TEST harness (which drives input and
-/// rasterises frames directly). Production code uses the names below.
-#[cfg(test)]
-pub(crate) use eframe::egui;
-
 pub(crate) use eframe::egui::{
     Align,
     Align2,
@@ -103,7 +98,7 @@ pub(crate) use eframe::egui::{
     viewport,
 };
 
-/// Test-only: the harness builds raw frames from this.
+/// Test-only: the inline test modules build raw frames from this.
 #[cfg(test)]
 pub(crate) use eframe::egui::RawInput;
 

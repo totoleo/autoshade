@@ -102,6 +102,16 @@ pub(crate) fn pt(x: f32, y: f32) -> Pt {
     Pt { x, y }
 }
 
+/// The distance between two points.
+pub(crate) fn distance(a: Pt, b: Pt) -> f32 {
+    ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt()
+}
+
+/// `p` moved by `(dx, dy)`.
+pub(crate) fn shift(p: Pt, dx: f32, dy: f32) -> Pt {
+    pt(p.x + dx, p.y + dy)
+}
+
 /// A size in points, for tests that build screens and frame bodies.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Sz {
@@ -165,6 +175,8 @@ pub(crate) enum Event {
     KeyCommand(Key),
     /// The framework's copy event (the text/copy shortcut).
     Copy,
+    /// The pointer left the window.
+    PointerGone,
 }
 
 /// The keys the GUI tests press, as the app's own names.
@@ -177,6 +189,7 @@ pub(crate) enum Key {
     S,
     Plus,
     Minus,
+    Space,
     Num0,
     Num1,
 }
@@ -190,6 +203,7 @@ impl Key {
             Key::R => egui::Key::R,
             Key::S => egui::Key::S,
             Key::Plus => egui::Key::Plus,
+            Key::Space => egui::Key::Space,
             Key::Minus => egui::Key::Minus,
             Key::Num0 => egui::Key::Num0,
             Key::Num1 => egui::Key::Num1,
@@ -222,6 +236,7 @@ impl Event {
                 modifiers: egui::Modifiers::COMMAND,
             },
             Event::Copy => egui::Event::Copy,
+            Event::PointerGone => egui::Event::PointerGone,
         }
     }
 }
@@ -747,19 +762,6 @@ pub(crate) fn row_height(ctx: &egui::Context) -> f32 {
     ctx.style().spacing.interact_size.y
 }
 
-/// Every text the shapes drew, nested `Shape::Vec` included.
-pub(crate) fn drawn_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
-    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
-        match shape {
-            egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
-            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
-            _ => {}
-        }
-    }
-    let mut out = Vec::new();
-    shapes.iter().for_each(|c| walk(&c.shape, &mut out));
-    out
-}
 
 /// One paint-canvas frame: allocates the canvas, hands the gesture to the app's
 /// brush and returns the canvas rect. Reuse one `Ctx` across the frames of a
@@ -941,4 +943,84 @@ pub(crate) fn v2(x: f32, y: f32) -> egui::Vec2 {
 /// One empty frame on the app's own view context (the worker pump's tick).
 pub(crate) fn tick_view(app: &mut crate::AutoShadeApp) {
     let _ = app.services().view_ctx.run(Default::default(), |_| {});
+}
+
+
+/// One left side panel at an exact `width`; its rect.
+pub(crate) fn panel_exact(ctx: &egui::Context, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) -> RectT {
+    rect(egui::SidePanel::left(id).exact_width(width).show(ctx, |ui| body(ui)).response.rect)
+}
+
+/// A view transform over `size` at `min`, with a full uv rectangle.
+pub(crate) fn view_xform(min: Pt, size: Sz) -> crate::model::ViewXform {
+    crate::model::ViewXform {
+        rect: egui::Rect::from_min_size(egui::pos2(min.x, min.y), egui::vec2(size.w, size.h)),
+        uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+    }
+}
+
+/// The normalised position of `at` under `xf`.
+pub(crate) fn to_norm(xf: &crate::model::ViewXform, at: Pt) -> Pt {
+    let (x, y) = xf.to_norm(egui::pos2(at.x, at.y));
+    pt(x, y)
+}
+
+/// The cursor the framework was asked to show, as the app's own name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Cursor {
+    None,
+    Other,
+}
+
+/// One paint-canvas frame with the brush cursor drawn, `events` injected at
+/// `time`; the frame output, the requested cursor and the canvas rect.
+pub(crate) fn paint_brush_frame(ctx: &mut Ctx, app: &mut crate::AutoShadeApp, events: Vec<Event>, time: f64) -> (Out, Cursor, RectT) {
+    let mut canvas = RectT::nothing();
+    let out = ctx.run_input(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1100.0, 850.0))),
+            events: events.into_iter().map(Event::into_egui).collect(),
+            time: Some(time),
+            ..Default::default()
+        },
+        |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let (canvas_egui, resp) = ui.allocate_exact_size(egui::vec2(1024.0, 768.0), egui::Sense::click_and_drag());
+                canvas = rect(canvas_egui);
+                let xf = crate::model::ViewXform { rect: canvas_egui, uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)) };
+                app.commands().handle_paint(&resp, xf);
+                app.commands().draw_brush_cursor(ui, &resp, canvas_egui);
+            });
+        },
+    );
+    let cursor = if out.0.platform_output.cursor_icon == egui::CursorIcon::None { Cursor::None } else { Cursor::Other };
+    (out, cursor, canvas)
+}
+
+/// The centres of the drawn circles of radius `r`.
+pub(crate) fn rings(out: &Out, r: f32) -> Vec<Pt> {
+    fn walk(shape: &egui::Shape, r: f32, out: &mut Vec<Pt>) {
+        match shape {
+            egui::Shape::Circle(c) if (c.radius - r).abs() < 0.01 && c.stroke.width > 0.0 => out.push(pt(c.center.x, c.center.y)),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, r, out)),
+            _ => {}
+        }
+    }
+    let mut out_ = Vec::new();
+    out.0.shapes.iter().for_each(|c| walk(&c.shape, r, &mut out_));
+    out_
+}
+
+/// Every text the frame drew, nested vectors included.
+pub(crate) fn out_texts(out: &Out) -> Vec<String> {
+    let mut texts = Vec::new();
+    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    out.0.shapes.iter().for_each(|c| walk(&c.shape, &mut texts));
+    texts
 }
