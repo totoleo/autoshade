@@ -171,6 +171,7 @@ pub(crate) enum Key {
     Escape,
     Enter,
     E,
+    R,
     S,
 }
 
@@ -180,6 +181,7 @@ impl Key {
             Key::Escape => egui::Key::Escape,
             Key::Enter => egui::Key::Enter,
             Key::E => egui::Key::E,
+            Key::R => egui::Key::R,
             Key::S => egui::Key::S,
         }
     }
@@ -722,6 +724,11 @@ pub(crate) fn scroll_vertical(ui: &mut egui::Ui, body: impl FnOnce(&mut egui::Ui
 /// A floating window with a fixed id and width, drawn into the current frame.
 pub(crate) fn window(ctx: &egui::Context, title: &str, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) {
     egui::Window::new(title).id(egui::Id::new(id)).default_width(width).show(ctx, |ui| body(ui));
+}
+
+/// The bottom strip panel at exactly `height`, drawn into the current frame.
+pub(crate) fn bottom_panel(ctx: &egui::Context, id: &'static str, height: f32, body: impl FnOnce(&mut egui::Ui)) {
+    egui::TopBottomPanel::bottom(id).exact_height(height).show(ctx, |ui| body(ui));
 }
 
 /// The installed style's one-row height (the vocabulary buttons' height).

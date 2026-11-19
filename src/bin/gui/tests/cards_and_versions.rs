@@ -194,14 +194,7 @@
     /// the reverse-fit question; Esc dismisses a transient instead of leaking.
     #[test]
     fn a_transient_window_swallows_canvas_shortcuts() {
-        let ctx = egui::Context::default();
-        let key = |k| egui::Event::Key {
-            key: k,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::NONE,
-        };
+        let mut ctx = harness::Ctx::new();
         // Positive control first: with NO transient up, R arms the crop —
         // proving this harness actually reaches the tool tier.
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
@@ -211,9 +204,7 @@
                 ..Default::default()
 
             }; editor });
-        let mut input = egui::RawInput::default();
-        input.events.push(key(egui::Key::R));
-        let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        ctx.run_default_events(vec![harness::Event::Key(harness::Key::R)], |ctx| app.upd_shortcuts(ctx));
         assert!(app.workspace().crop().mode, "positive control: R arms the crop tool");
 
         // The negative: a transient (Settings) swallows the tool tier…
@@ -224,14 +215,10 @@
                 ..Default::default()
 
             }; editor }).but_workspace({ let mut view = WorkspaceView::default(); *view.ui_mut() = ShellState { show_settings: true, ..Default::default() }; view });
-        let mut input = egui::RawInput::default();
-        input.events.push(key(egui::Key::R));
-        let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        ctx.run_default_events(vec![harness::Event::Key(harness::Key::R)], |ctx| app.upd_shortcuts(ctx));
         assert!(!app.workspace().crop().mode, "R is dead while a modal transient is up");
         // …and Esc dismisses the transient instead of leaking anywhere.
-        let mut input = egui::RawInput::default();
-        input.events.push(key(egui::Key::Escape));
-        let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        ctx.run_default_events(vec![harness::Event::Key(harness::Key::Escape)], |ctx| app.upd_shortcuts(ctx));
         assert!(!app.workspace().ui().show_settings, "Esc dismissed the transient");
         assert!(!app.workspace().crop().mode);
 
@@ -242,9 +229,7 @@
         let land_ctx = harness::Ctx::new();
         land(&mut prompt, &land_ctx, reimagined(one), one, RetouchKind::NewGenerated);
         assert!(prompt.workspace().fit().fit_prompt.is_some());
-        let mut input = egui::RawInput::default();
-        input.events.push(key(egui::Key::R));
-        let _ = ctx.run(input, |ctx| prompt.upd_shortcuts(ctx));
+        ctx.run_default_events(vec![harness::Event::Key(harness::Key::R)], |ctx| prompt.upd_shortcuts(ctx));
         assert!(!prompt.workspace().crop().mode, "R is dead under the prompt");
     }
 
@@ -439,7 +424,7 @@ rationale: "stale rationale".into(),
     #[test]
     fn applying_a_variant_to_the_original_copies_parameters_and_nothing_else() {
         use crate::model::{Variant, VariantKind};
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let pixels = Arc::new(image::DynamicImage::new_rgb8(8, 6));
         let master = PathBuf::from("out/_apply_master.png");
         let negative = Variant {
@@ -550,7 +535,7 @@ rationale: "stale rationale".into(),
             origin: None,
             thumb: None,
         };
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
@@ -567,23 +552,14 @@ rationale: "stale rationale".into(),
                 versions: vec![1, 2],
                 ..Default::default()
             }; view });
-        let _ = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            },
-            |ctx| {
-                // Versions is a collapsed section by default; egui's own test
-                // hook opens every collapsible (the brush-slider test's idiom).
-                ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                });
-            },
-        );
+        let _ = ctx.run(1400.0, 900.0, |ctx| {
+            // Versions is a collapsed section by default; egui's own test
+            // hook opens every collapsible (the brush-slider test's idiom).
+            ctx.memory_mut(|m| m.set_everything_is_visible(true));
+            panel(ctx, "controls", 320.0, |ui| {
+                scroll_vertical(ui, |ui| app.commands().develop_panel(ui));
+            });
+        });
         assert_eq!(
             app.seams().edit_list_rows,
             vec!["variant:original", "variant:generated", "version:1", "version:2"],
@@ -628,7 +604,7 @@ rationale: "stale rationale".into(),
             // Generated keeps its ✕.
             (0usize, vec!["0:＋", "1:✕"]),
         ] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
@@ -647,24 +623,13 @@ rationale: "stale rationale".into(),
                 }; view });
             let mut widths = Vec::new();
             for _ in 0..3 {
-                let _ = ctx.run(
-                    egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(
-                            egui::Pos2::ZERO,
-                            egui::vec2(1400.0, 900.0),
-                        )),
-                        ..Default::default()
-                    },
-                    |ctx| {
+                let _ = ctx.run(1400.0, 900.0, |ctx| {
                         ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                        let r = egui::SidePanel::left("controls")
-                            .default_width(320.0)
-                            .show(ctx, |ui| {
-                                egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                            });
-                        widths.push(r.response.rect.width());
-                    },
-                );
+                        let r = panel(ctx, "controls", 320.0, |ui| {
+                            scroll_vertical(ui, |ui| app.commands().develop_panel(ui));
+                        });
+                        widths.push(r.width());
+                    });
             }
             assert_eq!(app.seams().edit_list_actions, want, "active={active}");
             assert!(
@@ -676,7 +641,7 @@ rationale: "stale rationale".into(),
         // A lone Original: nothing is droppable and nothing else exists, so
         // the only action is ＋. (A ✕ here would offer to delete the photo's
         // one edit state.)
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
@@ -687,21 +652,12 @@ rationale: "stale rationale".into(),
                 ..Default::default()
 
             }; editor });
-        let _ = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            },
-            |ctx| {
-                ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                });
-            },
-        );
+        let _ = ctx.run(1400.0, 900.0, |ctx| {
+            ctx.memory_mut(|m| m.set_everything_is_visible(true));
+            panel(ctx, "controls", 320.0, |ui| {
+                scroll_vertical(ui, |ui| app.commands().develop_panel(ui));
+            });
+        });
         assert_eq!(app.seams().edit_list_actions, vec!["0:＋"]);
     }
 
@@ -721,18 +677,11 @@ rationale: "stale rationale".into(),
             origin: None,
             thumb: None,
         };
-        let input = || egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(900.0, 600.0),
-            )),
-            ..Default::default()
-        };
         let photo = std::env::temp_dir().join(format!("autoshade-library-{}/_strip_affordances.ARW", std::process::id()));
         for (kind, expect_enabled) in
             [(VariantKind::Fitted, true), (VariantKind::Generated, false)]
         {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
@@ -756,10 +705,8 @@ rationale: "stale rationale".into(),
 
 
                 }; editor });
-            let _ = ctx.run(input(), |ctx| {
-                egui::TopBottomPanel::bottom("variants")
-                    .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.commands().variant_strip(ui));
+            let _ = ctx.run(900.0, 600.0, |ctx| {
+                bottom_panel(ctx, "variants", AutoShadeApp::VARIANT_STRIP_H, |ui| app.commands().variant_strip(ui));
             });
             let (rect, enabled) = app
                 .seams().strip_apply
@@ -778,10 +725,8 @@ rationale: "stale rationale".into(),
             app.workspace_mut().cards_mut().variant_name_buf =
                 Some((photo.clone(), "card-b".into(), String::new(), "dusk".into()));
             app.seams().strip_name_rect = None;
-            let _ = ctx.run(input(), |ctx| {
-                egui::TopBottomPanel::bottom("variants")
-                    .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.commands().variant_strip(ui));
+            let _ = ctx.run(900.0, 600.0, |ctx| {
+                bottom_panel(ctx, "variants", AutoShadeApp::VARIANT_STRIP_H, |ui| app.commands().variant_strip(ui));
             });
             assert!(
                 app.seams().strip_name_rect.is_some_and(|r| r.width() > 0.0),
