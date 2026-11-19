@@ -90,9 +90,79 @@ impl Ctx {
     }
 }
 
+/// A point on the test screen. Owning the type keeps tests from spelling the
+/// framework's geometry on every click.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Pt {
+    pub x: f32,
+    pub y: f32,
+}
+
+pub(crate) fn pt(x: f32, y: f32) -> Pt {
+    Pt { x, y }
+}
+
+/// One synthetic input event. Only the events the tests inject are modelled;
+/// each carries the app's own geometry, not the framework's.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Event {
+    PointerMoved(Pt),
+    PointerButton { pos: Pt, pressed: bool },
+}
+
+impl Event {
+    fn into_egui(self) -> egui::Event {
+        match self {
+            Event::PointerMoved(p) => egui::Event::PointerMoved(egui::pos2(p.x, p.y)),
+            Event::PointerButton { pos, pressed } => egui::Event::PointerButton {
+                pos: egui::pos2(pos.x, pos.y),
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            },
+        }
+    }
+}
+
+/// The framework's stock light or dark look, for tests that check what the
+/// installed palette does with the framework's defaults.
+pub(crate) fn stock_visuals(dark: bool) -> egui::Visuals {
+    if dark { egui::Visuals::dark() } else { egui::Visuals::light() }
+}
+
+/// The framework's bundled fonts as `(bytes, index)` pairs, for the coverage
+/// probe (the app embeds extra symbol faces on top).
+pub(crate) fn bundled_fonts() -> Vec<(Vec<u8>, u32)> {
+    egui::FontDefinitions::default()
+        .font_data
+        .values()
+        .map(|data| (data.font.to_vec(), data.index))
+        .collect()
+}
+
+/// One frame whose whole body is a central panel (the canvas-style draws).
+pub(crate) fn central_panel(ctx: &egui::Context, body: impl FnOnce(&mut egui::Ui)) {
+    egui::CentralPanel::default().show(ctx, |ui| body(ui));
+}
+
 /// One left side panel of the given width, drawn into the current frame.
 pub(crate) fn side_panel(ctx: &egui::Context, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) {
     egui::SidePanel::left(id).default_width(width).show(ctx, |ui| body(ui));
+}
+
+impl Ctx {
+    /// One frame over a `w`x`h`-point screen at `tick`, injecting `events`.
+    pub(crate) fn run_events(&mut self, w: f32, h: f32, tick: usize, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_input(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
+                time: Some(tick as f64 / 2.0),
+                events: events.into_iter().map(Event::into_egui).collect(),
+                ..Default::default()
+            },
+            draw,
+        )
+    }
 }
 
 /// What one frame produced, as far as a test asks: the drawn texts (and, in

@@ -13,11 +13,11 @@
         for theme in ThemePref::ALL {
             for accent in AccentPref::ALL {
                 let c = palette(theme, accent);
-                let visuals = if theme.is_dark() { egui::Visuals::dark() } else { egui::Visuals::light() };
+                let visuals = harness::stock_visuals(theme.is_dark());
                 let panel = c.panel_fill;
                 let well = c.text_well.unwrap_or(visuals.extreme_bg_color);
                 let text = visuals.widgets.noninteractive.fg_stroke.color;
-                let checks: [(&str, egui::Color32, egui::Color32, f64); 10] = [
+                let checks = [
                     // (what, fg, bg, minimum). The selected row carries ONLY
                     // accent-coloured text (name + badges — see the gallery
                     // row); multi-select rows render default-colour names.
@@ -72,7 +72,7 @@
     #[test]
     fn the_theme_and_accent_install_together_and_persist() {
         use crate::theme::AccentPref;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         crate::theme::install_look(&ctx, ThemePref::CoolBlue, AccentPref::Teal);
         let c = crate::theme::palette(ThemePref::CoolBlue, AccentPref::Teal);
         assert_eq!(ctx.style().visuals.panel_fill, c.panel_fill);
@@ -273,11 +273,10 @@
             "literal extractor found too few symbols — it is broken"
         );
 
-        let defaults = egui::FontDefinitions::default();
         let mut faces: Vec<ab_glyph::FontVec> = Vec::new();
-        for data in defaults.font_data.values() {
+        for (bytes, index) in harness::bundled_fonts() {
             faces.push(
-                ab_glyph::FontVec::try_from_vec_and_index(data.font.to_vec(), data.index)
+                ab_glyph::FontVec::try_from_vec_and_index(bytes, index)
                     .expect("egui bundled font parses"),
             );
         }
@@ -546,34 +545,21 @@
         // reports the change depends on egui's drag-vs-click bookkeeping,
         // so the two are OR-ed).
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.curve_channel_mut() = 2; view });
-        let ctx = egui::Context::default();
-        let run_pass = |app: &mut AutoShadeApp, events: Vec<egui::Event>| -> bool {
+        let mut ctx = harness::Ctx::new();
+        let mut run_pass = |app: &mut AutoShadeApp, events: Vec<harness::Event>| -> bool {
             let mut changed = false;
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                )),
-                events,
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
+            ctx.run_events(800.0, 600.0, 0, events, |ctx| {
+                harness::central_panel(ctx, |ui| {
                     changed |= app.panel_view(&mut Vec::new()).curve_editor(ui);
                 });
             });
             changed
         };
-        let _ = run_pass(&mut app, vec![]);
+        let _ = run_pass(&mut app, Vec::new());
         let rect = app.seams().curve_rect.expect("the editor records its square (test seam)");
-        let q = egui::pos2(rect.min.x + rect.width() * 0.25, rect.min.y + rect.height() * 0.5);
-        let button = |pressed: bool| egui::Event::PointerButton {
-            pos: q,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        };
-        let changed_press = run_pass(&mut app, vec![egui::Event::PointerMoved(q), button(true)]);
+        let q = harness::pt(rect.min.x + rect.width() * 0.25, rect.min.y + rect.height() * 0.5);
+        let button = |pressed: bool| harness::Event::PointerButton { pos: q, pressed };
+        let changed_press = run_pass(&mut app, vec![harness::Event::PointerMoved(q), button(true)]);
         let changed_release = run_pass(&mut app, vec![button(false)]);
         assert!(changed_press || changed_release, "the editor must report the edit");
         assert_eq!(
