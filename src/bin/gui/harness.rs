@@ -102,6 +102,38 @@ pub(crate) fn pt(x: f32, y: f32) -> Pt {
     Pt { x, y }
 }
 
+/// A size in points, for tests that build screens and frame bodies.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Sz {
+    pub w: f32,
+    pub h: f32,
+}
+
+pub(crate) fn sz(w: f32, h: f32) -> Sz {
+    Sz { w, h }
+}
+
+/// A rectangle reported by the app's test seams (a drawn button's square), as
+/// the app's own geometry: tests ask it for the point they click.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RectT {
+    pub min: Pt,
+    pub max: Pt,
+}
+
+pub(crate) fn rect(rect: egui::Rect) -> RectT {
+    RectT {
+        min: pt(rect.min.x, rect.min.y),
+        max: pt(rect.max.x, rect.max.y),
+    }
+}
+
+impl RectT {
+    pub(crate) fn center(self) -> Pt {
+        pt((self.min.x + self.max.x) * 0.5, (self.min.y + self.max.y) * 0.5)
+    }
+}
+
 /// One synthetic input event. Only the events the tests inject are modelled;
 /// each carries the app's own geometry, not the framework's.
 #[derive(Clone, Copy, Debug)]
@@ -143,6 +175,29 @@ pub(crate) fn bundled_fonts() -> Vec<(Vec<u8>, u32)> {
 /// One frame whose whole body is a central panel (the canvas-style draws).
 pub(crate) fn central_panel(ctx: &egui::Context, body: impl FnOnce(&mut egui::Ui)) {
     egui::CentralPanel::default().show(ctx, |ui| body(ui));
+}
+
+impl Ctx {
+    /// One whole-app frame over `size` at `tick`, injecting `events`.
+    pub(crate) fn frame(&mut self, app: &mut crate::AutoShadeApp, size: Sz, tick: usize, events: Vec<Event>) -> Out {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(size.w, size.h))),
+            time: Some(tick as f64 / 2.0),
+            events: events.into_iter().map(Event::into_egui).collect(),
+            ..Default::default()
+        };
+        Out(self.0.run(input, |ctx| app.run_frame(ctx)))
+    }
+
+    /// A primary click at `at`: press on one frame, release on the next, the
+    /// frame counter advancing per frame.
+    pub(crate) fn click(&mut self, app: &mut crate::AutoShadeApp, size: Sz, tick: &mut usize, at: Pt) {
+        let button = |pressed| Event::PointerButton { pos: at, pressed };
+        for events in [vec![Event::PointerMoved(at), button(true)], vec![button(false)]] {
+            self.frame(app, size, *tick, events);
+            *tick += 1;
+        }
+    }
 }
 
 /// One left side panel of the given width, drawn into the current frame.
