@@ -46,19 +46,13 @@
     #[test]
     fn the_installed_theme_survives_an_opposite_mode_os() {
         for (pref, want_dark) in [(ThemePref::Dark, true), (ThemePref::Light, false)] {
-            let ctx = egui::Context::default();
-            let os_reports =
-                if want_dark { egui::Theme::Light } else { egui::Theme::Dark };
-            let input = egui::RawInput {
-                system_theme: Some(os_reports),
-                ..Default::default()
-            };
+            let mut ctx = harness::Ctx::new();
             // Startup order: install BEFORE the first frame (system theme
             // unknown), exactly like main()'s creation closure.
             install_theme(&ctx, pref);
             // One real frame with the adversarial system theme — the moment
             // the old bug swapped the stock style in.
-            let _ = ctx.run(input, |_| {});
+            ctx.run_system_theme(!want_dark);
             assert_eq!(
                 ctx.style().visuals.dark_mode,
                 want_dark,
@@ -81,13 +75,6 @@
     /// focus) is exercised, not a hand-called helper.
     #[test]
     fn zoom_keys_step_fit_and_jump_to_one_to_one() {
-        let key = |k: egui::Key| egui::Event::Key {
-            key: k,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::NONE,
-        };
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(PathBuf::from("x.png")),
@@ -99,33 +86,31 @@
                 // what the canvas computed last frame
                 zoom: 2.0,
                 zoom_target: 2.0,
-                pan: egui::vec2(0.7, 0.7),
+                pan: v2(0.7, 0.7),
                 ..Default::default()
             }; view });
 
-        let ctx = egui::Context::default();
-        let run_key = |app: &mut AutoShadeApp, k: egui::Key| {
-            let mut input = egui::RawInput::default();
-            input.events.push(key(k));
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        let mut ctx = harness::Ctx::new();
+        let mut run_key = |app: &mut AutoShadeApp, k: harness::Key| {
+            ctx.run_default_events(vec![harness::Event::Key(k)], |ctx| app.upd_shortcuts(ctx));
         };
-        run_key(&mut app, egui::Key::Plus);
+        run_key(&mut app, harness::Key::Plus);
         assert!((app.workspace().view().zoom_target - 2.5).abs() < 1e-4, "`+` retargets ×1.25, got {}", app.workspace().view().zoom_target);
-        run_key(&mut app, egui::Key::Minus);
+        run_key(&mut app, harness::Key::Minus);
         assert!((app.workspace().view().zoom_target - 2.0).abs() < 1e-4, "`-` steps back, got {}", app.workspace().view().zoom_target);
-        run_key(&mut app, egui::Key::Num1);
+        run_key(&mut app, harness::Key::Num1);
         assert_eq!(app.workspace().view().zoom_target, 4.0, "`1` targets the stored 1:1 zoom");
-        run_key(&mut app, egui::Key::Num0);
+        run_key(&mut app, harness::Key::Num0);
         assert_eq!(app.workspace().view().zoom_target, 1.0, "`0` refits");
-        assert_eq!(app.workspace().view().pan, egui::vec2(0.5, 0.5), "`0` recentres the pan (instant)");
+        assert_eq!(app.workspace().view().pan, v2(0.5, 0.5), "`0` recentres the pan (instant)");
         // Ceiling: from 11× one `+` press must stop at the 12× clamp.
         app.workspace_mut().view_mut().zoom_target = 11.0;
-        run_key(&mut app, egui::Key::Plus);
+        run_key(&mut app, harness::Key::Plus);
         assert_eq!(app.workspace().view().zoom_target, 12.0, "zoom keys respect the 12x ceiling");
         // No photo → the keys are inert (same gate as the canvas buttons).
         app.editor_mut().photo_mut().src_path = None;
         app.workspace_mut().view_mut().zoom_target = 3.0;
-        run_key(&mut app, egui::Key::Num0);
+        run_key(&mut app, harness::Key::Num0);
         assert_eq!(app.workspace().view().zoom_target, 3.0, "no photo: zoom keys must not act");
     }
 
@@ -202,19 +187,10 @@
 
             }; editor });
         app.editor_mut().doc_mut().recipe.exposure_ev = 1.5;
-        let ctx = egui::Context::default();
-        let run_copy = |app: &mut AutoShadeApp, shift: bool| {
-            let input = egui::RawInput {
-                modifiers: egui::Modifiers {
-                    command: true,
-                    ctrl: true,
-                    shift,
-                    ..Default::default()
-                },
-                events: vec![egui::Event::Copy],
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        let mut ctx = harness::Ctx::new();
+        let mut run_copy = |app: &mut AutoShadeApp, shift: bool| {
+            let mods = harness::Mods { command: true, ctrl: true, shift };
+            ctx.run_default_mods(mods, vec![harness::Event::Copy], |ctx| app.upd_shortcuts(ctx));
         };
         run_copy(&mut app, false);
         assert!(app.workspace().genai().copied.is_none(), "bare Ctrl+C belongs to egui's text copy");
@@ -391,13 +367,13 @@
     /// now request a repaint from inside `spawn_worker`.
     #[test]
     fn worker_spawn_and_completion_both_wake_the_event_loop() {
-        let app = AutoShadeApp::default();
+        let mut app = AutoShadeApp::default();
         // Drain the fresh context's startup frames (egui schedules a couple
         // on its own) until it reports quiet.
         for _ in 0..8 {
-            let _ = app.services().egui_ctx.run(Default::default(), |_| {});
+            tick_view(&mut app);
         }
-        assert!(!app.services().egui_ctx.has_requested_repaint(), "sanity: context drained");
+        assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: context drained");
         let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
         app.services().spawn_worker(
             move || {
@@ -408,18 +384,18 @@
         );
         // Edge 1: STARTING a worker schedules the next frame (the pump's
         // gate has already run this frame by the time a panel can spawn).
-        assert!(app.services().egui_ctx.has_requested_repaint(), "spawn must wake the loop");
+        assert!(app.services().view_ctx.has_requested_repaint(), "spawn must wake the loop");
         // Consume that request the way real frames would; the worker is
         // still gated, so quiet must return…
         for _ in 0..8 {
-            let _ = app.services().egui_ctx.run(Default::default(), |_| {});
+            tick_view(&mut app);
         }
-        assert!(!app.services().egui_ctx.has_requested_repaint(), "sanity: drained again");
+        assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: drained again");
         // …until the worker completes: edge 2, the completion itself must
         // wake the loop — the mpsc send alone never does.
         gate_tx.send(()).expect("the worker is waiting on the gate");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !app.services().egui_ctx.has_requested_repaint() {
+        while !app.services().view_ctx.has_requested_repaint() {
             assert!(
                 std::time::Instant::now() < deadline,
                 "a completed worker never asked for a repaint — its result would sit unread until the next input event"
@@ -438,28 +414,19 @@
 
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let mut app = AutoShadeApp::default().but_lang(lang);
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            };
             let mut widths = Vec::new();
             for _ in 0..3 {
-                let _ = ctx.run(input(), |ctx| {
-                    let r = egui::SidePanel::left("controls")
-                        .default_width(320.0)
-                        .show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.commands().ai_panel(ui);
-                                app.commands().retouch_panel(ui);
-                            });
+                ctx.run(1400.0, 900.0, |ctx| {
+                    let r = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| {
+                            app.commands().ai_panel(ui);
+                            app.commands().retouch_panel(ui);
                         });
+                    });
                     // the panel's rendered width, the runaway's witness
-                    widths.push(r.response.rect.width());
+                    widths.push(r.width());
                 });
             }
             assert!(
@@ -467,7 +434,7 @@
                 "{lang:?}: the side panel must not grow across frames: {widths:?}"
             );
             let btn = app.seams().reimagine_btn_rect.expect("the button records its rect (test seam)");
-            let one_line = ctx.style().spacing.interact_size.y;
+            let one_line = row_height(&ctx);
             assert!(
                 btn.height() <= one_line + 1.0,
                 "{lang:?}: the Generate button must be one line tall ({} vs {one_line})",
@@ -486,15 +453,8 @@
             app.workspace_mut().genai_mut().reimagine_prompt = app.workspace().ai().guidance.clone();
             app.workspace_mut().genai_mut().adjust_prompt = app.workspace().ai().guidance.clone();
             app.workspace_mut().genai_mut().fill_prompt = app.workspace().ai().guidance.clone();
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 1200.0),
-                )),
-                ..Default::default()
-            };
             // Three frames, because a WIDTH rule and an auto-fitting side panel
             // is exactly the pair that produced R19's +8 px/frame runaway: the
             // cap only ever asks for LESS than the row has (which cannot grow
@@ -502,20 +462,19 @@
             let mut widths = Vec::new();
             for _ in 0..3 {
                 app.seams().prompt_rects.clear(); // the LAST frame's evidence only
-                let _ = ctx.run(input(), |ctx| {
+                ctx.run(1600.0, 1200.0, |ctx| {
                     // Both prompt-bearing folds are collapsed by default; egui's
                     // own test hook opens every collapsible (the same one the
                     // mask-brush width test uses), so an unopened fold cannot
                     // make this vacuous.
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    let r =
-                        egui::SidePanel::left("controls").default_width(800.0).show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.commands().ai_panel(ui);
-                                app.commands().retouch_panel(ui);
-                            });
+                    let r = panel(ctx, "controls", 800.0, |ui| {
+                        scroll_vertical(ui, |ui| {
+                            app.commands().ai_panel(ui);
+                            app.commands().retouch_panel(ui);
                         });
-                    widths.push(r.response.rect.width());
+                    });
+                    widths.push(r.width());
                 });
             }
             assert!(
@@ -574,19 +533,10 @@
      variants,
      ..Default::default()
  }; editor });
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                )),
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::TopBottomPanel::bottom("variants")
-                    .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.commands().variant_strip(ui));
+            ctx.run(800.0, 600.0, |ctx| {
+                bottom_panel(ctx, "variants", AutoShadeApp::VARIANT_STRIP_H, |ui| app.commands().variant_strip(ui));
             });
             let row = app.seams().strip_row_rect.expect("the strip records its row (test seam)");
             let card = app.seams().strip_card_rect.expect("the strip records its card (test seam)");
@@ -625,29 +575,16 @@
         {
 
         for (tw, th, tag) in [(40u32, 60u32, "portrait 2:3"), (60, 40, "landscape 3:2")] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default();
-            let tex = ctx.load_texture(
-                "r22_thumb",
-                egui::ColorImage::filled([tw as usize, th as usize], egui::Color32::GRAY),
-                egui::TextureOptions::LINEAR,
-            );
+            let tex = ctx.gray_texture("r22_thumb", tw, th);
             // One row, its texture already resident: the loaded branch.
             app.workspace_mut().gal_mut().gallery = vec![PathBuf::from("r22-thumb-geometry.arw")];
             app.workspace_mut().gal_mut().gallery_dir = Some(PathBuf::from("."));
             app.workspace_mut().gal_mut().thumbs.insert(0, tex);
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1200.0, 800.0),
-                )),
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::SidePanel::left("library")
-                    .default_width(260.0)
-                    .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
+            ctx.run(1200.0, 800.0, |ctx| {
+                panel(ctx, "library", 260.0, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
             });
             let slot = app.workspace().gal().gallery_slot_rect.expect("the gallery records its thumb slot (test seam)");
             let draw = app.workspace().gal().gallery_thumb_rect.expect("the gallery records the drawn image (test seam)");
@@ -696,24 +633,15 @@
     /// phase ②.
     #[test]
     fn the_ai_panel_freezes_only_while_a_photo_is_opening() {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let frame = |app: &mut AutoShadeApp| -> Option<bool> {
+        let mut frame = |app: &mut AutoShadeApp| -> Option<bool> {
             app.seams().ai_gate_enabled = None; // this frame's evidence only
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(1000.0, 900.0),
-                    )),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.commands().ai_panel(ui);
-                    });
-                },
-            );
+            ctx.run(1000.0, 900.0, |ctx| {
+                panel(ctx, "controls", 320.0, |ui| {
+                    app.commands().ai_panel(ui);
+                });
+            });
             app.seams().ai_gate_enabled
         };
         // ① settled: live.
@@ -748,34 +676,25 @@
     #[test]
     fn the_mask_brush_session_carries_the_brush_size_slider() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default().but_lang(lang);
             // A plate is what start_mask_brush sizes its buffers against.
             app.editor_mut().photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(64, 96)));
             app.commands().start_mask_brush(None);
             assert!(app.workspace().masks().mask_brush.is_some(), "{lang:?}: the brush session armed");
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            };
             let mut widths = Vec::new();
             for frame in 0..3 {
                 app.seams().brush_slider_rect = None; // this frame's evidence only
-                let _ = ctx.run(input(), |ctx| {
+                ctx.run(1400.0, 900.0, |ctx| {
                     // Local Masks is a collapsed section by default; opening
                     // every collapsible is egui's own test hook for exactly
                     // this (CollapsingState::openness).
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    let r = egui::SidePanel::left("controls")
-                        .default_width(320.0)
-                        .show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                        });
-                    widths.push(r.response.rect.width());
+                    let r = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| app.commands().develop_panel(ui));
+                    });
+                    widths.push(r.width());
                 });
                 let s = app.seams().brush_slider_rect.unwrap_or_else(|| {
                     panic!(

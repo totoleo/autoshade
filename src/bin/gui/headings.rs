@@ -21,42 +21,42 @@ use super::*;
 /// gold disc, as on the folds (`util::section_title`); the drawn text is still
 /// [`section_label`]'s, so a test reading it sees the ●.
 pub(crate) fn panel_heading(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     title: &str,
     active: bool,
-    lead: impl FnOnce(&mut egui::Ui),
-) -> egui::Response {
+    lead: impl FnOnce(&mut Ui),
+) -> Response {
     let accent = ui.visuals().hyperlink_color;
-    let text: egui::WidgetText = if active {
-        let font = egui::TextStyle::Heading.resolve(ui.style());
+    let text: WidgetText = if active {
+        let font = TextStyle::Heading.resolve(ui.style());
         let label = section_label(title, true);
-        let mut job = egui::text::LayoutJob::default();
-        job.append(title, 0.0, egui::TextFormat::simple(font.clone(), ui.visuals().strong_text_color()));
+        let mut job = LayoutJob::default();
+        job.append(title, 0.0, TextFormat::simple(font.clone(), ui.visuals().strong_text_color()));
         job.append(
             &label[title.len()..],
             0.0,
-            egui::TextFormat {
-                font_id: egui::FontId::new(font.size * 0.5, font.family),
+            TextFormat {
+                font_id: FontId::new(font.size * 0.5, font.family),
                 color: accent,
-                valign: egui::Align::Center,
+                valign: Align::Center,
                 ..Default::default()
             },
         );
         job.into()
     } else {
-        egui::RichText::new(title).heading().strong().into()
+        Text::new(title).heading().strong().into()
     };
-    let row = ui.horizontal(|ui| {
+    let row = ui.row(|ui| {
         lead(ui);
-        ui.add(egui::Label::new(text).sense(egui::Sense::click()))
+        ui.add(Label::new(text).sense(Sense::click()))
     });
     let title_rect = row.inner.rect;
     let y = row.response.rect.bottom() + 2.0;
     ui.painter().line_segment(
-        [egui::pos2(title_rect.left(), y), egui::pos2(title_rect.left() + 28.0, y)],
-        egui::Stroke::new(2.0, accent),
+        [pos2(title_rect.left(), y), pos2(title_rect.left() + 28.0, y)],
+        Stroke::new(2.0, accent),
     );
-    ui.add_space(SPACE_SM);
+    ui.gap(SPACE_SM);
     row.inner
 }
 
@@ -68,30 +68,30 @@ pub(crate) fn panel_heading(
 /// Set as the quiet, spaced small caption Lightroom and RapidRaw put over a
 /// band (2026-10-13): the gold tick and gold text made every band head shout
 /// as loud as the panel title above it, so the gold is now the title's alone.
-pub(crate) fn group_caption(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_LG + SPACE_SM);
+pub(crate) fn group_caption(ui: &mut Ui, title: &str) {
+    ui.gap(SPACE_LG + SPACE_SM);
     ui.label(
-        egui::RichText::new(title)
+        Text::new(title)
             .small()
             .strong()
             .extra_letter_spacing(0.8)
             .color(ui.visuals().weak_text_color()),
     );
-    ui.add_space(SPACE_XS);
+    ui.gap(SPACE_XS);
 }
 
 /// The fold disclosure: a thin chevron that turns from › to ⌄ as the fold
 /// opens, in place of egui's filled triangle (2026-10-13 — the triangle is
 /// the one glyph that read as a 2005 tree view).
-pub(crate) fn paint_chevron(ui: &mut egui::Ui, openness: f32, response: &egui::Response) {
+pub(crate) fn paint_chevron(ui: &mut Ui, openness: f32, response: &Response) {
     let colour = ui.style().interact(response).fg_stroke.color;
     let rect = response.rect;
     let s = rect.width().min(rect.height()) * 0.2;
-    let turn = egui::emath::Rot2::from_angle(openness * std::f32::consts::FRAC_PI_2);
-    let points = [egui::vec2(-0.5 * s, -s), egui::vec2(0.5 * s, 0.0), egui::vec2(-0.5 * s, s)]
+    let turn = emath::Rot2::from_angle(openness * std::f32::consts::FRAC_PI_2);
+    let points = [vec2(-0.5 * s, -s), vec2(0.5 * s, 0.0), vec2(-0.5 * s, s)]
         .map(|v| rect.center() + turn * v)
         .to_vec();
-    ui.painter().add(egui::Shape::line(points, egui::Stroke::new(1.5, colour)));
+    ui.painter().add(Shape::line(points, Stroke::new(1.5, colour)));
 }
 
 /// A section's how-it-works paragraph, folded to one quiet line (2026-10-14,
@@ -99,8 +99,8 @@ pub(crate) fn paint_chevron(ui: &mut egui::Ui, openness: f32, response: &egui::R
 /// line's tooltip, so nothing it says is lost, and the panel shows one row
 /// where it used to show three to six. Status lines and warnings stay plain
 /// labels — only explanation goes here.
-pub(crate) fn explainer(ui: &mut egui::Ui, lang: Lang, text: &str) -> egui::Response {
-    ui.label(egui::RichText::new(tr(lang, K_HEADING_HOW_THIS_WORKS)).small().weak()).on_hover_ui(|ui| {
+pub(crate) fn explainer(ui: &mut Ui, lang: Lang, text: &str) -> Response {
+    ui.label(Text::new(tr(lang, K_HEADING_HOW_THIS_WORKS)).small().weak()).on_hover_ui(|ui| {
         ui.set_max_width(EXPLAINER_W);
         ui.label(text);
     })
@@ -113,9 +113,9 @@ pub(crate) const EXPLAINER_W: f32 = 320.0;
 /// slider groups, the library ladder's rungs, the snapshot history): air and
 /// a weak small line, no hairline — the fold's own indent already says whose
 /// block it is.
-pub(crate) fn sub_caption(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_MD);
-    ui.label(egui::RichText::new(title).weak().small());
+pub(crate) fn sub_caption(ui: &mut Ui, title: &str) {
+    ui.gap(SPACE_MD);
+    ui.label(Text::new(title).weak().small());
 }
 
 /// A fold drawn as a CARD while it is open (2026-10-12, user: 「UI 美观继续打磨，
@@ -126,12 +126,12 @@ pub(crate) fn sub_caption(ui: &mut egui::Ui, title: &str) {
 /// shape reserved before the header, filled in once the body's extent is
 /// known), so it changes no layout but the breath after an open card.
 pub(crate) fn card_fold<R>(
-    ui: &mut egui::Ui,
-    header: egui::CollapsingHeader,
-    body: impl FnOnce(&mut egui::Ui) -> R,
-) -> egui::CollapsingResponse<R> {
-    let plate = ui.painter().add(egui::Shape::Noop);
-    let lift = ui.painter().add(egui::Shape::Noop);
+    ui: &mut Ui,
+    header: CollapsingHeader,
+    body: impl FnOnce(&mut Ui) -> R,
+) -> CollapsingResponse<R> {
+    let plate = ui.painter().add(Shape::Noop);
+    let lift = ui.painter().add(Shape::Noop);
     let (left, right) = (ui.max_rect().left(), ui.max_rect().right());
     let r = header.icon(paint_chevron).show(ui, body);
     // The header is the fold's button, and it rises under the pointer
@@ -142,38 +142,56 @@ pub(crate) fn card_fold<R>(
     let rise = ui.ctx().animate_bool_with_time(h.id.with("lift"), h.hovered(), MOTION_FADE_S);
     if rise > 0.0 {
         let c = theme_of(ui).colors();
-        let row = egui::Rect::from_x_y_ranges(left - FOLD_CARD_PAD + 2.0..=right + FOLD_CARD_PAD - 2.0, h.rect.y_range()).expand2(egui::vec2(0.0, 2.0));
-        let shadow = egui::epaint::Shadow {
+        let row = Rect::from_x_y_ranges(left - FOLD_CARD_PAD + 2.0..=right + FOLD_CARD_PAD - 2.0, h.rect.y_range()).expand2(vec2(0.0, 2.0));
+        let shadow = Shadow {
             offset: [0, (2.0 * rise).round() as i8],
             blur: 8,
             spread: 0,
-            color: egui::Color32::from_black_alpha((f32::from(c.shadow_alpha) * rise) as u8),
+            color: Color32::from_black_alpha((f32::from(c.shadow_alpha) * rise) as u8),
         };
         ui.painter().set(
             lift,
-            egui::Shape::Vec(vec![
+            Shape::Vec(vec![
                 shadow.as_shape(row, RADIUS_MD).into(),
-                egui::Shape::rect_filled(row, RADIUS_MD, c.widget_hover.gamma_multiply(rise)),
+                Shape::rect_filled(row, RADIUS_MD, c.widget_hover.gamma_multiply(rise)),
             ]),
         );
     }
     if let Some(b) = &r.body_response {
         let c = theme_of(ui).colors();
-        let rect = egui::Rect::from_min_max(
-            egui::pos2(left - FOLD_CARD_PAD, r.header_response.rect.top() - FOLD_CARD_PAD / 2.0),
-            egui::pos2(right + FOLD_CARD_PAD, b.rect.bottom() + FOLD_CARD_PAD),
+        let rect = Rect::from_min_max(
+            pos2(left - FOLD_CARD_PAD, r.header_response.rect.top() - FOLD_CARD_PAD / 2.0),
+            pos2(right + FOLD_CARD_PAD, b.rect.bottom() + FOLD_CARD_PAD),
         );
         ui.painter().set(
             plate,
-            egui::Shape::Rect(egui::epaint::RectShape::new(
+            Shape::Rect(RectShape::new(
                 rect,
-                egui::CornerRadius::same(RADIUS_MD.round() as u8),
+                CornerRadius::same(RADIUS_MD.round() as u8),
                 c.card_fill,
-                egui::Stroke::new(1.0, c.card_stroke),
-                egui::StrokeKind::Inside,
+                Stroke::new(1.0, c.card_stroke),
+                StrokeKind::Inside,
             )),
         );
-        ui.add_space(FOLD_CARD_PAD + SPACE_XS);
+        ui.gap(FOLD_CARD_PAD + SPACE_XS);
     }
     r
+}
+
+/// A section fold: `id` salts the persisted open state, `default_open` is the
+/// shipped default, and `open_in_tests` force-opens it for headless tests that
+/// never click a header. The card styling lives in [`card_fold`].
+pub(crate) fn section_fold<R>(
+    ui: &mut Ui,
+    id: &str,
+    title: impl Into<WidgetText>,
+    default_open: bool,
+    open_in_tests: bool,
+    body: impl FnOnce(&mut Ui) -> R,
+) -> CollapsingResponse<R> {
+    let header = CollapsingHeader::new(title)
+        .id_salt(id)
+        .default_open(default_open);
+    let header = if open_in_tests { header.open(fold_open_in_tests()) } else { header };
+    card_fold(ui, header, body)
 }

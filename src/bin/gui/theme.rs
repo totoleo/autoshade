@@ -14,10 +14,10 @@ use super::*;
 //    colour the chrome accents never use reads as "tool, not photo, not
 //    chrome". That is why no chrome accent is blue. Overlays are
 //    theme-independent for the same reason: they sit on the photo.
-pub(crate) const ACCENT: egui::Color32 = egui::Color32::from_rgb(0x4c, 0x8b, 0xf5);
+pub(crate) const ACCENT: Color32 = Color32::from_rgb(0x4c, 0x8b, 0xf5);
 
 /// The historical chrome gold: the [`AccentPref::Gold`] fill.
-pub(crate) const PILL: egui::Color32 = egui::Color32::from_rgb(0xc9, 0xa1, 0x4a);
+pub(crate) const PILL: Color32 = Color32::from_rgb(0xc9, 0xa1, 0x4a);
 
 /// The persisted UI look: four surface schemes (2026-10-13, user's pick —
 /// 深灰 / 浅色 / 暖墨 / 冷蓝). Dark is the historical default; Light is a
@@ -51,54 +51,54 @@ pub(crate) enum AccentPref {
 /// colour judgement stable while the chrome around them changes.
 pub(crate) struct Surfaces {
     /// Undecoded gallery-thumbnail placeholder block.
-    pub(crate) thumb_placeholder: egui::Color32,
+    pub(crate) thumb_placeholder: Color32,
     /// Central-canvas bed — one step below the panel fill, so the photo
     /// sits on a recessed stage while the chrome reads as raised.
-    pub(crate) canvas_bed: egui::Color32,
+    pub(crate) canvas_bed: Color32,
     /// Histogram clipping triangles: armed-but-clean / disarmed.
-    pub(crate) clip_tri_on: egui::Color32,
-    pub(crate) clip_tri_off: egui::Color32,
+    pub(crate) clip_tri_on: Color32,
+    pub(crate) clip_tri_off: Color32,
     /// Toast pill colours (bg, fg) per kind.
-    pub(crate) toast_ok_bg: egui::Color32,
-    pub(crate) toast_ok_fg: egui::Color32,
-    pub(crate) toast_err_bg: egui::Color32,
-    pub(crate) toast_err_fg: egui::Color32,
+    pub(crate) toast_ok_bg: Color32,
+    pub(crate) toast_ok_fg: Color32,
+    pub(crate) toast_err_bg: Color32,
+    pub(crate) toast_err_fg: Color32,
     /// Curve-editor channel PICKER labels (Master/R/G/B) — they sit on panel
     /// chrome, unlike the plot colours in [`CURVE_CHANNELS`] which stay on
     /// the always-dark curve square.
-    pub(crate) curve_labels: [egui::Color32; 4],
+    pub(crate) curve_labels: [Color32; 4],
     /// The armed-tool hint line: ACCENT-family text on chrome, darkened on
     /// the light theme where the canvas blue fails AA at text size.
-    pub(crate) armed_hint: egui::Color32,
+    pub(crate) armed_hint: Color32,
     /// An open fold's plate ([`crate::headings::card_fold`]): one step above
     /// the panel fill, with a hairline a step above that.
-    pub(crate) card_fill: egui::Color32,
-    pub(crate) card_stroke: egui::Color32,
+    pub(crate) card_fill: Color32,
+    pub(crate) card_stroke: Color32,
     /// The hairline every framed widget (button, field, menu) wears at rest,
     /// so a control has an edge on the plate instead of a flat grey slab.
-    pub(crate) widget_edge: egui::Color32,
+    pub(crate) widget_edge: Color32,
     /// A slider's knob ([`paint_slider_knob`]): a light disc on the dark
     /// themes, a white one with an edge on the light theme — never the
     /// rail's own grey, which is what egui paints it.
-    pub(crate) knob_fill: egui::Color32,
-    pub(crate) knob_stroke: egui::Color32,
+    pub(crate) knob_fill: Color32,
+    pub(crate) knob_stroke: Color32,
     /// Surface tiers (2026-10-13, user: 「整体 UI 的配色需要继续打磨」): the
     /// title/tool bar and status bar sit darkest, the side panels a step up,
     /// an open fold's card a step above that (`card_fill`), the canvas bed
     /// recessed below all of them — Lightroom's stack. egui's stock style
     /// painted the bars, the panels and the dialogs one identical grey.
-    pub(crate) bar_fill: egui::Color32,
-    pub(crate) panel_fill: egui::Color32,
+    pub(crate) bar_fill: Color32,
+    pub(crate) panel_fill: Color32,
     /// A framed control at rest and under the pointer.
-    pub(crate) widget_fill: egui::Color32,
-    pub(crate) widget_hover: egui::Color32,
+    pub(crate) widget_fill: Color32,
+    pub(crate) widget_hover: Color32,
     /// Structural hairlines (the panel edge, list separators, framed groups),
     /// one step quieter than egui's stock grey — structure is carried by
     /// headings and air (`headings.rs`), and a stock-weight line read as a
     /// rule drawn across the panel (2026-10-01).
-    pub(crate) hairline: egui::Color32,
+    pub(crate) hairline: Color32,
     /// The text-edit well; `None` keeps egui's stock well for the scheme.
-    pub(crate) text_well: Option<egui::Color32>,
+    pub(crate) text_well: Option<Color32>,
     /// Alpha of the black elevation shadow: black-on-dark barely registers,
     /// so the dark schemes carry more.
     pub(crate) shadow_alpha: u8,
@@ -111,18 +111,18 @@ pub(crate) struct ThemeColors {
     surfaces: &'static Surfaces,
     /// The accent as a solid fill (the primary verb, the active-card ring) —
     /// light enough that [`crate::buttons::PRIMARY_FG`] reads on it.
-    pub(crate) accent_fill: egui::Color32,
+    pub(crate) accent_fill: Color32,
     /// The accent at text size — readable on this theme's panels and on the
     /// selected row.
-    pub(crate) accent_text: egui::Color32,
+    pub(crate) accent_text: Color32,
     /// Widget selection fill (premultiplied) / stroke (combo rows, text
     /// selection).
-    pub(crate) selection_fill: egui::Color32,
-    pub(crate) selection_stroke: egui::Color32,
+    pub(crate) selection_fill: Color32,
+    pub(crate) selection_stroke: Color32,
     /// Gallery selected-row fill: the accent family at panel depth.
-    pub(crate) sel_bg: egui::Color32,
+    pub(crate) sel_bg: Color32,
     /// Multi-select row fill — dimmer than `sel_bg`, same family.
-    pub(crate) sel_bg_dim: egui::Color32,
+    pub(crate) sel_bg_dim: Color32,
 }
 
 impl std::ops::Deref for ThemeColors {
@@ -133,98 +133,98 @@ impl std::ops::Deref for ThemeColors {
 }
 
 const DARK_SURFACES: Surfaces = Surfaces {
-    thumb_placeholder: egui::Color32::from_gray(24),
-    canvas_bed: egui::Color32::from_rgb(17, 17, 19),
-    clip_tri_on: egui::Color32::from_gray(130),
-    clip_tri_off: egui::Color32::from_gray(60),
-    toast_ok_bg: egui::Color32::from_rgb(22, 58, 34),
-    toast_ok_fg: egui::Color32::from_rgb(150, 230, 170),
-    toast_err_bg: egui::Color32::from_rgb(70, 26, 26),
-    toast_err_fg: egui::Color32::from_rgb(255, 165, 165),
+    thumb_placeholder: Color32::from_gray(24),
+    canvas_bed: Color32::from_rgb(17, 17, 19),
+    clip_tri_on: Color32::from_gray(130),
+    clip_tri_off: Color32::from_gray(60),
+    toast_ok_bg: Color32::from_rgb(22, 58, 34),
+    toast_ok_fg: Color32::from_rgb(150, 230, 170),
+    toast_err_bg: Color32::from_rgb(70, 26, 26),
+    toast_err_fg: Color32::from_rgb(255, 165, 165),
     curve_labels: [
-        egui::Color32::from_gray(225),
-        egui::Color32::from_rgb(235, 90, 90),
-        egui::Color32::from_rgb(90, 205, 90),
-        egui::Color32::from_rgb(90, 130, 240),
+        Color32::from_gray(225),
+        Color32::from_rgb(235, 90, 90),
+        Color32::from_rgb(90, 205, 90),
+        Color32::from_rgb(90, 130, 240),
     ],
     armed_hint: ACCENT,
-    card_fill: egui::Color32::from_rgb(36, 37, 41),
-    card_stroke: egui::Color32::from_rgb(47, 48, 53),
-    widget_edge: egui::Color32::from_rgb(62, 63, 69),
-    knob_fill: egui::Color32::from_gray(214),
-    knob_stroke: egui::Color32::from_gray(30),
-    bar_fill: egui::Color32::from_rgb(22, 22, 25),
-    panel_fill: egui::Color32::from_rgb(29, 30, 33),
-    widget_fill: egui::Color32::from_rgb(45, 46, 51),
-    widget_hover: egui::Color32::from_rgb(56, 57, 63),
-    hairline: egui::Color32::from_gray(46),
-    text_well: Some(egui::Color32::from_gray(20)),
+    card_fill: Color32::from_rgb(36, 37, 41),
+    card_stroke: Color32::from_rgb(47, 48, 53),
+    widget_edge: Color32::from_rgb(62, 63, 69),
+    knob_fill: Color32::from_gray(214),
+    knob_stroke: Color32::from_gray(30),
+    bar_fill: Color32::from_rgb(22, 22, 25),
+    panel_fill: Color32::from_rgb(29, 30, 33),
+    widget_fill: Color32::from_rgb(45, 46, 51),
+    widget_hover: Color32::from_rgb(56, 57, 63),
+    hairline: Color32::from_gray(46),
+    text_well: Some(Color32::from_gray(20)),
     shadow_alpha: 140,
 };
 
 const LIGHT_SURFACES: Surfaces = Surfaces {
-    thumb_placeholder: egui::Color32::from_gray(224),
-    canvas_bed: egui::Color32::from_rgb(226, 226, 229),
-    clip_tri_on: egui::Color32::from_gray(95),
-    clip_tri_off: egui::Color32::from_gray(190),
-    toast_ok_bg: egui::Color32::from_rgb(0xdf, 0xf0, 0xe2),
-    toast_ok_fg: egui::Color32::from_rgb(0x14, 0x52, 0x2a),
-    toast_err_bg: egui::Color32::from_rgb(0xf9, 0xe3, 0xe3),
-    toast_err_fg: egui::Color32::from_rgb(0x8c, 0x1d, 0x1d),
+    thumb_placeholder: Color32::from_gray(224),
+    canvas_bed: Color32::from_rgb(226, 226, 229),
+    clip_tri_on: Color32::from_gray(95),
+    clip_tri_off: Color32::from_gray(190),
+    toast_ok_bg: Color32::from_rgb(0xdf, 0xf0, 0xe2),
+    toast_ok_fg: Color32::from_rgb(0x14, 0x52, 0x2a),
+    toast_err_bg: Color32::from_rgb(0xf9, 0xe3, 0xe3),
+    toast_err_fg: Color32::from_rgb(0x8c, 0x1d, 0x1d),
     curve_labels: [
-        egui::Color32::from_gray(60),
-        egui::Color32::from_rgb(0xb3, 0x24, 0x24),
-        egui::Color32::from_rgb(0x1b, 0x6e, 0x2e),
-        egui::Color32::from_rgb(0x2b, 0x4f, 0xc0),
+        Color32::from_gray(60),
+        Color32::from_rgb(0xb3, 0x24, 0x24),
+        Color32::from_rgb(0x1b, 0x6e, 0x2e),
+        Color32::from_rgb(0x2b, 0x4f, 0xc0),
     ],
-    armed_hint: egui::Color32::from_rgb(0x24, 0x56, 0xb0),
-    card_fill: egui::Color32::from_gray(253),
-    card_stroke: egui::Color32::from_gray(222),
-    widget_edge: egui::Color32::from_gray(196),
-    knob_fill: egui::Color32::WHITE,
-    knob_stroke: egui::Color32::from_gray(150),
-    bar_fill: egui::Color32::from_rgb(234, 234, 237),
-    panel_fill: egui::Color32::from_rgb(244, 244, 246),
-    widget_fill: egui::Color32::from_rgb(232, 232, 236),
-    widget_hover: egui::Color32::from_rgb(221, 221, 227),
-    hairline: egui::Color32::from_gray(212),
+    armed_hint: Color32::from_rgb(0x24, 0x56, 0xb0),
+    card_fill: Color32::from_gray(253),
+    card_stroke: Color32::from_gray(222),
+    widget_edge: Color32::from_gray(196),
+    knob_fill: Color32::WHITE,
+    knob_stroke: Color32::from_gray(150),
+    bar_fill: Color32::from_rgb(234, 234, 237),
+    panel_fill: Color32::from_rgb(244, 244, 246),
+    widget_fill: Color32::from_rgb(232, 232, 236),
+    widget_hover: Color32::from_rgb(221, 221, 227),
+    hairline: Color32::from_gray(212),
     text_well: None,
     shadow_alpha: 45,
 };
 
 /// 暖墨: the dark stack on a brown-black neutral, like ink on aged paper.
 const WARM_INK_SURFACES: Surfaces = Surfaces {
-    thumb_placeholder: egui::Color32::from_rgb(27, 24, 21),
-    canvas_bed: egui::Color32::from_rgb(18, 16, 14),
-    card_fill: egui::Color32::from_rgb(41, 37, 32),
-    card_stroke: egui::Color32::from_rgb(54, 48, 42),
-    widget_edge: egui::Color32::from_rgb(71, 64, 56),
-    knob_fill: egui::Color32::from_rgb(222, 214, 200),
-    knob_stroke: egui::Color32::from_rgb(30, 26, 22),
-    bar_fill: egui::Color32::from_rgb(24, 21, 18),
-    panel_fill: egui::Color32::from_rgb(32, 28, 24),
-    widget_fill: egui::Color32::from_rgb(51, 46, 40),
-    widget_hover: egui::Color32::from_rgb(63, 57, 50),
-    hairline: egui::Color32::from_rgb(50, 45, 39),
-    text_well: Some(egui::Color32::from_rgb(21, 19, 16)),
+    thumb_placeholder: Color32::from_rgb(27, 24, 21),
+    canvas_bed: Color32::from_rgb(18, 16, 14),
+    card_fill: Color32::from_rgb(41, 37, 32),
+    card_stroke: Color32::from_rgb(54, 48, 42),
+    widget_edge: Color32::from_rgb(71, 64, 56),
+    knob_fill: Color32::from_rgb(222, 214, 200),
+    knob_stroke: Color32::from_rgb(30, 26, 22),
+    bar_fill: Color32::from_rgb(24, 21, 18),
+    panel_fill: Color32::from_rgb(32, 28, 24),
+    widget_fill: Color32::from_rgb(51, 46, 40),
+    widget_hover: Color32::from_rgb(63, 57, 50),
+    hairline: Color32::from_rgb(50, 45, 39),
+    text_well: Some(Color32::from_rgb(21, 19, 16)),
     ..DARK_SURFACES
 };
 
 /// 冷蓝: the dark stack on a slate-blue neutral.
 const COOL_BLUE_SURFACES: Surfaces = Surfaces {
-    thumb_placeholder: egui::Color32::from_rgb(20, 24, 32),
-    canvas_bed: egui::Color32::from_rgb(12, 15, 21),
-    card_fill: egui::Color32::from_rgb(31, 37, 48),
-    card_stroke: egui::Color32::from_rgb(42, 49, 62),
-    widget_edge: egui::Color32::from_rgb(58, 67, 84),
-    knob_fill: egui::Color32::from_rgb(208, 216, 228),
-    knob_stroke: egui::Color32::from_rgb(22, 26, 34),
-    bar_fill: egui::Color32::from_rgb(17, 21, 28),
-    panel_fill: egui::Color32::from_rgb(23, 28, 37),
-    widget_fill: egui::Color32::from_rgb(40, 47, 61),
-    widget_hover: egui::Color32::from_rgb(52, 60, 77),
-    hairline: egui::Color32::from_rgb(40, 47, 60),
-    text_well: Some(egui::Color32::from_rgb(15, 18, 25)),
+    thumb_placeholder: Color32::from_rgb(20, 24, 32),
+    canvas_bed: Color32::from_rgb(12, 15, 21),
+    card_fill: Color32::from_rgb(31, 37, 48),
+    card_stroke: Color32::from_rgb(42, 49, 62),
+    widget_edge: Color32::from_rgb(58, 67, 84),
+    knob_fill: Color32::from_rgb(208, 216, 228),
+    knob_stroke: Color32::from_rgb(22, 26, 34),
+    bar_fill: Color32::from_rgb(17, 21, 28),
+    panel_fill: Color32::from_rgb(23, 28, 37),
+    widget_fill: Color32::from_rgb(40, 47, 61),
+    widget_hover: Color32::from_rgb(52, 60, 77),
+    hairline: Color32::from_rgb(40, 47, 60),
+    text_well: Some(Color32::from_rgb(15, 18, 25)),
     ..DARK_SURFACES
 };
 
@@ -236,8 +236,8 @@ impl ThemePref {
         self != ThemePref::Light
     }
 
-    pub(crate) fn system(self) -> egui::SystemTheme {
-        if self.is_dark() { egui::SystemTheme::Dark } else { egui::SystemTheme::Light }
+    pub(crate) fn system(self) -> SystemTheme {
+        if self.is_dark() { SystemTheme::Dark } else { SystemTheme::Light }
     }
 
     pub(crate) fn surfaces(self) -> &'static Surfaces {
@@ -270,13 +270,13 @@ impl AccentPref {
         [AccentPref::Gold, AccentPref::Teal, AccentPref::Coral, AccentPref::Violet, AccentPref::Green];
 
     /// The accent's own hue, as the picker's swatch shows it.
-    pub(crate) fn hue(self) -> egui::Color32 {
+    pub(crate) fn hue(self) -> Color32 {
         match self {
             AccentPref::Gold => PILL,
-            AccentPref::Teal => egui::Color32::from_rgb(0x3f, 0xb8, 0xa8),
-            AccentPref::Coral => egui::Color32::from_rgb(0xe8, 0x7a, 0x5d),
-            AccentPref::Violet => egui::Color32::from_rgb(0xa8, 0x8b, 0xeb),
-            AccentPref::Green => egui::Color32::from_rgb(0x7c, 0xb8, 0x5a),
+            AccentPref::Teal => Color32::from_rgb(0x3f, 0xb8, 0xa8),
+            AccentPref::Coral => Color32::from_rgb(0xe8, 0x7a, 0x5d),
+            AccentPref::Violet => Color32::from_rgb(0xa8, 0x8b, 0xeb),
+            AccentPref::Green => Color32::from_rgb(0x7c, 0xb8, 0x5a),
         }
     }
 
@@ -293,8 +293,8 @@ impl AccentPref {
 }
 
 /// WCAG 2.x contrast ratio of two opaque colours.
-pub(crate) fn contrast(a: egui::Color32, b: egui::Color32) -> f64 {
-    fn lum(c: egui::Color32) -> f64 {
+pub(crate) fn contrast(a: Color32, b: Color32) -> f64 {
+    fn lum(c: Color32) -> f64 {
         let ch = |v: u8| {
             let v = f64::from(v) / 255.0;
             if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
@@ -307,21 +307,21 @@ pub(crate) fn contrast(a: egui::Color32, b: egui::Color32) -> f64 {
 
 /// A premultiplied fill composited over an opaque surface — what the screen
 /// shows, which is the pairing contrast must be judged on.
-pub(crate) fn composite(fill: egui::Color32, bg: egui::Color32) -> egui::Color32 {
+pub(crate) fn composite(fill: Color32, bg: Color32) -> Color32 {
     let a = f64::from(fill.a()) / 255.0;
     let ch = |f: u8, b: u8| (f64::from(f) + f64::from(b) * (1.0 - a)).round().clamp(0.0, 255.0) as u8;
-    egui::Color32::from_rgb(ch(fill.r(), bg.r()), ch(fill.g(), bg.g()), ch(fill.b(), bg.b()))
+    Color32::from_rgb(ch(fill.r(), bg.r()), ch(fill.g(), bg.g()), ch(fill.b(), bg.b()))
 }
 
-fn mix(a: egui::Color32, b: egui::Color32, t: f32) -> egui::Color32 {
+fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     let ch = |x: u8, y: u8| (f32::from(x) + (f32::from(y) - f32::from(x)) * t).round() as u8;
-    egui::Color32::from_rgb(ch(a.r(), b.r()), ch(a.g(), b.g()), ch(a.b(), b.b()))
+    Color32::from_rgb(ch(a.r(), b.r()), ch(a.g(), b.g()), ch(a.b(), b.b()))
 }
 
 /// `c` moved toward `pole` in small steps until it reaches `min` contrast
 /// against every surface in `on`. The steps stop at the pole, which clears
 /// any bar a real surface sets.
-fn until_readable(c: egui::Color32, pole: egui::Color32, on: &[egui::Color32], min: f64) -> egui::Color32 {
+fn until_readable(c: Color32, pole: Color32, on: &[Color32], min: f64) -> Color32 {
     (0..=50)
         .map(|i| mix(c, pole, i as f32 / 50.0))
         .find(|x| on.iter().all(|&bg| contrast(*x, bg) >= min))
@@ -339,12 +339,12 @@ const COMPONENT_BAR: f64 = 3.05;
 fn build(theme: ThemePref, accent: AccentPref) -> ThemeColors {
     let s = theme.surfaces();
     let hue = accent.hue();
-    let base = if theme.is_dark() { egui::Visuals::dark() } else { egui::Visuals::light() };
+    let base = if theme.is_dark() { Visuals::dark() } else { Visuals::light() };
     let text = base.widgets.noninteractive.fg_stroke.color;
     let well = s.text_well.unwrap_or(base.extreme_bg_color);
     let (toward_text, away_from_text) =
-        if theme.is_dark() { (egui::Color32::WHITE, egui::Color32::BLACK) } else { (egui::Color32::BLACK, egui::Color32::WHITE) };
-    let accent_fill = until_readable(hue, egui::Color32::WHITE, &[crate::buttons::PRIMARY_FG], TEXT_BAR);
+        if theme.is_dark() { (Color32::WHITE, Color32::BLACK) } else { (Color32::BLACK, Color32::WHITE) };
+    let accent_fill = until_readable(hue, Color32::WHITE, &[crate::buttons::PRIMARY_FG], TEXT_BAR);
     let sel_bg = mix(s.panel_fill, hue, if theme.is_dark() { 0.22 } else { 0.30 });
     let accent_text = until_readable(hue, toward_text, &[s.panel_fill, sel_bg], TEXT_BAR);
     // Multi-select rows carry default-colour names, so the tint moves AWAY
@@ -356,16 +356,16 @@ fn build(theme: ThemePref, accent: AccentPref) -> ThemeColors {
     let premul = |alpha: u8| {
         let k = f32::from(alpha) / 255.0;
         let ch = |v: u8| (f32::from(v) * k).round() as u8;
-        egui::Color32::from_rgba_premultiplied(ch(hue.r()), ch(hue.g()), ch(hue.b()), alpha)
+        Color32::from_rgba_premultiplied(ch(hue.r()), ch(hue.g()), ch(hue.b()), alpha)
     };
     let start_alpha: u8 = if theme.is_dark() { 64 } else { 90 };
     let selection_fill = (0..=start_alpha / 4)
         .map(|i| premul(start_alpha - 4 * i))
         .find(|f| [s.panel_fill, well].iter().all(|&bg| contrast(text, composite(*f, bg)) >= COMPONENT_BAR))
-        .unwrap_or(egui::Color32::TRANSPARENT);
+        .unwrap_or(Color32::TRANSPARENT);
     let composites = [composite(selection_fill, s.panel_fill), composite(selection_fill, well)];
     // Selected combo rows draw their text with this stroke over the highlight.
-    let start = if theme.is_dark() { mix(hue, egui::Color32::WHITE, 0.25) } else { accent_text };
+    let start = if theme.is_dark() { mix(hue, Color32::WHITE, 0.25) } else { accent_text };
     let selection_stroke = until_readable(start, toward_text, &composites, TEXT_BAR);
     ThemeColors { surfaces: s, accent_fill, accent_text, selection_fill, selection_stroke, sel_bg, sel_bg_dim }
 }
@@ -505,7 +505,7 @@ pub(crate) fn read_font_capped(p: &str, cap: u64) -> Option<Vec<u8>> {
 /// be skipped, not registered. Everything is appended as FALLBACKS, and the
 /// embedded subsets stay AHEAD of every runtime face, so Latin text keeps
 /// egui's default look and the symbol glyphs stay machine-independent.
-pub(crate) fn install_fonts(ctx: &egui::Context) {
+pub(crate) fn install_fonts(ctx: &Ctx) {
     // The OS font database answers "which file is this family" — DirectWrite
     // on Windows, CoreText on macOS, fontconfig on Linux (fontdb). Nothing here
     // names a directory or a file, so a face installed anywhere the OS knows
@@ -587,21 +587,21 @@ pub(crate) fn install_fonts(ctx: &egui::Context) {
     let _ = INSTALLED_SCRIPTS.set(installed);
     let _ = REFUSED_FONTS.set(refused);
 
-    let mut fonts = egui::FontDefinitions::default();
+    let mut fonts = FontDefinitions::default();
     for (name, bytes) in EMBEDDED_SYMBOL_FONTS {
         fonts
             .font_data
-            .insert((*name).to_owned(), std::sync::Arc::new(egui::FontData::from_static(bytes)));
+            .insert((*name).to_owned(), std::sync::Arc::new(FontData::from_static(bytes)));
     }
     if let Some(bytes) = cjk.clone() {
-        fonts.font_data.insert("cjk".to_owned(), std::sync::Arc::new(egui::FontData::from_owned(bytes)));
+        fonts.font_data.insert("cjk".to_owned(), std::sync::Arc::new(FontData::from_owned(bytes)));
     }
     for (path, bytes) in &script_faces {
         fonts
             .font_data
-            .insert(format!("script:{path}"), std::sync::Arc::new(egui::FontData::from_owned(bytes.clone())));
+            .insert(format!("script:{path}"), std::sync::Arc::new(FontData::from_owned(bytes.clone())));
     }
-    for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+    for fam in [FontFamily::Proportional, FontFamily::Monospace] {
         let list = fonts.families.entry(fam).or_default();
         list.insert(1.min(list.len()), ICON_FONT.0.to_owned());
         for (name, _) in EMBEDDED_SYMBOL_FONTS.iter().filter(|(name, _)| *name != ICON_FONT.0) {
@@ -703,15 +703,15 @@ pub(crate) const CONTROLS_W_MIN: f32 = 280.0;
 /// column is exactly [`FIELD_W_MAX`] wide — the side panel frame's own
 /// margins plus the scrollbar gutter `controls_column` keeps — so at the cap
 /// every row-filling control and every fold plate end on one right edge.
-pub(crate) fn controls_w_max(style: &egui::Style) -> f32 {
+pub(crate) fn controls_w_max(style: &Style) -> f32 {
     FIELD_W_MAX
-        + egui::Frame::side_top_panel(style).inner_margin.sum().x
+        + Frame::side_top_panel(style).inner_margin.sum().x
         + controls_gutter(style)
 }
 
 /// The right gutter of the controls column: the floating scrollbar's width
-/// and a breath (see `AutoShadeApp::controls_column`).
-pub(crate) fn controls_gutter(style: &egui::Style) -> f32 {
+/// and a breath (see `Commands::controls_column`).
+pub(crate) fn controls_gutter(style: &Style) -> f32 {
     style.spacing.scroll.bar_width + SPACE_SM
 }
 
@@ -741,13 +741,13 @@ pub(crate) const SLIDER_LINE_H: f32 = 16.0;
 /// The rail's thickness — Lightroom's hairline track, not egui's 8 px bar.
 pub(crate) const SLIDER_RAIL_H: f32 = 4.0;
 
-/// Paint the knob over an `egui::Slider` drawn by [`crate::AutoShadeApp`]'s
+/// Paint the knob over an `Slider` drawn by [`crate::AutoShadeApp`]'s
 /// slider: egui fills its knob with the same grey it fills the rail with, so
 /// the knob only showed by its outline. This disc sits exactly on egui's —
 /// same centre (egui's own mapping: the rail's x range shrunk by the knob's
 /// radius, log10-linear on a logarithmic positive track), same radius plus
 /// the hover expansion — so it covers it on every state.
-pub(crate) fn paint_slider_knob(ui: &egui::Ui, rail: &egui::Response, value: f32, min: f32, max: f32, log: bool) {
+pub(crate) fn paint_slider_knob(ui: &Ui, rail: &Response, value: f32, min: f32, max: f32, log: bool) {
     let rect = rail.rect;
     if !ui.is_rect_visible(rect) || max <= min {
         return;
@@ -759,21 +759,21 @@ pub(crate) fn paint_slider_knob(ui: &egui::Ui, rail: &egui::Response, value: f32
         (value - min) / (max - min)
     };
     let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
-    let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
+    let x = lerp((rect.left() + radius)..=(rect.right() - radius), t);
     let c = theme_of(ui).colors();
     let state = ui.style().interact(rail);
     let fill = if rail.hovered() || rail.dragged() { c.knob_fill.gamma_multiply(1.08) } else { c.knob_fill };
     let fill = if ui.is_enabled() { fill } else { fill.gamma_multiply(0.45) };
     ui.painter().circle(
-        egui::pos2(x, rect.center().y),
+        pos2(x, rect.center().y),
         radius + state.expansion,
         fill,
-        egui::Stroke::new(1.0, c.knob_stroke),
+        Stroke::new(1.0, c.knob_stroke),
     );
 }
 
 /// [`install_look`] keeping the accent last installed — a theme change alone.
-pub(crate) fn install_theme(ctx: &egui::Context, theme: ThemePref) {
+pub(crate) fn install_theme(ctx: &Ctx, theme: ThemePref) {
     install_look(ctx, theme, current_accent());
 }
 
@@ -783,8 +783,8 @@ pub(crate) fn install_theme(ctx: &egui::Context, theme: ThemePref) {
 /// calmer type scale, and restrained hover feedback. Geometry and typography
 /// are shared between themes; only colours differ. Idempotent — called at
 /// startup, after prefs restore, and on every picker change.
-pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: AccentPref) {
-    use egui::{CornerRadius, FontFamily, FontId, Stroke, TextStyle};
+pub(crate) fn install_look(ctx: &Ctx, theme: ThemePref, accent: AccentPref) {
+    use {CornerRadius, FontFamily, FontId, Stroke, TextStyle};
     let c = palette(theme, accent);
     CURRENT_THEME.set(theme);
     CURRENT_ACCENT.set(accent);
@@ -797,12 +797,12 @@ pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: Accent
     // we style the slot egui renders, on every OS mode.
     ctx.options_mut(|o| {
         o.theme_preference =
-            if theme.is_dark() { egui::ThemePreference::Dark } else { egui::ThemePreference::Light };
+            if theme.is_dark() { ThemePreference::Dark } else { ThemePreference::Light };
     });
     // …and ask the OS for a matching titlebar (no-op headless / unsupported).
-    ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(theme.system()));
+    ctx.send_viewport_cmd(ViewportCommand::SetTheme(theme.system()));
     let mut style = (*ctx.style()).clone();
-    style.visuals = if theme.is_dark() { egui::Visuals::dark() } else { egui::Visuals::light() };
+    style.visuals = if theme.is_dark() { Visuals::dark() } else { Visuals::light() };
     style.visuals.selection.bg_fill = c.selection_fill;
     style.visuals.selection.stroke = Stroke::new(1.0, c.selection_stroke);
     style.visuals.hyperlink_color = c.accent_text;
@@ -828,16 +828,16 @@ pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: Accent
     // Depth: floating chrome casts a soft DOWNWARD penumbra — the stock
     // diagonal (10,20) reads as a misregistered copy, a vertical one as
     // elevation. Black-on-dark barely registers, so dark carries more alpha.
-    let elevation = |offset: f32, blur: f32| egui::epaint::Shadow {
+    let elevation = |offset: f32, blur: f32| Shadow {
         offset: [0, offset.round() as i8],
         blur: blur.round() as u8,
         spread: 0,
-        color: egui::Color32::from_black_alpha(c.shadow_alpha),
+        color: Color32::from_black_alpha(c.shadow_alpha),
     };
     style.visuals.window_shadow = elevation(6.0, 18.0);
     style.visuals.popup_shadow = elevation(3.0, 10.0);
-    style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-    style.spacing.button_padding = egui::vec2(10.0, 5.0);
+    style.spacing.item_spacing = vec2(8.0, 6.0);
+    style.spacing.button_padding = vec2(10.0, 5.0);
     style.spacing.interact_size.y = 26.0;
     style.spacing.slider_rail_height = SLIDER_RAIL_H;
     style.animation_time = MOTION_FOLD_S;
@@ -880,7 +880,7 @@ pub(crate) fn install_look(ctx: &egui::Context, theme: ThemePref, accent: Accent
 /// The theme a `Ui` is drawn in: the one `install_look` last installed, so
 /// long as egui's dark/light switch agrees with it (it pins that switch);
 /// a `Ui` styled some other way gets the plain scheme of its own mode.
-pub(crate) fn theme_of(ui: &egui::Ui) -> ThemePref {
+pub(crate) fn theme_of(ui: &Ui) -> ThemePref {
     let t = current_theme();
     match (ui.visuals().dark_mode, t.is_dark()) {
         (true, true) | (false, false) => t,
@@ -891,13 +891,13 @@ pub(crate) fn theme_of(ui: &egui::Ui) -> ThemePref {
 
 /// One accent choice in the settings picker: a filled disc of the accent's
 /// hue, ringed in the strong text colour when it is the one in use.
-pub(crate) fn accent_swatch(ui: &mut egui::Ui, hue: egui::Color32, chosen: bool) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
+pub(crate) fn accent_swatch(ui: &mut Ui, hue: Color32, chosen: bool) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
     let centre = rect.center();
     let lift = if resp.hovered() { 1.0 } else { 0.0 };
     ui.painter().circle_filled(centre, 8.0 + lift, hue);
     if chosen {
-        ui.painter().circle_stroke(centre, 11.0, egui::Stroke::new(1.5, ui.visuals().strong_text_color()));
+        ui.painter().circle_stroke(centre, 11.0, Stroke::new(1.5, ui.visuals().strong_text_color()));
     }
     resp
 }

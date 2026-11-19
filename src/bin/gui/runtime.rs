@@ -219,7 +219,7 @@ impl Commands<'_> {
         self.workspace.normal_mut().build_progress = None;
         self.workspace.normal_mut().ref_dir = Some(dir.clone());
         let tx = self.services.tx.clone();
-        let ctx = self.services.egui_ctx.clone();
+        let ctx = self.services.view_ctx.clone();
         self.services.spawn_worker(
             move || {
                 let progress = |p: autoshade::library::BuildProgress| {

@@ -47,7 +47,7 @@ impl Editor {
     /// when the step's identity differs (so plain slider undos stay pixel-free
     /// and O(1)). A restored `base: None` reverts a retouched source variant
     /// to the shared source neutral.
-    pub(crate) fn apply_step(&mut self, workspace: &mut WorkspaceView, lang: Lang, step: UndoStep, ctx: &egui::Context) {
+    pub(crate) fn apply_step(&mut self, workspace: &mut WorkspaceView, lang: Lang, step: UndoStep, ctx: &Ctx) {
         let pixels_differ = !step.same_pixels(&self.session().hist.committed);
         let keep_skin = step.keep_skin;
         self.session_mut().hist.committed = step.clone();
@@ -127,7 +127,7 @@ impl Editor {
     /// base changed under the same variant (retouch undo/redo): before pane,
     /// paint canvas, overlay reference and the retained frame all described
     /// the old raster. History is deliberately NOT touched here.
-    pub(crate) fn refresh_active_pixels(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &egui::Context) {
+    pub(crate) fn refresh_active_pixels(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &Ctx) {
         let Some(v) = self.doc().variants.get(self.doc().active) else { return };
         let base = v.base.clone().or_else(|| self.photo().source_preview.clone());
         if let Some(base) = base {
@@ -153,7 +153,7 @@ impl Editor {
     /// `recipe.quarter_turns` on the next frame and moves them, which is the
     /// same path an UNDO of this action takes. One mover, so the two
     /// directions cannot drift.
-    pub(crate) fn rotate_photo(&mut self, workspace: &mut WorkspaceView, lang: Lang, delta: u8, ctx: &egui::Context) {
+    pub(crate) fn rotate_photo(&mut self, workspace: &mut WorkspaceView, lang: Lang, delta: u8, ctx: &Ctx) {
         if !self.can_rotate(workspace) {
             return;
         }
@@ -203,7 +203,7 @@ impl Editor {
     /// handles, the paint canvas, the coverage overlay, the retouch region)
     /// is defined against the plate, so one turn here moves all of them and
     /// none of them needs to know.
-    pub(crate) fn sync_base_turns(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &egui::Context) {
+    pub(crate) fn sync_base_turns(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &Ctx) {
         let want = self.doc().recipe.quarter_turns % 4;
         let delta = (want + 4 - self.photo().base_turns % 4) % 4;
         if delta == 0 {
@@ -251,7 +251,7 @@ impl Editor {
         self.session_mut().dirty = true;
     }
 
-    pub(crate) fn undo(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &egui::Context) {
+    pub(crate) fn undo(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &Ctx) {
         if let Some(prev) = self.session_mut().hist.undo_stack.pop() {
             let hist = self.history_mut();
             hist.redo_stack.push(hist.committed.clone());
@@ -259,7 +259,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn redo(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &egui::Context) {
+    pub(crate) fn redo(&mut self, workspace: &mut WorkspaceView, lang: Lang, ctx: &Ctx) {
         if let Some(next) = self.session_mut().hist.redo_stack.pop() {
             let hist = self.history_mut();
             hist.undo_stack.push(hist.committed.clone());

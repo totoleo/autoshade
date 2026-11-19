@@ -24,21 +24,16 @@
 
     /// Every text the Portraits panel draws on its own, in one tall frame.
     fn portrait_panel_texts(app: &mut AutoShadeApp) -> Vec<String> {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_fonts(&ctx);
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut out = None;
         for i in 0..3 {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(420.0, 4000.0))),
-                time: Some(i as f64),
-                ..Default::default()
-            };
-            out = Some(ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| app.commands().portrait_panel(ui));
+            out = Some(ctx.run_with(420.0, 4000.0, Some(i as f64), |ctx| {
+                harness::central_panel(ctx, |ui| app.commands().portrait_panel(ui));
             }));
         }
-        drawn_texts(&out.unwrap().shapes)
+        out.unwrap().texts()
     }
 
     /// Design §3 on one frame, in both languages: the panel's heading and its
@@ -121,20 +116,15 @@
     #[test]
     fn the_portrait_panel_tops_the_sidebar() {
         let mut app = app_with_every_button(Lang::En);
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut out = None;
         for i in 0..3 {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                time: Some(i as f64),
-                ..Default::default()
-            };
-            out = Some(ctx.run(input, |ctx| {
+            out = Some(ctx.run_with(1400.0, 20_000.0, Some(i as f64), |ctx| {
                 controls_panel(ctx, &mut app, 320.0);
             }));
         }
-        let texts = drawn_texts(&out.unwrap().shapes);
+        let texts = out.unwrap().texts();
         let at = |key: &str| texts.iter().position(|t| t.starts_with(key));
         let panel = at("People and background").expect("the panel is drawn");
         for below in ["One-click look", "AI generation & reverse-fit", "Tone & WB"] {
@@ -269,8 +259,7 @@
         let mut app = portrait_app(Lang::En, true);
         assert!(app.editor().keep_skin_on(&app.workspace()), "a card inside the limits opens with the switch on");
         push_skin(&mut app);
-        let ctx = egui::Context::default();
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&mut app);
         let skin = autoshade::face::skin_target(&mut app.editor_mut().doc_mut().recipe).unwrap().clone();
         assert_eq!((skin.saturation, skin.sharpness, skin.texture), (15.0, 0.0, -60.0), "pulled back to the limits");
         // OFF (the user's flip): the same write stands.
@@ -322,9 +311,8 @@
         let mut app = portrait_app(Lang::En, true);
         app.editor_mut().photo_mut().src_path = Some(src.clone());
         app.commands().load_version(1);
-        let ctx = egui::Context::default();
         for _ in 0..2 {
-            let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+            settle(&mut app);
         }
         let read = |app: &mut AutoShadeApp| {
             let s = autoshade::face::skin_target(&mut app.editor_mut().doc_mut().recipe).unwrap();
@@ -354,7 +342,7 @@
         app.commands().load_version(2);
         assert!(app.editor().keep_skin_on(&app.workspace()), "inside the limits: on");
         push_skin(&mut app);
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&mut app);
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0));
         // The photo's own open decides every card of its strip the same way.
         app.workspace_mut().portrait_mut().keep_skin.clear();
@@ -412,7 +400,7 @@
         assert_eq!(req.guide, autoshade::pipeline::Guide::Direction);
         assert_eq!(req.strength.get(), 0.4, "the look strength");
         assert_eq!(library, autoshade::library::DEFAULT_NAME);
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         land_analysis(&mut app, &ctx);
         assert!(!app.workspace().busy());
         assert_eq!(app.editor().doc().recipe.exposure_ev, 0.2, "the look landed");
@@ -458,7 +446,7 @@
     /// The photo in Portraits on an ▣ card with pixels, history reset, the
     /// heal stood in for; the panel's 🤖 Remove blemishes button found on a
     /// drawn frame.
-    fn blemish_app(tag: &str, lang: Lang, face: bool) -> (AutoShadeApp, egui::Context, egui::Vec2, usize, Option<egui::Rect>, Scrub) {
+    fn blemish_app(tag: &str, lang: Lang, face: bool) -> (AutoShadeApp, harness::Ctx, harness::Sz, usize, Option<harness::RectT>, Scrub) {
         use crate::buttons::DRAWN;
         let (mut app, _src, scrub) = normal_photo(tag);
         *app.lang_mut() = lang;
@@ -481,17 +469,17 @@
         }
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(w); }
         app.workspace_mut().portrait_mut().heal_runner = Some(blemish_runner);
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let size = egui::vec2(1400.0, 1600.0);
+        let size = harness::sz(1400.0, 1600.0);
         let mut frame = 0;
-        app_frame(&ctx, &mut app, size, frame, Vec::new());
+        ctx.frame(&mut app, size, frame, Vec::new());
         frame += 1;
         DRAWN.with_borrow_mut(Vec::clear);
-        app_frame(&ctx, &mut app, size, frame, Vec::new());
+        ctx.frame(&mut app, size, frame, Vec::new());
         frame += 1;
         let label = tr(lang, K_PORTRAIT_REMOVE_BLEMISHES);
-        let rect = DRAWN.with_borrow(|d| d.iter().find(|b| b.label == label).map(|b| b.rect));
+        let rect = DRAWN.with_borrow(|d| d.iter().find(|b| b.label == label).map(|b| harness::rect(b.rect)));
         (app, ctx, size, frame, rect, scrub)
     }
 
@@ -503,10 +491,10 @@
     #[test]
     fn remove_blemishes_is_greyed_without_a_face() {
         for lang in [Lang::En, Lang::Zh] {
-            let (mut app, ctx, size, mut frame, rect, _scrub) = blemish_app(&format!("blemish-none-{lang:?}"), lang, false);
+            let (mut app, mut ctx, size, mut frame, rect, _scrub) = blemish_app(&format!("blemish-none-{lang:?}"), lang, false);
             assert_eq!(autoshade::face::face_raster(&app.editor().doc().recipe), None);
             let rect = rect.expect("the button is drawn, greyed");
-            click_at(&ctx, &mut app, size, &mut frame, rect.center());
+            ctx.click(&mut app, size, &mut frame, rect.center());
             assert_eq!(app.workspace().portrait().heal_asked, None, "{lang:?}: a greyed button starts nothing");
             assert!(!app.workspace().busy());
         }
@@ -524,9 +512,9 @@
     #[test]
     fn remove_blemishes_heals_held_to_the_face_and_the_landing_counts_the_spots() {
         for lang in [Lang::En, Lang::Zh] {
-            let (mut app, ctx, size, mut frame, rect, _scrub) = blemish_app(&format!("blemish-face-{lang:?}"), lang, true);
+            let (mut app, mut ctx, size, mut frame, rect, _scrub) = blemish_app(&format!("blemish-face-{lang:?}"), lang, true);
             let before = app.editor().doc().variants[0].base.clone().unwrap();
-            click_at(&ctx, &mut app, size, &mut frame, rect.expect("the button is drawn").center());
+            ctx.click(&mut app, size, &mut frame, rect.expect("the button is drawn").center());
             assert_eq!(app.workspace().portrait().heal_asked, Some((false, Some(PathBuf::from("mask-face.png")))), "{lang:?}: the AI heal, held to the face raster");
             assert_eq!(app.workspace().status(), tr(lang, K_ACTIONS_REMOVING_BLEMISHES_ON_THE_FACE_10_30S));
             let start = std::time::Instant::now();
@@ -601,7 +589,7 @@
     fn undo_to_an_edit_past_the_skin_limits_puts_it_back_and_keeps_redo() {
         let mut app = portrait_app(Lang::En, true);
         app.editor_mut().doc_mut().active = 0;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         { let (e, w, l) = app.editor_workspace_mut(); e.set_keep_skin(w, l, false) };
         push_skin(&mut app);
@@ -614,7 +602,7 @@
         };
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0), "turned on: held");
         { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&mut app);
         assert_eq!(read(&mut app), (60.0, 40.0, -90.0), "undone as it was");
         assert!(!app.editor().keep_skin_on(&app.workspace()), "the switch follows the edit put back");
         assert_eq!(app.editor().session().hist.redo_stack.len(), 1, "the step forward is still there");
@@ -630,7 +618,7 @@
     fn redo_after_switching_the_skin_guard_on_turns_it_back_on() {
         let mut app = portrait_app(Lang::En, true);
         app.editor_mut().doc_mut().active = 0;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         { let (e, w, l) = app.editor_workspace_mut(); e.set_keep_skin(w, l, false) };
         push_skin(&mut app);
@@ -642,10 +630,10 @@
             (s.saturation, s.sharpness, s.texture)
         };
         { let (e, w, l) = app.editor_workspace_mut(); e.undo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&mut app);
         assert!(!app.editor().keep_skin_on(&app.workspace()), "undone: off");
         { let (e, w, l) = app.editor_workspace_mut(); e.redo(w, l, &ctx) };
-        let _ = ctx.run(egui::RawInput::default(), |ctx| app.run_frame(ctx));
+        settle(&mut app);
         assert_eq!(read(&mut app), (15.0, 0.0, -60.0), "redone: held");
         assert!(app.editor().keep_skin_on(&app.workspace()), "redone: the switch is on again");
         assert_eq!((app.editor().session().hist.undo_stack.len(), app.editor().session().hist.redo_stack.len()), (2, 0), "the frame recorded nothing");
@@ -666,7 +654,7 @@
     fn undo_and_redo_of_a_value_edit_keep_the_switch_the_user_set() {
         let mut app = portrait_app(Lang::En, true);
         app.editor_mut().doc_mut().active = 0;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         assert!(app.editor().keep_skin_on(&app.workspace()));
         let edit = |app: &mut AutoShadeApp, v: f32| {
@@ -697,7 +685,7 @@
     fn a_new_edit_after_undoing_the_switch_on_drops_its_redo() {
         let mut app = portrait_app(Lang::En, true);
         app.editor_mut().doc_mut().active = 0;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         { let (e, w, _l) = app.editor_workspace_mut(); e.reset_history(&*w) };
         { let (e, w, l) = app.editor_workspace_mut(); e.set_keep_skin(w, l, false) };
         push_skin(&mut app);
@@ -746,7 +734,7 @@
         let look = EditRecipe { masks: vec![skin], ..Default::default() };
         { let (e, w, l) = app.editor_workspace_mut(); e.set_keep_skin(w, l, false) };
         app.commands().start_paste_to(look, Some(open.clone()), vec![open.clone(), other.clone()], false);
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let start = std::time::Instant::now();
         while app.workspace().busy() {
             assert!(start.elapsed() < std::time::Duration::from_secs(20), "the paste never landed");

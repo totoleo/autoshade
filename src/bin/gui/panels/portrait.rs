@@ -132,13 +132,13 @@ impl Commands<'_> {
 
     /// The panel: a first-level heading and the four groups, behind the same
     /// mid-open gate as the shared panels.
-    pub(crate) fn portrait_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn portrait_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_PORTRAIT_PORTRAITS), false, |_| {});
         let mut changed = false;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
             self.portrait_people(ui);
             changed |= self.portrait_skin(ui);
             changed |= self.portrait_eyes(ui);
@@ -148,19 +148,19 @@ impl Commands<'_> {
             self.editor.doc_mut().recipe.clamp();
             self.editor.session_mut().dirty = true;
         }
-        ui.add_space(SPACE_MD);
-        ui.separator();
+        ui.gap(SPACE_MD);
+        ui.rule();
     }
 
 
     /// Group 1 — the people and the background, and the AI portrait look.
-    fn portrait_people(&mut self, ui: &mut egui::Ui) {
+    fn portrait_people(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_PEOPLE_AND_BACKGROUND));
         let ready = self.editor.photo().src_path.is_some() && self.editor.photo().base_preview.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight;
         let mut find = false;
         let mut look = false;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 2);
             find = action_in(ui, cell, ready, tr(lang, K_PORTRAIT_FIND_PEOPLE_AND_FACES))
                 .on_hover_text(tr(lang, K_PORTRAIT_FINDS_THE_PERSON_AND_EVERY_FACE_ON_THIS_COMPUTER))
@@ -179,11 +179,11 @@ impl Commands<'_> {
             tr(lang, K_NORMAL_HOW_STRONG_THE_LOOK_IS_DOUBLE_CLICK_TO_RESET),
         );
         let line = self.workspace.portrait_line_text(lang);
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if self.workspace.portrait().line == PortraitLine::Finding || (self.workspace.portrait().line == PortraitLine::Looking && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
-            ui.label(egui::RichText::new(line).small());
+            ui.label(Text::new(line).small());
         });
         if find {
             self.apply_actions(vec![logic::Action::Portrait(
@@ -196,13 +196,13 @@ impl Commands<'_> {
     }
 
     /// Group 2 — the skin: soften, warmth, colour, the guardrail switch.
-    fn portrait_skin(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_skin(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_SKIN));
         let gate = self.editor.portrait_face_gate(&self.workspace, lang);
         let guarded = self.editor.keep_skin_on(&self.workspace);
         let mut changed = false;
-        ui.add_enabled_ui(gate.is_none(), |ui| {
+        ui.enabled(gate.is_none(), |ui| {
             let mut probe = LocalAdjustment::default();
             let m = skin_target(&mut self.editor.doc_mut().recipe).unwrap_or(&mut probe);
             let mut soften = soften_of(m);
@@ -242,20 +242,20 @@ impl Commands<'_> {
             )]);
         }
         if let Some(why) = gate {
-            ui.label(egui::RichText::new(why).weak().small());
+            ui.label(Text::new(why).weak().small());
         }
         changed
     }
 
     /// Group 3 — the eyes: brighten, crisp.
-    fn portrait_eyes(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_eyes(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_EYES));
         let gate = self.editor.portrait_face_gate(&self.workspace, lang).or_else(|| {
             (!self.editor.doc().recipe.masks.iter().any(|m| m.role == MaskRole::Eyes)).then(|| tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP))
         });
         let mut changed = false;
-        ui.add_enabled_ui(gate.is_none(), |ui| {
+        ui.enabled(gate.is_none(), |ui| {
             let mut probe = LocalAdjustment::default();
             let m = role_mask(&mut self.editor.doc_mut().recipe, MaskRole::Eyes).unwrap_or(&mut probe);
             changed |= slider_hinted(ui, lang, tr(lang, K_PORTRAIT_BRIGHTEN_EYES), &mut m.exposure_ev, 0.0, EYES_BRIGHTEN_MAX_EV, 0.0, tr(lang, K_PORTRAIT_LIFTS_THE_EYES_A_LITTLE));
@@ -266,14 +266,14 @@ impl Commands<'_> {
             }
         });
         if let Some(why) = gate {
-            ui.label(egui::RichText::new(why).weak().small());
+            ui.label(Text::new(why).weak().small());
         }
         changed
     }
 
     /// Group 4 — the background: the blur (with the person kept sharp), and
     /// darken / fade on the background mask.
-    fn portrait_background(&mut self, ui: &mut egui::Ui) -> bool {
+    fn portrait_background(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         portrait_group(ui, tr(lang, K_PORTRAIT_BACKGROUND));
         let mut changed = false;
@@ -292,7 +292,7 @@ impl Commands<'_> {
             changed |= slider_hinted(ui, lang, tr(lang, K_PORTRAIT_SHARP_RANGE), &mut lb.range, 0.0, 100.0, 10.0, tr(lang, K_PORTRAIT_HOW_DEEP_THE_SHARP_PART_OF_THE_PICTURE_IS_AROUND));
             let mut keep = lb.protect.is_some();
             let toggled = ui
-                .add_enabled(subject.is_some() || keep, egui::Checkbox::new(&mut keep, tr(lang, K_PORTRAIT_KEEP_THE_PERSON_SHARP)))
+                .add_enabled(subject.is_some() || keep, Checkbox::new(&mut keep, tr(lang, K_PORTRAIT_KEEP_THE_PERSON_SHARP)))
                 .on_hover_text(tr(lang, K_PORTRAIT_THE_WHOLE_PERSON_STAYS_SHARP_HOWEVER_FAR_THE_BLU))
                 .on_disabled_hover_text(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP))
                 .changed();
@@ -303,7 +303,7 @@ impl Commands<'_> {
             }
         }
         let has_bg = self.editor.doc().recipe.masks.iter().any(|m| m.role == MaskRole::Background);
-        ui.add_enabled_ui(has_bg, |ui| {
+        ui.enabled(has_bg, |ui| {
             let mut probe = LocalAdjustment::default();
             let m = role_mask(&mut self.editor.doc_mut().recipe, MaskRole::Background).unwrap_or(&mut probe);
             let mut darken = darken_of(m);
@@ -318,14 +318,14 @@ impl Commands<'_> {
             }
         });
         if !has_bg {
-            ui.label(egui::RichText::new(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP)).weak().small());
+            ui.label(Text::new(tr(lang, K_PORTRAIT_FIND_THE_PEOPLE_AND_FACES_FIRST_THE_FIRST_GROUP)).weak().small());
         }
         changed
     }
 }
 
 /// A group's sub-heading.
-pub(crate) fn portrait_group(ui: &mut egui::Ui, title: &str) {
-    ui.add_space(SPACE_MD);
-    ui.label(egui::RichText::new(title).strong());
+pub(crate) fn portrait_group(ui: &mut Ui, title: &str) {
+    ui.gap(SPACE_MD);
+    ui.label(Text::new(title).strong());
 }

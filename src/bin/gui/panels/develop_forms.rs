@@ -15,7 +15,7 @@ use crate::*;
 /// Draw one registry table into `ui`, in table order, collecting the changes.
 /// Returns true when any control changed this frame.
 pub(crate) fn render_rows(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     recipe: &autoshade::recipe::EditRecipe,
     table: &[&dyn ControlWidget],
@@ -30,7 +30,7 @@ pub(crate) fn render_rows(
 
 /// Render a table and apply whatever it reported, in one call for the panels.
 pub(crate) fn render_and_apply(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     recipe: &mut autoshade::recipe::EditRecipe,
     table: &[&dyn ControlWidget],

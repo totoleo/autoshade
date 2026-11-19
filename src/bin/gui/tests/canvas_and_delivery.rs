@@ -22,11 +22,8 @@
     /// compressed the whole axis.
     #[test]
     fn to_norm_survives_a_sub_point_rect() {
-        let xf = ViewXform {
-            rect: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(0.5, 300.0)),
-            uv: egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-        };
-        let (nx, _) = xf.to_norm(egui::pos2(0.25, 150.0));
+        let xf = view_xform(pt(0.0, 0.0), sz(0.5, 300.0));
+        let nx = to_norm(&xf, pt(0.25, 150.0)).x;
         assert!((nx - 0.5).abs() < 1e-3, "the middle of a 0.5-pt-wide rect is uv 0.5: {nx}");
     }
 
@@ -35,10 +32,10 @@
     /// shrinks.
     #[test]
     fn a_zoomed_canvas_is_never_re_fit_smaller() {
-        let fit = fit_in(egui::vec2(50.0, 50.0), 600.0, 450.0);
-        assert_eq!(fit, egui::vec2(200.0, 200.0), "fit view keeps the 4× cap");
-        let zoomed = fit_in_capped(egui::vec2(50.0, 50.0), 600.0, 450.0, f32::INFINITY);
-        assert_eq!(zoomed, egui::vec2(450.0, 450.0), "a zoomed view fills the pane box");
+        let fit = fit_in(v2(50.0, 50.0), 600.0, 450.0);
+        assert_eq!(fit, v2(200.0, 200.0), "fit view keeps the 4× cap");
+        let zoomed = fit_in_capped(v2(50.0, 50.0), 600.0, 450.0, f32::INFINITY);
+        assert_eq!(zoomed, v2(450.0, 450.0), "a zoomed view fills the pane box");
     }
 
     /// L13-1: `pan` is stored in the current WINDOW's coordinates, so the
@@ -48,7 +45,7 @@
         let mut app = AutoShadeApp::default();
         app.editor_mut().doc_mut().recipe.crop =
             Some(autoshade::recipe::Crop { left: 0.5, top: 0.5, right: 1.0, bottom: 1.0 });
-        app.workspace_mut().view_mut().pan = egui::vec2(0.5, 0.5); // centre of the CROP window
+        app.workspace_mut().view_mut().pan = v2(0.5, 0.5); // centre of the CROP window
         { let (e, w, _l) = app.editor_workspace_mut(); e.set_crop_mode(w, true) };
         assert!(
             (app.workspace().view().pan.x - 0.75).abs() < 1e-4 && (app.workspace().view().pan.y - 0.75).abs() < 1e-4,
@@ -75,7 +72,7 @@
         let artifact = dir.join("late.retouch.png");
         std::fs::write(&artifact, b"orphan bytes").unwrap();
 
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         // The cancel already bumped past this task's epoch 6.
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.tools_mut() = ToolsState { gen_epoch: 7, ..Default::default() }; view });
         app.commands().on_retouched(
@@ -104,7 +101,7 @@
     fn no_cell_button_reaches_past_the_narrowest_panel() {
         use crate::buttons::DRAWN;
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             // The REAL fonts (embedded symbols + the system CJK face): egui's
             // bundle lays the Chinese labels narrower than the app draws them,
@@ -114,20 +111,14 @@
                     style_raw_dir: Some(std::env::temp_dir().join(format!("autoshade-raw-{}", std::process::id()))),
                     ..Default::default()
                 }).but_lang(lang);
-            let mut panel = egui::Rect::NOTHING;
+            let mut panel = RectT::nothing();
             for _ in 0..3 {
                 DRAWN.with_borrow_mut(Vec::clear);
-                let input = egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                    ..Default::default()
-                };
-                let _ = ctx.run(input, |ctx| {
+                ctx.run(1400.0, 20_000.0, |ctx| {
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    panel = egui::SidePanel::left("controls")
-                        .exact_width(crate::theme::CONTROLS_W_MIN)
-                        .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.commands().ai_panel(ui)))
-                        .response
-                        .rect;
+                    panel = panel_exact(ctx, "controls", crate::theme::CONTROLS_W_MIN, |ui| {
+                        scroll_vertical(ui, |ui| app.commands().ai_panel(ui));
+                    });
                 });
             }
             let drawn = DRAWN.with_borrow(|d| d.clone());
@@ -193,7 +184,7 @@
 
 
             }; editor });
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let lost = |o: &std::path::Path| Msg::MasterLoaded {
             photo: photo.clone(),
             origin: o.to_path_buf(),
@@ -364,7 +355,7 @@
     #[test]
     fn a_finished_export_names_an_absolute_path() {
         use std::path::PathBuf;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
         let rel = PathBuf::from("out").join("_r22_abs.developed.tif");
         let abs = std::path::absolute(&rel).unwrap();
@@ -392,7 +383,7 @@
     /// then aimed at a destination that could only ever refuse, permanently.
     #[test]
     fn a_batch_that_delivered_nothing_does_not_become_the_remembered_destination() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let kept = std::env::temp_dir().join(format!("autoshade-deliver-{}/tripA", std::process::id()));
         let refused = std::env::temp_dir().join(format!("autoshade-library-{}/2026-08", std::process::id()));
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; *view.exp_mut() = ExportState { last_dir: Some(kept.clone()), ..Default::default() }; view });
@@ -512,36 +503,6 @@
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// One frame of the paint canvas (1024 × 768 at the origin of a central
-    /// panel) with `events`; the brush cursor drawn as the canvas draws it.
-    /// The frame's shapes and the cursor egui was asked for.
-    fn paint_frame(
-        app: &mut AutoShadeApp,
-        ctx: &egui::Context,
-        events: Vec<egui::Event>,
-        time: f64,
-    ) -> (Vec<egui::epaint::ClippedShape>, egui::CursorIcon, egui::Rect) {
-        let mut canvas = egui::Rect::NOTHING;
-        let out = ctx.run(
-            egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1100.0, 850.0))),
-                events,
-                time: Some(time),
-                ..Default::default()
-            },
-            |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    let (rect, resp) = ui.allocate_exact_size(egui::vec2(1024.0, 768.0), egui::Sense::click_and_drag());
-                    canvas = rect;
-                    let xf = ViewXform { rect, uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)) };
-                    app.commands().handle_paint(&resp, xf);
-                    app.commands().draw_brush_cursor(ui, &resp, rect);
-                });
-            },
-        );
-        (out.shapes, out.platform_output.cursor_icon, canvas)
-    }
-
     fn painted_pixels(app: &AutoShadeApp) -> usize {
         app.workspace().masks().mask_paint.as_ref().map_or(0, |m| m.pixels().filter(|p| p[3] > 10).count())
     }
@@ -562,34 +523,23 @@
             app.workspace_mut().masks_mut().mask_paint = Some(image::RgbaImage::new(1024, 768));
             app
         };
-        let press = |pos| egui::Event::PointerButton {
-            pos,
-            button: egui::PointerButton::Primary,
-            pressed: true,
-            modifiers: egui::Modifiers::NONE,
-        };
+        let press = |pos| harness::Event::PointerButton { pos, pressed: true };
         let mut app = fresh();
-        let ctx = egui::Context::default();
-        let (_, _, canvas) = paint_frame(&mut app, &ctx, vec![], 0.0);
+        let mut ctx = harness::Ctx::new();
+        let (_, _, canvas) = paint_brush_frame(&mut ctx, &mut app, vec![], 0.0);
         let at = canvas.center();
-        paint_frame(&mut app, &ctx, vec![egui::Event::PointerMoved(at), press(at)], 0.1);
+        paint_brush_frame(&mut ctx, &mut app, vec![harness::Event::PointerMoved(at), press(at)], 0.1);
         let inked = painted_pixels(&app);
         assert!(inked > 0, "a still press left the canvas blank until release");
         // Moving 3 px — under egui's drag threshold — extends the stroke.
-        paint_frame(&mut app, &ctx, vec![egui::Event::PointerMoved(at + egui::vec2(40.0, 0.0))], 0.2);
+        paint_brush_frame(&mut ctx, &mut app, vec![harness::Event::PointerMoved(shift(at, 40.0, 0.0))], 0.2);
         assert!(painted_pixels(&app) > inked, "the stroke did not follow the pointer");
 
         let mut app = fresh();
-        let ctx = egui::Context::default();
-        paint_frame(&mut app, &ctx, vec![], 0.0);
-        let space = egui::Event::Key {
-            key: egui::Key::Space,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::NONE,
-        };
-        paint_frame(&mut app, &ctx, vec![space, egui::Event::PointerMoved(at), press(at)], 0.1);
+        let mut ctx = harness::Ctx::new();
+        paint_brush_frame(&mut ctx, &mut app, vec![], 0.0);
+        let space = harness::Event::Key(harness::Key::Space);
+        paint_brush_frame(&mut ctx, &mut app, vec![space, harness::Event::PointerMoved(at), press(at)], 0.1);
         assert_eq!(painted_pixels(&app), 0, "Space + press is a pan, not a dab");
     }
 
@@ -602,39 +552,27 @@
     /// cursor left as the crosshair.
     #[test]
     fn the_brush_shows_its_size_where_it_will_land() {
-        fn rings(shapes: &[egui::epaint::ClippedShape], r: f32) -> Vec<egui::Pos2> {
-            fn walk(s: &egui::Shape, r: f32, out: &mut Vec<egui::Pos2>) {
-                match s {
-                    egui::Shape::Circle(c) if (c.radius - r).abs() < 0.01 && c.stroke.width > 0.0 => out.push(c.center),
-                    egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, r, out)),
-                    _ => {}
-                }
-            }
-            let mut out = Vec::new();
-            shapes.iter().for_each(|c| walk(&c.shape, r, &mut out));
-            out
-        }
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.masks_mut() = MaskEditState {
                 paint_mode: true,
                 ..Default::default()
             }; view });
         app.workspace_mut().masks_mut().mask_paint = Some(image::RgbaImage::new(1024, 768));
         app.workspace_mut().set_brush(57.0, 0.0);
-        let ctx = egui::Context::default();
-        let (_, _, canvas) = paint_frame(&mut app, &ctx, vec![], 0.0);
-        let at = canvas.center() + egui::vec2(-100.0, 50.0);
-        let (shapes, cursor, _) = paint_frame(&mut app, &ctx, vec![egui::Event::PointerMoved(at)], 0.1);
-        assert!(rings(&shapes, 57.0).iter().any(|c| c.distance(at) < 0.5), "no 57 px ring under the pointer");
-        assert_eq!(cursor, egui::CursorIcon::None, "the ring replaces the OS cursor over the canvas");
-        let texts = drawn_texts(&shapes);
+        let mut ctx = harness::Ctx::new();
+        let (_, _, canvas) = paint_brush_frame(&mut ctx, &mut app, vec![], 0.0);
+        let at = shift(canvas.center(), -100.0, 50.0);
+        let (out, cursor, _) = paint_brush_frame(&mut ctx, &mut app, vec![harness::Event::PointerMoved(at)], 0.1);
+        assert!(rings(&out, 57.0).iter().any(|c| distance(*c, at) < 0.5), "no 57 px ring under the pointer");
+        assert_eq!(cursor, Cursor::None, "the ring replaces the OS cursor over the canvas");
+        let texts = out_texts(&out);
         assert!(texts.iter().any(|t| t.ends_with(" 57")), "the size flashes beside the ring: {texts:?}");
 
         // Off the canvas, during the flash: the ring at the centre.
-        let (shapes, _, _) = paint_frame(&mut app, &ctx, vec![egui::Event::PointerGone], 0.2);
-        assert!(rings(&shapes, 57.0).iter().any(|c| c.distance(canvas.center()) < 0.5), "no flash ring at the centre");
+        let (out, _, _) = paint_brush_frame(&mut ctx, &mut app, vec![harness::Event::PointerGone], 0.2);
+        assert!(rings(&out, 57.0).iter().any(|c| distance(*c, canvas.center()) < 0.5), "no flash ring at the centre");
         // …and gone after it.
-        let (shapes, _, _) = paint_frame(&mut app, &ctx, vec![], 5.0);
-        assert!(rings(&shapes, 57.0).is_empty(), "the flash ring outlived its second");
+        let (out, _, _) = paint_brush_frame(&mut ctx, &mut app, vec![], 5.0);
+        assert!(rings(&out, 57.0).is_empty(), "the flash ring outlived its second");
         // The range clamps.
         app.workspace_mut().set_brush(10_000.0, 6.0);
         assert_eq!(app.workspace().masks().brush, crate::panels::retouch::BRUSH_R_MAX);
@@ -652,16 +590,10 @@
         use crate::buttons::DRAWN;
         for width in [1400.0f32, 1000.0] {
             let mut app = app_with_every_button(crate::i18n::Lang::Zh);
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             DRAWN.with_borrow_mut(Vec::clear);
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))),
-                    ..Default::default()
-                },
-                |ctx| app.upd_top_bar(ctx),
-            );
+            ctx.run(width, 800.0, |ctx| app.upd_top_bar(ctx));
             let limit = width - crate::window_chrome::controls_width();
             let drawn = DRAWN.with_borrow(|d| d.clone());
             assert!(!drawn.is_empty(), "the toolbar drew no buttons");
@@ -727,9 +659,9 @@
         for (h, s) in [(0.0, 40.0), (30.0, 100.0), (120.0, 25.0), (210.0, 60.0), (300.0, 85.0), (359.0, 50.0)] {
             assert_eq!(wheel_value(wheel_offset(h, s, r), r), (h, s), "round trip of hue {h} sat {s}");
         }
-        assert_eq!(wheel_value(egui::vec2(0.0, -40.0), r), (90.0, 50.0), "up is 90° (screen y grows down)");
-        assert_eq!(wheel_value(egui::Vec2::ZERO, r), (0.0, 0.0));
-        assert_eq!(wheel_value(egui::vec2(500.0, 0.0), r), (0.0, 100.0), "past the rim clamps");
+        assert_eq!(wheel_value(v2(0.0, -40.0), r), (90.0, 50.0), "up is 90° (screen y grows down)");
+        assert_eq!(wheel_value(v2(0.0, 0.0), r), (0.0, 0.0));
+        assert_eq!(wheel_value(v2(500.0, 0.0), r), (0.0, 100.0), "past the rim clamps");
     }
 
     /// A stand-in for `pipeline::resolve_develop_masks`: every AI mask without
@@ -838,7 +770,7 @@
         let saved = EditRecipe { masks: vec![lightroom_sky()], ..Default::default() };
         std::fs::write(autoshade::store::recipe_target(&src), serde_json::to_string(&saved).unwrap()).unwrap();
         let mut app = AutoShadeApp::default().but_seams(TestSeams { ai_mask_stub: Some(white_alpha_runner), ..Default::default() });
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let land = |app: &mut AutoShadeApp| {
             let start = std::time::Instant::now();
             while app.workspace().busy() || app.workspace().open().open_in_flight {
@@ -907,7 +839,7 @@
         scrub.extend(devs);
         let _scrub = Scrub(scrub);
         let mut app = AutoShadeApp::default().but_seams(TestSeams { ai_mask_stub: Some(white_alpha_runner), ..Default::default() });
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let land = |app: &mut AutoShadeApp| {
             let start = std::time::Instant::now();
             while app.workspace().busy() || app.workspace().open().open_in_flight {

@@ -42,7 +42,7 @@ impl Commands<'_> {
     fn show_card_keeping_look(&mut self, idx: usize) {
         let look = self.editor.doc().recipe.clone();
         let history = self.take_look_history();
-        let ctx = self.services.egui_ctx.clone();
+        let ctx = self.services.view_ctx.clone();
         self.switch_variant(idx, &ctx);
         if self.editor.doc().active == idx {
             self.editor.doc_mut().recipe = look;

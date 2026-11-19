@@ -136,12 +136,12 @@ impl Commands<'_> {
 
     /// The sidebar: the four groups, behind the same mid-open gate as the
     /// shared panels (L15-2 — these controls write the open photo's recipe).
-    pub(crate) fn normal_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn normal_panel(&mut self, ui: &mut Ui) {
         if self.workspace.normal().key_present.is_none() {
             self.workspace.normal_mut().key_present = Some(autoshade::config::Config::load().openai_api_key.is_some());
         }
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
             self.normal_one_click(ui);
             self.normal_fine_tune(ui);
             self.normal_noise(ui);
@@ -150,9 +150,9 @@ impl Commands<'_> {
     }
 
     /// Group 1 — the one-click look: six fixed looks, or the reference folder.
-    fn normal_one_click(&mut self, ui: &mut egui::Ui) {
+    fn normal_one_click(&mut self, ui: &mut Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_ONE_CLICK_LOOK), false, |_| {});
         let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy() && !self.workspace.tools().analyze_inflight && !self.workspace.normal().building;
         let names: [&str; 6] = [
@@ -167,7 +167,7 @@ impl Commands<'_> {
         let mut asked: Option<OneClick> = None;
         // Two to a row: at three, "Bright & clean" and "Black & white" are cut short.
         for row in 0..3 {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let cell = columns(ui, 2);
                 for col in 0..2 {
                     let i = row * 2 + col;
@@ -180,7 +180,7 @@ impl Commands<'_> {
                 }
             });
         }
-        ui.vertical_centered(|ui| ui.label(egui::RichText::new(tr(lang, K_NORMAL_OR)).weak().small()));
+        ui.vertical_centered(|ui| ui.label(Text::new(tr(lang, K_NORMAL_OR)).weak().small()));
         let pick = action_row(ui, ready, tr(lang, K_NORMAL_MATCH_MY_REFERENCE_PHOTOS))
             .on_hover_text(tr(
                 lang,
@@ -189,7 +189,7 @@ impl Commands<'_> {
             .clicked();
         if let Some(dir) = &self.workspace.normal().ref_dir {
             let name = dir.file_name().map_or_else(|| abs_display(dir), |n| n.to_string_lossy().into_owned());
-            ui.label(egui::RichText::new(trf(lang, K_NORMAL_CHOSEN, &[("name", &name)])).weak().small());
+            ui.label(Text::new(trf(lang, K_NORMAL_CHOSEN, &[("name", &name)])).weak().small());
         }
         slider_pct_hinted(
             ui,
@@ -201,15 +201,15 @@ impl Commands<'_> {
             tr(lang, K_NORMAL_HOW_STRONG_THE_LOOK_IS_DOUBLE_CLICK_TO_RESET),
         );
         let line = self.workspace.normal_line_text(lang);
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if self.workspace.normal().building || (self.workspace.normal().line == NormalLine::Working && self.workspace.tools().analyze_inflight) {
                 ui.spinner();
             }
-            ui.label(egui::RichText::new(line).small());
+            ui.label(Text::new(line).small());
         });
         if self.workspace.normal().key_present == Some(false) {
             ui.label(
-                egui::RichText::new(tr(lang, K_NORMAL_TO_MAKE_LOOKS_WITH_AI_ADD_A_SERVICE_KEY_IN_SETTI))
+                Text::new(tr(lang, K_NORMAL_TO_MAKE_LOOKS_WITH_AI_ADD_A_SERVICE_KEY_IN_SETTI))
                     .weak()
                     .small(),
             );
@@ -230,9 +230,9 @@ impl Commands<'_> {
 
     /// Group 2 — fine-tune: four of the develop panel's fields under plain
     /// names, on top of the one-click result.
-    fn normal_fine_tune(&mut self, ui: &mut egui::Ui) {
+    fn normal_fine_tune(&mut self, ui: &mut Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_FINE_TUNE), false, |_| {});
         let mut changed = false;
         let r = &mut self.editor.doc_mut().recipe;
@@ -273,9 +273,9 @@ impl Commands<'_> {
 
     /// Group 3 — noise: one switch, the Retouch panel's AI denoise
     /// (`set_normal_denoise`).
-    fn normal_noise(&mut self, ui: &mut egui::Ui) {
+    fn normal_noise(&mut self, ui: &mut Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_NOISE), false, |_| {});
         // A run that ended without its card (failed, cancelled) leaves no
         // pair behind.
@@ -285,7 +285,7 @@ impl Commands<'_> {
         let helper = denoise_helper_available();
         let mut on = self.editor.normal_denoise_on(&self.workspace);
         let toggled = ui
-            .add_enabled(helper && !self.workspace.busy(), egui::Checkbox::new(&mut on, tr(lang, K_NORMAL_AI_DENOISE)))
+            .add_enabled(helper && !self.workspace.busy(), Checkbox::new(&mut on, tr(lang, K_NORMAL_AI_DENOISE)))
             .on_hover_text(tr(lang, K_NORMAL_CLEANS_THE_GRAIN_OUT_OF_THE_PHOTO_AND_THE_PREVIE))
             .changed();
         if helper && self.workspace.normal().denoise_ready.is_none() {
@@ -299,28 +299,25 @@ impl Commands<'_> {
             )]);
         }
         for line in self.editor.noise_lines(&self.workspace, lang, helper) {
-            ui.label(egui::RichText::new(line).weak().small());
+            ui.label(Text::new(line).weak().small());
         }
     }
 
 
     /// Group 4 — save: a jpg of this photo, or the look on every photo of the
     /// folder.
-    fn normal_save(&mut self, ui: &mut egui::Ui) {
+    fn normal_save(&mut self, ui: &mut Ui) {
         let lang = self.lang;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_NORMAL_SAVE), false, |_| {});
         let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy();
         let mut save = false;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 2);
             save = primary_in(ui, cell, ready, tr(lang, K_NORMAL_SAVE_AS_JPG))
                 .on_hover_text(tr(lang, K_NORMAL_SAVES_THE_PHOTO_WITH_THIS_LOOK_AS_A_JPG_THE_ORIG))
                 .clicked();
-            egui::ComboBox::from_id_salt("normal_quality")
-                .selected_text(format!("{} · {}", tr(lang, K_NORMAL_QUALITY), self.workspace.normal().quality.label(lang)))
-                .width(cell.x)
-                .show_ui(ui, |ui| {
+            ui.menu("normal_quality", format!("{} · {}", tr(lang, K_NORMAL_QUALITY), self.workspace.normal().quality.label(lang)), Some(cell.x), |ui| {
                     for q in SaveQuality::ALL {
                         ui.selectable_value(&mut self.workspace.normal_mut().quality, q, q.label(lang));
                     }
@@ -342,7 +339,7 @@ impl Commands<'_> {
             ),
         };
         let full = self.workspace.export_dest_dir().map(|d| abs_display(&d)).unwrap_or_default();
-        ui.label(egui::RichText::new(place).weak().small()).on_hover_text(full);
+        ui.label(Text::new(place).weak().small()).on_hover_text(full);
         let all = action_row(ui, ready && !self.workspace.gal().gallery.is_empty(), tr(lang, K_NORMAL_APPLY_THIS_LOOK_TO_EVERY_PHOTO_IN_THE_FOLDER))
             .on_hover_text(tr(lang, K_NORMAL_GIVES_EVERY_PHOTO_IN_THE_OPEN_FOLDER_THIS_LOOK_A))
             .on_disabled_hover_text(tr(lang, K_NORMAL_OPEN_A_FOLDER_FIRST_THE_LIBRARY_ON_THE_LEFT))

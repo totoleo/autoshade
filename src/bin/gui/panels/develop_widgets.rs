@@ -15,7 +15,7 @@ use crate::*;
 /// the way Lightroom's own split handles stop short of each other, so a
 /// drag can never cross two splits and the sliders always show the layout
 /// the curve renders (`EditRecipe::parametric_splits`).
-pub(crate) fn parametric_curve(ui: &mut egui::Ui, lang: Lang, r: &mut EditRecipe) -> bool {
+pub(crate) fn parametric_curve(ui: &mut Ui, lang: Lang, r: &mut EditRecipe) -> bool {
     use autoshade::recipe::{PARAMETRIC_SPLITS, PARAMETRIC_SPLIT_GAP};
     sub_caption(ui, tr(lang, K_DEVELOP_PARAMETRIC_CURVE));
     let mut changed = false;

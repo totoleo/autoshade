@@ -17,10 +17,10 @@ impl Commands<'_> {
 
 
 
-    pub(crate) fn develop_panel(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn develop_panel(&mut self, ui: &mut Ui) {
         let lang = self.lang; // Copy — never borrows self, safe inside egui closures.
         let mut changed = false;
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         panel_heading(ui, tr(lang, K_DEVELOP_DEVELOP), false, |_| {});
         // OUTSIDE the editable gate below, deliberately (#4 review point): the
         // histogram is a READOUT. Its only interaction is the pair of clipping
@@ -33,7 +33,7 @@ impl Commands<'_> {
         // then discards by its base+recipe identity check. Greying the tone
         // readout during every open would be the bigger regression.
         self.with_panel(|p| p.histogram_ui(ui));
-        ui.add_space(SPACE_SM);
+        ui.gap(SPACE_SM);
 
         // Mid-open (decode in flight) these controls would edit the STASHED
         // photo A while B lands and replaces the whole recipe — silent input
@@ -42,7 +42,7 @@ impl Commands<'_> {
         // The AI area carries its OWN copy of this gate (panels/ai.rs) — it
         // used to ride inside this closure as `dev_ai`.
         let editable = !self.workspace.open().open_in_flight;
-        ui.add_enabled_ui(editable, |ui| {
+        ui.enabled(editable, |ui| {
         // Lightroom-style grouping: a wall of 16 sliders scans terribly; four
         // titled sections (tone open, the rest by activity) scan at a glance.
         // A section whose values are non-neutral shows a ● so a collapsed
@@ -79,7 +79,7 @@ impl Commands<'_> {
     /// 反推 — with a live developed thumbnail. Click a card to switch (lossless;
     /// each variant keeps its own base + recipe), × to drop one. This is the
     /// selector that makes an AI develop a first-class, non-reverting version.
-    pub(crate) fn variant_strip(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn variant_strip(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let accent = self.workspace.ui().theme.colors().accent_text; // Copy — safe in closures
         // ONE deferred action for the whole strip (R24-5): the five separate
@@ -109,7 +109,7 @@ impl Commands<'_> {
         {
             self.seams.strip_row_rect = Some(ui.max_rect());
         }
-        ui.add_space(((ui.available_height() - card_h) / 2.0).max(0.0));
+        ui.gap(((ui.available_height() - card_h) / 2.0).max(0.0));
         // LAYOUT INVARIANT (probed, R14+R15): egui places the scroll area
         // centered by its 26 px DECLARED seed against the row's height at
         // placement time, then grows content DOWNWARD — (current−26)/2 of
@@ -125,18 +125,18 @@ impl Commands<'_> {
         let strip_left = ui.max_rect().left();
         let title_galley = ui.painter().layout_no_wrap(
             tr(lang, K_DEVELOP_VARIANTS__2).to_owned(),
-            egui::TextStyle::Body.resolve(ui.style()),
+            TextStyle::Body.resolve(ui.style()),
             ui.visuals().strong_text_color(),
         );
         let title_w = title_galley.size().x;
-        let title_pos = egui::pos2(
+        let title_pos = pos2(
             strip_left + SPACE_SM,
             row_top + (card_h - title_galley.size().y) / 2.0,
         );
         #[cfg(test)]
         {
             self.seams.strip_title_rect =
-                Some(egui::Rect::from_min_size(title_pos, title_galley.size()));
+                Some(Rect::from_min_size(title_pos, title_galley.size()));
         }
         ui.painter().galley(title_pos, title_galley, ui.visuals().strong_text_color());
         // The divider, at full card height — the stock separator filled the
@@ -144,19 +144,19 @@ impl Commands<'_> {
         let sep_x = strip_left + SPACE_SM + title_w + SPACE_SM + 3.0;
         ui.painter().vline(
             sep_x,
-            egui::Rangef::new(row_top, row_top + card_h),
+            Rangef::new(row_top, row_top + card_h),
             ui.visuals().widgets.noninteractive.bg_stroke,
         );
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             // Horizontal footprint of the PAINTED title + divider: width
             // only, zero height (the invariant above).
-            ui.add_space(SPACE_SM + title_w + SPACE_SM + 6.0 + SPACE_SM);
-            egui::ScrollArea::horizontal().show(ui, |ui| {
-                ui.horizontal(|ui| {
+            ui.gap(SPACE_SM + title_w + SPACE_SM + 6.0 + SPACE_SM);
+            ScrollArea::horizontal().show(ui, |ui| {
+                ui.row(|ui| {
                     for i in 0..self.editor.doc().variants.len() {
                         let active = i == self.editor.doc().active;
                         let kind = self.editor.doc().variants[i].kind;
-                        ui.vertical(|ui| {
+                        ui.column(|ui| {
                             // Developed thumbnail (or a placeholder until the
                             // variant has been developed once).
                             let resp = if let Some(t) = &self.editor.doc().variants[i].thumb {
@@ -164,10 +164,10 @@ impl Commands<'_> {
                                 let h = STRIP_THUMB_H;
                                 let w = (s.x / s.y.max(1.0) * h).clamp(30.0, 104.0);
                                 let (rect, resp) =
-                                    ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::click());
-                                let uv = egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 0.0),
-                                    egui::pos2(1.0, 1.0),
+                                    ui.allocate_exact_size(vec2(w, h), Sense::click());
+                                let uv = Rect::from_min_max(
+                                    pos2(0.0, 0.0),
+                                    pos2(1.0, 1.0),
                                 );
                                 // Card chrome tokens (L15-1): the glow is
                                 // the chrome accent at low alpha and its
@@ -181,7 +181,7 @@ impl Commands<'_> {
                                     ui.painter().rect_filled(
                                         rect.expand(GLOW_EXPAND),
                                         CARD_RADIUS + GLOW_EXPAND,
-                                        egui::Color32::from_rgba_unmultiplied(
+                                        Color32::from_rgba_unmultiplied(
                                             ring.r(),
                                             ring.g(),
                                             ring.b(),
@@ -189,18 +189,18 @@ impl Commands<'_> {
                                         ),
                                     );
                                 }
-                                ui.painter().image(t.id(), rect, uv, egui::Color32::WHITE);
+                                ui.painter().image(t.id(), rect, uv, Color32::WHITE);
                                 if active {
                                     ui.painter().rect_stroke(
                                         rect,
                                         CARD_RADIUS,
-                                        egui::Stroke::new(2.0, ring),
-                                        egui::StrokeKind::Middle,
+                                        Stroke::new(2.0, ring),
+                                        StrokeKind::Middle,
                                     );
                                 }
                                 resp
                             } else {
-                                ui.add_sized([64.0, STRIP_THUMB_H], egui::Button::new("…"))
+                                ui.add_sized([64.0, STRIP_THUMB_H], Button::new("…"))
                             };
                             if resp
                                 .on_hover_text(tr(
@@ -211,8 +211,8 @@ impl Commands<'_> {
                             {
                                 act = Some(VariantAction::Switch(i));
                             }
-                            ui.horizontal(|ui| {
-                                let label = egui::RichText::new(tr(lang, kind.label())).small();
+                            ui.row(|ui| {
+                                let label = Text::new(tr(lang, kind.label())).small();
                                 let label = ui.label(if active { label.strong().color(accent) } else { label });
                                 // The immutability rule, said where the card
                                 // is (2026-09-13): a ✨ card never takes an
@@ -270,7 +270,7 @@ impl Commands<'_> {
                                             // identity (and drop the caret)
                                             // the moment an async push
                                             // renumbered the strip.
-                                            egui::TextEdit::singleline(buf)
+                                            TextEdit::singleline(buf)
                                                 .id(ui.make_persistent_id((
                                                     "variant_name",
                                                     card_id.as_str(),
@@ -297,13 +297,13 @@ impl Commands<'_> {
                                     }
                                 } else if active {
                                     let shown = match &named {
-                                        Some(n) => egui::RichText::new(format!("「{n}」")).small(),
-                                        None => egui::RichText::new(tr(lang, K_DEVELOP_NAME__2).to_string())
+                                        Some(n) => Text::new(format!("「{n}」")).small(),
+                                        None => Text::new(tr(lang, K_DEVELOP_NAME__2).to_string())
                                             .small()
                                             .weak(),
                                     };
                                     let resp = ui
-                                        .add(egui::Label::new(shown).sense(egui::Sense::click()))
+                                        .add(Label::new(shown).sense(Sense::click()))
                                         .on_hover_text(tr(lang, K_DEVELOP_NAME_THIS_VARIANT));
                                     #[cfg(test)]
                                     {
@@ -313,7 +313,7 @@ impl Commands<'_> {
                                         act = Some(VariantAction::Rename(card_id.clone()));
                                     }
                                 } else if let Some(n) = &named {
-                                    ui.label(egui::RichText::new(format!("「{n}」")).small().weak());
+                                    ui.label(Text::new(format!("「{n}」")).small().weak());
                                 }
                                 if let Some(a) = self.with_panel(|p| p.variant_card_buttons(
                                     ui,
@@ -330,13 +330,13 @@ impl Commands<'_> {
                                 self.seams.strip_card_rect = Some(ui.min_rect());
                             }
                         });
-                        ui.add_space(SPACE_MD);
+                        ui.gap(SPACE_MD);
                     }
                 });
             });
         });
         if let Some(a) = act {
-            self.dispatch_variant_action(a, ui.ctx());
+            self.dispatch_variant_action(a, &Ctx::from_ref(ui.ctx()));
         }
     }
 
@@ -366,7 +366,7 @@ impl Commands<'_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_versions(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_versions(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
 
         // --- 版本: recipe snapshots ≈ LR virtual copies (gap batch G) --------
@@ -382,10 +382,7 @@ impl Commands<'_> {
         // Deferred like the strip's, and dispatched through the same owner
         // after the section's closures release `self` (R24-5).
         let mut act: Option<VariantAction> = None;
-        card_fold(ui, egui::CollapsingHeader::new(section_title(&trf(lang, K_DEVELOP_VERSIONS, &[("n", &n_ver_s)]), n_ver > 0))
-            .id_salt("sec_versions")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_versions", section_title(&trf(lang, K_DEVELOP_VERSIONS, &[("n", &n_ver_s)]), n_ver > 0), false, false, |ui| {
                 // Clearing the list on open (see `open_path`) already stops a
                 // STALE row from acting on the incoming photo. This is the
                 // second half: while a photo is still decoding, "Save as
@@ -394,7 +391,7 @@ impl Commands<'_> {
                 // develop. Nothing here is meaningful until the open settles,
                 // so the whole section goes inert rather than each button
                 // carrying its own guard.
-                ui.add_enabled_ui(!self.workspace.busy(), |ui| {
+                ui.enabled(!self.workspace.busy(), |ui| {
                 // R24-4 (#1, phase 2 — minimal): ONE place that answers
                 // "what edit states does this photo have". A photo is one
                 // negative + N variant CARDS + one version history, so the
@@ -429,7 +426,7 @@ impl Commands<'_> {
                 if n_var > 0 {
                     let accent = self.workspace.ui().theme.colors().accent_text;
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_DEVELOP_VARIANTS,
                             &[("n", &n_var.to_string())],
@@ -451,44 +448,44 @@ impl Commands<'_> {
                         self.seams.edit_list_rows.push(format!("variant:{}", kind.store_str()));
                         let hit = ui
                             .horizontal(|ui| {
-                                let label = egui::RichText::new(tr(lang, kind.label())).small();
+                                let label = Text::new(tr(lang, kind.label())).small();
                                 ui.label(if i == active_i {
                                     label.strong().color(accent)
                                 } else {
                                     label
                                 });
                                 if let Some(n) = &name {
-                                    ui.label(egui::RichText::new(format!("「{n}」")).small());
+                                    ui.label(Text::new(format!("「{n}」")).small());
                                 }
                                 if i == active_i {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_CURRENT))
+                                        Text::new(tr(lang, K_DEVELOP_CURRENT))
                                             .weak()
                                             .small(),
                                     );
                                 }
                                 if kind == VariantKind::Edited {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_DEVELOP_OVER_AI_PIXELS_NO_XMP))
+                                        Text::new(tr(lang, K_DEVELOP_DEVELOP_OVER_AI_PIXELS_NO_XMP))
                                             .weak()
                                             .small(),
                                     );
                                 } else if !kind.is_source_based() {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_PIXEL_STATE_NO_XMP))
+                                        Text::new(tr(lang, K_DEVELOP_PIXEL_STATE_NO_XMP))
                                             .weak()
                                             .small(),
                                     );
                                 } else if on_pixels {
                                     ui.label(
-                                        egui::RichText::new(tr(lang, K_DEVELOP_ON_BAKED_PIXELS))
+                                        Text::new(tr(lang, K_DEVELOP_ON_BAKED_PIXELS))
                                             .weak()
                                             .small(),
                                     );
                                 }
                             })
                             .response
-                            .interact(egui::Sense::click());
+                            .interact(Sense::click());
                         // The whole label row is the switch target — the same
                         // gesture the strip's thumbnail offers, on the row that
                         // names the card. A BACKGROUND row only: re-selecting
@@ -510,8 +507,8 @@ impl Commands<'_> {
                         let has_actions =
                             i == active_i || (n_var > 1 && kind != VariantKind::Original);
                         if has_actions {
-                            ui.horizontal(|ui| {
-                                ui.add_space(SPACE_LG);
+                            ui.row(|ui| {
+                                ui.gap(SPACE_LG);
                                 if let Some(a) = self.with_panel(|p| p.variant_card_buttons(
                                     ui,
                                     i,
@@ -568,7 +565,7 @@ impl Commands<'_> {
                     let editing = self.workspace.cards().version_name_buf
                         .as_ref()
                         .is_some_and(|(p, j, ..)| *j == n && Some(p) == photo.as_ref());
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         ui.label(format!("v{n}"));
                         let field_id = ui.make_persistent_id(("version_name", n));
                         if editing {
@@ -578,7 +575,7 @@ impl Commands<'_> {
                                     .expect("checked just above")
                                     .3;
                                 ui.add(
-                                    egui::TextEdit::singleline(buf)
+                                    TextEdit::singleline(buf)
                                         .id(field_id)
                                         .desired_width(110.0)
                                         .hint_text(tr(lang, K_DEVELOP_NAME)),
@@ -607,11 +604,11 @@ impl Commands<'_> {
                                 None => tr(lang, K_DEVELOP_NAME__2).to_string(),
                             };
                             let text = match &named {
-                                Some(_) => egui::RichText::new(shown),
-                                None => egui::RichText::new(shown).weak(),
+                                Some(_) => Text::new(shown),
+                                None => Text::new(shown).weak(),
                             };
                             if ui
-                                .add(egui::Label::new(text).sense(egui::Sense::click()))
+                                .add(Label::new(text).sense(Sense::click()))
                                 .on_hover_text(tr(lang, K_DEVELOP_NAME_THIS_SNAPSHOT))
                                 .clicked()
                             {
@@ -639,7 +636,7 @@ impl Commands<'_> {
                                 _ => None,
                             };
                             if let Some(note) = note {
-                                ui.label(egui::RichText::new(note).weak().small());
+                                ui.label(Text::new(note).weak().small());
                             }
                         }
                         if action(ui, true, tr(lang, K_DEVELOP_LOAD)).on_hover_text(tr(lang, K_DEVELOP_REPLACE_CURRENT_PARAMETERS_ONE_CTRL_Z_TO_UNDO)).clicked() {
@@ -655,7 +652,7 @@ impl Commands<'_> {
                 }
                 if hidden > 0 {
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_DEVELOP_HIDDEN_SAVED_FROM_ANOTHER_VARIANT,
                             &[("n", &hidden.to_string())],
@@ -706,7 +703,7 @@ impl Commands<'_> {
         // The edit-state list's card action, performed through the SAME owner
         // the strip uses — after the section's closures have released `self`.
         if let Some(a) = act {
-            self.dispatch_variant_action(a, ui.ctx());
+            self.dispatch_variant_action(a, &Ctx::from_ref(ui.ctx()));
         }
         false
     }

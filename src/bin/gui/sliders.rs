@@ -12,7 +12,7 @@ use crate::*;
 /// to integers while dragging, like Lightroom — the web UI already had to
 /// work around raw floats ("13.4849996…" overflowing its value box).
 pub(crate) fn slider(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -32,7 +32,7 @@ pub(crate) fn slider(
 /// brush AND Fill / Heal / Stamp.
 #[allow(clippy::too_many_arguments)] // `slider` + the one extra tooltip line
 pub(crate) fn slider_hinted(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -55,7 +55,7 @@ pub(crate) fn slider_hinted(
 /// value). None = the frame changed nothing.
 #[allow(clippy::too_many_arguments)] // `slider_impl`'s track + the recipe and the control name
 pub(crate) fn companion_slider_edit(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     recipe: &autoshade::recipe::EditRecipe,
@@ -79,7 +79,7 @@ pub(crate) fn companion_slider_edit(
 /// shown is the one the engine renders (`EditRecipe::capture_sharpening`);
 /// a drag to 0 on a RAW is a real 0, stated in the sidecar.
 pub(crate) fn sharpening_slider(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     recipe: &mut EditRecipe,
@@ -105,7 +105,7 @@ pub(crate) fn sharpening_slider(
 /// ×100 track crosses the ≥ 20 width rule above, so these snap to whole
 /// numbers exactly like LR's.
 pub(crate) fn slider_pct(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -120,10 +120,10 @@ pub(crate) fn slider_pct(
 /// `bool`, so a caller cannot chain its own `on_hover_text`). For a fraction
 /// slider whose meaning cannot be read off its label: the AI 「Style」
 /// strength, which has to say what it leans on and that 0 means "ignore my
-/// habits" (R22 #16 — it was a bare `egui::Slider` carrying that sentence
+/// habits" (R22 #16 — it was a bare `Slider` carrying that sentence
 /// itself, which is exactly why it had no reset gesture and no ↑/↓ nudge).
 pub(crate) fn slider_pct_hinted(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -151,7 +151,7 @@ pub(crate) fn slider_pct_hinted(
 /// Sub-unit precision variant (Straighten °): the whole-number snap of the
 /// wide-range class would destroy 0.1° levelling on a ±45 track.
 pub(crate) fn slider_fine(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -167,7 +167,7 @@ pub(crate) fn slider_fine(
 /// every photo lives) on ~40 px of a 320 px track, making a routine 100 K
 /// nudge sub-pixel.
 pub(crate) fn slider_log(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -180,7 +180,7 @@ pub(crate) fn slider_log(
 
 #[allow(clippy::too_many_arguments)] // private impl detail shared by four thin public shapes
 pub(crate) fn slider_impl(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     lang: Lang,
     label: &str,
     value: &mut f32,
@@ -226,7 +226,7 @@ pub(crate) fn slider_impl(
         let widest = ui.fonts_mut(|f| {
             [min, max]
                 .into_iter()
-                .map(|v| f.layout_no_wrap(format!("{v:.decimals$}"), style.clone(), egui::Color32::WHITE).size().x)
+                .map(|v| f.layout_no_wrap(format!("{v:.decimals$}"), style.clone(), Color32::WHITE).size().x)
                 .fold(0.0f32, f32::max)
         });
         (widest + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x)
@@ -241,41 +241,41 @@ pub(crate) fn slider_impl(
     // A vertical child, not a scope: a caller that lays the slider in a
     // row (the Style dial and its warning) gets the two lines as one item
     // of that row instead of the rail continuing the row.
-    let scope = ui.vertical(|ui| {
+    let scope = ui.column(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.spacing_mut().interact_size.y = SLIDER_LINE_H;
-        let full = ui.available_width();
-        let head = ui.horizontal(|ui| {
+        let full = ui.avail_width();
+        let head = ui.row(|ui| {
             let name_w = (full - value_w - ui.spacing().item_spacing.x).max(0.0);
             let name = ui
                 .allocate_ui_with_layout(
-                    egui::vec2(name_w, SLIDER_LINE_H),
-                    egui::Layout::left_to_right(egui::Align::Center),
+                    vec2(name_w, SLIDER_LINE_H),
+                    Layout::left_to_right(Align::Center),
                     |ui| {
                         ui.set_min_width(name_w);
                         ui.add(
-                            egui::Label::new(label)
+                            Label::new(label)
                                 .truncate()
-                                .sense(egui::Sense::click()),
+                                .sense(Sense::click()),
                         )
                     },
                 )
                 .inner;
             // The number reads as text until it is touched: no frame at
             // rest, egui's own frame on hover / drag / typing.
-            let number = ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let number = ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let w = &mut ui.visuals_mut().widgets.inactive;
-                w.weak_bg_fill = egui::Color32::TRANSPARENT;
-                w.bg_stroke = egui::Stroke::NONE;
+                w.weak_bg_fill = Color32::TRANSPARENT;
+                w.bg_stroke = Stroke::NONE;
                 // Hug the text so the digits end where the rail ends.
                 ui.spacing_mut().interact_size.x = 0.0;
                 // …and keep the line one text high: the button's stock
                 // 5 px vertical padding made it 28 px, pushing the rail
                 // a whole row away from its name.
-                ui.spacing_mut().button_padding = egui::vec2(SPACE_XS, 0.0);
+                ui.spacing_mut().button_padding = vec2(SPACE_XS, 0.0);
                 let speed = if matches!(feel, SliderFeel::LogK) { (*value).abs() * 0.002 } else { range / 300.0 };
                 ui.add(
-                    egui::DragValue::new(value)
+                    DragValue::new(value)
                         .range(min..=max)
                         .speed(f64::from(speed).max(snap * 0.5))
                         .fixed_decimals(decimals),
@@ -286,7 +286,7 @@ pub(crate) fn slider_impl(
         let (name, number) = head.inner;
         ui.spacing_mut().slider_width = full;
         let rail = ui.add(
-            egui::Slider::new(value, min..=max)
+            Slider::new(value, min..=max)
                 .logarithmic(matches!(feel, SliderFeel::LogK))
                 .step_by(snap)
                 .fixed_decimals(decimals)
@@ -311,10 +311,10 @@ pub(crate) fn slider_impl(
         let shift = ui.input(|i| i.modifiers.shift);
         let (up, down) = ui.input_mut(|i| {
             (
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::ArrowUp),
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
-                    || i.consume_key(egui::Modifiers::SHIFT, egui::Key::ArrowDown),
+                Chord::ARROW_UP.consume(i)
+                    || Chord::ARROW_UP.with_shift().consume(i),
+                Chord::ARROW_DOWN.consume(i)
+                    || Chord::ARROW_DOWN.with_shift().consume(i),
             )
         });
         if up != down {

@@ -24,7 +24,7 @@ pub fn tr(lang: Lang, key: impl Into<Key>) -> &'static str {
 /// Say the modifier key this platform's users actually press.
 ///
 /// The BINDINGS are already right: every shortcut is
-/// `egui::Modifiers::COMMAND`, which egui maps to Command on a Mac and Ctrl
+/// `Modifiers::COMMAND`, which egui maps to Command on a Mac and Ctrl
 /// everywhere else (`app.rs` names `Modifiers::CTRL` nowhere at all). Only the
 /// hint strings still said "Ctrl+", so on a Mac the app named a key its own
 /// bindings do not listen for.

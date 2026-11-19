@@ -37,7 +37,7 @@ impl Commands<'_> {
     /// switched to its ✨ card. Not over a running job (the answer could not
     /// start), not once the user said not to ask, and not without the
     /// negative's preview [`Self::start_fit`] reads.
-    pub(crate) fn offer_fit_prompt(&mut self, ctx: &egui::Context, divergence: f32) {
+    pub(crate) fn offer_fit_prompt(&mut self, ctx: &Ctx, divergence: f32) {
         if self.workspace.busy()
             || !self.workspace.fit().ask_fit_after_generate
             || self.editor.photo().source_preview.is_none()
@@ -76,7 +76,7 @@ impl Commands<'_> {
     /// the panel button's; the strength and the switches stay the fold's
     /// controls (the AI review is paid, and its cost is named there), and the
     /// layer only states them.
-    pub(crate) fn fit_prompt_layer(&mut self, ctx: &egui::Context) {
+    pub(crate) fn fit_prompt_layer(&mut self, ctx: &Ctx) {
         let lang = self.lang;
         let Some(mut prompt) = self.workspace.fit_mut().fit_prompt.take() else {
             return;
@@ -105,38 +105,38 @@ impl Commands<'_> {
         // then owns its own Enter.
         let widget_focused = ctx.memory(|m| m.focused()).is_some();
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+            if Chord::ESCAPE.consume(i) {
                 later = true;
             }
-            if !widget_focused && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+            if !widget_focused && Chord::ENTER.consume(i) {
                 fit = true;
             }
         });
         // And the pointer (D13): the strip and the sliders behind it must not
         // change the card the answer is about.
-        egui::Area::new(egui::Id::new("fit_prompt_scrim"))
-            .order(egui::Order::Middle)
-            .fixed_pos(egui::Pos2::ZERO)
+        Area::new(Id::new("fit_prompt_scrim"))
+            .order(Order::Middle)
+            .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
                 let r = ctx.content_rect();
-                ui.allocate_response(r.size(), egui::Sense::click_and_drag());
-                ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
+                ui.allocate_response(r.size(), Sense::click_and_drag());
+                ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(96));
             });
-        egui::Window::new(tr(lang, K_ACTIONS_REVERSE_FIT_THIS_AI_RESULT))
-            .id(egui::Id::new("fit_prompt"))
-            .order(egui::Order::Foreground)
+        Window::new(tr(lang, K_ACTIONS_REVERSE_FIT_THIS_AI_RESULT))
+            .id(Id::new("fit_prompt"))
+            .order(Order::Foreground)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
                 ui.label(fit_explainer(lang));
                 // The landing's own reading, without its ` · ` joint.
-                ui.label(egui::RichText::new(fidelity.trim_start_matches(" · ")).small().weak());
+                ui.label(Text::new(fidelity.trim_start_matches(" · ")).small().weak());
                 if let Some(to) = &to {
-                    ui.label(egui::RichText::new(to).small().weak());
+                    ui.label(Text::new(to).small().weak());
                 }
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_ACTIONS_FROM));
                     let shown = match prompt.from.as_deref() {
                         Some(id) => sources.iter().find(|(s, _)| s == id).map(|(_, l)| l.clone()),
@@ -145,7 +145,7 @@ impl Commands<'_> {
                     .unwrap_or_else(|| automatic.clone());
                     // The fold's menu, the ▣ original first: Automatic stays
                     // offered, after the cards it chooses among.
-                    egui::ComboBox::from_id_salt("fit_prompt_from").selected_text(shown).show_ui(ui, |ui| {
+                    ui.menu("fit_prompt_from", shown, None, |ui| {
                         for (id, label) in &sources {
                             let on = prompt.from.as_deref() == Some(id.as_str());
                             if ui.selectable_label(on, label).clicked() {
@@ -157,13 +157,13 @@ impl Commands<'_> {
                         }
                     });
                 });
-                ui.label(egui::RichText::new(&in_force).small().weak());
+                ui.label(Text::new(&in_force).small().weak());
                 ui.checkbox(&mut prompt.dont_ask, tr(lang, K_ACTIONS_DON_T_ASK_AGAIN_AFTER_GENERATING))
                     .on_hover_text(tr(lang, K_ACTIONS_TURN_IT_BACK_ON_IN_THE_AI_PANEL_S_REVERSE_FIT_FO));
-                ui.add_space(SPACE_MD);
+                ui.gap(SPACE_MD);
                 // The safe answer first, the primary tinted and last — the
                 // quit layer's order.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     later |= action(ui, true, tr(lang, K_ACTIONS_NOT_NOW)).on_hover_text("Esc").clicked();
                     fit |= primary(ui, true, tr(lang, K_ACTIONS_REVERSE_FIT)).on_hover_text("Enter").clicked();
                 });
@@ -194,7 +194,7 @@ impl Commands<'_> {
     /// lose; 「Save all & quit」 writes each pending develop exactly like
     /// Ctrl+S (explicit user save → no backup gate), 「Discard & quit」 makes
     /// the state clean so the close guard lets the next close through.
-    pub(crate) fn confirm_quit_layer(&mut self, ctx: &egui::Context) {
+    pub(crate) fn confirm_quit_layer(&mut self, ctx: &Ctx) {
         let lang = self.lang;
         // Everything quitting would lose: the stash + the open photo's canvas
         // (the live canvas outranks its own stale stash entry). Each entry
@@ -250,7 +250,7 @@ impl Commands<'_> {
         if pending.is_empty() && orphan_variants == 0 {
             // Saved (or discarded) since the guard fired — nothing to protect.
             self.workspace.ui_mut().confirm_quit = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd(ViewportCommand::Close);
             return;
         }
         let mut open = true;
@@ -264,10 +264,10 @@ impl Commands<'_> {
         // Cancel/Discard would fire Save instead of the focused control.
         let widget_focused = ctx.memory(|m| m.focused()).is_some();
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+            if Chord::ESCAPE.consume(i) {
                 cancel = true;
             }
-            if !widget_focused && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+            if !widget_focused && Chord::ENTER.consume(i) {
                 save_quit = true;
             }
         });
@@ -275,20 +275,20 @@ impl Commands<'_> {
         // swallows every click behind the dialog — sliders were still live
         // during the save-or-discard decision — and dims the stakes into
         // view. Background workers are unaffected (see open_in_flight above).
-        egui::Area::new(egui::Id::new("confirm_quit_scrim"))
-            .order(egui::Order::Middle)
-            .fixed_pos(egui::Pos2::ZERO)
+        Area::new(Id::new("confirm_quit_scrim"))
+            .order(Order::Middle)
+            .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
                 let r = ctx.content_rect();
-                ui.allocate_response(r.size(), egui::Sense::click_and_drag());
-                ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(96));
+                ui.allocate_response(r.size(), Sense::click_and_drag());
+                ui.painter().rect_filled(r, 0.0, Color32::from_black_alpha(96));
             });
-        egui::Window::new(tr(lang, K_ACTIONS_UNSAVED_EDITS))
-            .id(egui::Id::new("confirm_quit"))
-            .order(egui::Order::Foreground)
+        Window::new(tr(lang, K_ACTIONS_UNSAVED_EDITS))
+            .id(Id::new("confirm_quit"))
+            .order(Order::Foreground)
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .open(&mut open)
             .show(ctx, |ui| {
                 if !pending.is_empty() {
@@ -300,7 +300,7 @@ impl Commands<'_> {
                 }
                 // Parent folder + stem: two DSC_0431 from two shoots must be
                 // distinguishable in the one dialog where the stakes are real.
-                egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
+                ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
                     for PendingSave { photo: p, .. } in &pending {
                         let folder = p
                             .parent()
@@ -308,7 +308,7 @@ impl Commands<'_> {
                             .and_then(|s| s.to_str())
                             .unwrap_or("");
                         ui.label(
-                            egui::RichText::new(format!(
+                            Text::new(format!(
                                 "{folder}/{}",
                                 autoshade::pipeline::stem(p)
                             ))
@@ -321,9 +321,9 @@ impl Commands<'_> {
                     // Informational since v0.22: Save-all persists each
                     // photo's whole variant strip (variants.json), so these
                     // are rescued WITH their photo, not lost.
-                    ui.add_space(SPACE_MD);
+                    ui.gap(SPACE_MD);
                     ui.label(
-                        egui::RichText::new(trf(
+                        Text::new(trf(
                             lang,
                             K_ACTIONS_OTHER_VARIANT_S_HOLD_EDITS_SAVE_ALL_SAVES_EACH_P,
                             &[("n", &orphan_variants.to_string())],
@@ -332,15 +332,15 @@ impl Commands<'_> {
                         .weak(),
                     );
                 }
-                ui.add_space(SPACE_MD);
+                ui.gap(SPACE_MD);
                 // Safe escape far left, the destructive action fenced off by
                 // space, the primary (save) tinted and last — a 4px slip from
                 // Save must not land on an unrecoverable Discard.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     cancel |= action(ui, true, tr(lang, K_ACTIONS_CANCEL)).on_hover_text("Esc").clicked();
-                    ui.add_space(18.0);
+                    ui.gap(18.0);
                     let warn = ui.visuals().warn_fg_color;
-                    discard_quit = action(ui, true, egui::RichText::new(tr(lang, K_ACTIONS_DISCARD_QUIT)).color(warn))
+                    discard_quit = action(ui, true, Text::new(tr(lang, K_ACTIONS_DISCARD_QUIT)).color(warn))
                         .on_hover_text(tr(lang, K_ACTIONS_QUIT_WITHOUT_SAVING_THESE_EDITS_ARE_GONE_FOR_GOO))
                         .clicked();
                     save_quit |= primary(ui, true, tr(lang, K_ACTIONS_SAVE_ALL_QUIT))
@@ -609,7 +609,7 @@ impl Commands<'_> {
                         self.workspace.set_status(t.clone());
                         self.workspace.toast(ToastKind::Error, t);
                     } else {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ctx.send_viewport_cmd(ViewportCommand::Close);
                     }
                 }
                 Some(e) => {
@@ -629,7 +629,7 @@ impl Commands<'_> {
             // the user's decision can end the question.
             self.workspace.open_mut().discard_requested = true;
             self.workspace.ui_mut().confirm_quit = false;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.send_viewport_cmd(ViewportCommand::Close);
         } else if cancel || !open {
             self.workspace.ui_mut().confirm_quit = false;
         }
@@ -714,7 +714,7 @@ impl Commands<'_> {
         // The progress channel is the app's own sender: `spawn_worker` delivers
         // ONE terminal message, and this build has to report while it runs.
         let tx = self.services.tx.clone();
-        let ctx = self.services.egui_ctx.clone();
+        let ctx = self.services.view_ctx.clone();
         // Resolved HERE, on the UI thread: a preference flipped mid-build must
         // not change what this build is doing.
         let describe = autoshade::library::DescribeSwitch::resolve(None, self.aip.style_describe);

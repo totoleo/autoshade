@@ -1,0 +1,26 @@
+# The anti-corruption layer owns the UI framework. These entries are allowed
+# only inside `src/bin/gui/view.rs` (item-level allow) and the test harness
+# (module-level allow); clippy reports every other mention — including one
+# hidden behind a name the door re-exports.
+disallowed-types = [
+    # The eframe shell: the door owns the launch, the hooks and the storage.
+    "eframe::App",
+    "eframe::Frame",
+    "eframe::Storage",
+    "eframe::CreationContext",
+    "eframe::NativeOptions",
+    # Framework types the door owns outright.
+    "egui::Context",
+    "egui::IconData",
+    "egui::ViewportBuilder",
+]
+
+disallowed-methods = [
+    # The eframe functions: launch, storage and its key resolution.
+    "eframe::run_native",
+    "eframe::get_value",
+    "eframe::set_value",
+    "eframe::storage_dir",
+]
+
+disallowed-names = ["egui", "eframe"]

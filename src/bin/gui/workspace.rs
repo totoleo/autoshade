@@ -518,7 +518,7 @@ impl WorkspaceView {
     /// because a partial upload READS the pixels and WRITES the texture.
     pub(crate) fn paint_upload_parts(
         &self,
-    ) -> (Option<&image::RgbaImage>, Option<&egui::TextureHandle>, Option<[u32; 4]>) {
+    ) -> (Option<&image::RgbaImage>, Option<&TextureHandle>, Option<[u32; 4]>) {
         (self.masks.mask_paint.as_ref(), self.overlay.mask_tex.as_ref(), self.overlay.mask_dirty_rect)
     }
 
@@ -887,7 +887,7 @@ impl WorkspaceView {
     /// the pure glide_step while the update-loop call could be deleted with
     /// every test green; this method IS the behaviour now, and update() is
     /// one call.
-    pub(crate) fn apply_zoom_glide(&mut self, ctx: &egui::Context) {
+    pub(crate) fn apply_zoom_glide(&mut self, ctx: &Ctx) {
         if self.view().zoom != self.view().zoom_target {
             let dt = ctx.input(|i| i.stable_dt);
             self.view_mut().zoom = glide_step(self.view().zoom, self.view().zoom_target, dt);
@@ -1014,7 +1014,7 @@ impl WorkspaceView {
     /// poll_workers (the top of the frame) it judged a frame whose spawns
     /// had not happened yet, and the first batch of workers ran with no
     /// completion pump armed.
-    pub(crate) fn pump_repaint_gate(&mut self, ctx: &egui::Context) {
+    pub(crate) fn pump_repaint_gate(&mut self, ctx: &Ctx) {
         if self.busy()
             || self.gal().thumb_inflight > 0
             || self.ui().settings.image_models.fetching
@@ -1371,7 +1371,7 @@ impl WorkspaceView {
     );
     }
 
-    pub(crate) fn on_thumb(&mut self, ctx: &egui::Context, generation: u64, idx: usize, img: anyhow::Result<image::DynamicImage>) {
+    pub(crate) fn on_thumb(&mut self, ctx: &Ctx, generation: u64, idx: usize, img: anyhow::Result<image::DynamicImage>) {
                 // Ignore thumbnails from a previous folder generation (their
                 // inflight count was already discarded when the folder changed).
                 if generation == self.gal().gallery_gen {
@@ -1381,7 +1381,7 @@ impl WorkspaceView {
                             let tex = ctx.load_texture(
                                 format!("thumb{idx}"),
                                 to_color_image(&im),
-                                egui::TextureOptions::LINEAR,
+                                TextureOptions::LINEAR,
                             );
                             self.gal_mut().thumbs.insert(idx, tex);
                         }

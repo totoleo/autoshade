@@ -48,23 +48,15 @@ fn app_with(photo: &std::path::Path, recipe: EditRecipe) -> AutoShadeApp {
 
 /// The window's own frame, tall enough that no row is culled.
 fn window_texts(app: &mut AutoShadeApp) -> Vec<String> {
-    let ctx = egui::Context::default();
+    let mut ctx = harness::Ctx::new();
     crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
     let mut seen = Vec::new();
     for frame in 0..3 {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1400.0, 1200.0),
-            )),
-            time: Some(frame as f64 / 2.0),
-            ..Default::default()
-        };
-        let out = ctx.run(input, |ctx| {
+        let out = ctx.run_at(1400.0, 1200.0, frame, |ctx| {
             ctx.memory_mut(|m| m.set_everything_is_visible(true));
             app.commands().recipe_library_window(ctx);
         });
-        seen = drawn_texts(&out.shapes);
+        seen = out.texts();
     }
     seen
 }
@@ -176,7 +168,7 @@ fn applying_to_the_selection_writes_each_targets_develop() {
     app.workspace_mut().gal_mut().gallery = vec![a.clone(), b.clone()];
     app.workspace_mut().gal_mut().multi_sel = [0usize, 1usize].into_iter().collect();
     app.commands().apply_recipe_to_selection(&name);
-    let ctx = egui::Context::default();
+    let ctx = harness::Ctx::new();
     let start = std::time::Instant::now();
     while app.workspace().busy() {
         assert!(start.elapsed() < std::time::Duration::from_secs(20), "the paste never landed");

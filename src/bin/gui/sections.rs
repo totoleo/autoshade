@@ -22,8 +22,8 @@ pub(crate) enum SectionKind {
 /// Where a section's draw lives: still on the command context, or already a
 /// PanelView method. The table is the single place either is named.
 pub(crate) enum SectionDraw {
-    App(fn(&mut Commands<'_>, &mut egui::Ui, bool) -> bool),
-    Panel(fn(&mut PanelView<'_, '_>, &mut egui::Ui, bool) -> bool),
+    App(fn(&mut Commands<'_>, &mut Ui, bool) -> bool),
+    Panel(fn(&mut PanelView<'_, '_>, &mut Ui, bool) -> bool),
 }
 
 /// One row of the panel.
@@ -38,71 +38,71 @@ pub(crate) struct Section {
     pub draw: SectionDraw,
 }
 
-fn panel_dev_presence(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_presence(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_presence(ui, active)
 }
 
-fn panel_dev_calibration(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_calibration(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_calibration(ui, active)
 }
 
-fn panel_dev_effects(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_effects(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_effects(ui, active)
 }
 
-fn panel_dev_hdr(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_hdr(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_hdr(ui, active)
 }
 
-fn panel_dev_transform(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_transform(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_transform(ui, active)
 }
 
-fn panel_dev_lens(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_lens(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_lens(ui, active)
 }
 
-fn panel_dev_curves(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_curves(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_curves(ui, active)
 }
 
-fn panel_dev_grading(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_grading(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_grading(ui, active)
 }
 
-fn panel_dev_stack(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_stack(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_stack(ui, active)
 }
 
-fn panel_dev_lens_blur(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_lens_blur(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_lens_blur(ui, active)
 }
 
-fn panel_dev_detail(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_detail(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_detail(ui, active)
 }
 
-fn panel_dev_hsl(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_hsl(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_hsl(ui, active)
 }
 
-fn app_dev_versions(view: &mut Commands<'_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn app_dev_versions(view: &mut Commands<'_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_versions(ui, active)
 }
 
-fn panel_dev_tone_wb(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_tone_wb(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_tone_wb(ui, active)
 }
 
-fn panel_dev_crop(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_crop(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_crop(ui, active)
 }
 
-fn panel_dev_export(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_export(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_export(ui, active)
 }
 
-fn panel_dev_masks(view: &mut PanelView<'_, '_>, ui: &mut egui::Ui, active: bool) -> bool {
+fn panel_dev_masks(view: &mut PanelView<'_, '_>, ui: &mut Ui, active: bool) -> bool {
     view.dev_masks(ui, active)
 }
 

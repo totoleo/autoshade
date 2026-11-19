@@ -140,7 +140,7 @@ pub(crate) fn on_folder(&mut self, lang: Lang, res: anyhow::Result<(PathBuf, Vec
             }
 }
 
-pub(crate) fn on_master_loaded(&mut self, ctx: &egui::Context, lang: Lang, photo: PathBuf, origin: PathBuf, edge: u32, stamp: FileStamp, img: anyhow::Result<image::DynamicImage>) {
+pub(crate) fn on_master_loaded(&mut self, ctx: &Ctx, lang: Lang, photo: PathBuf, origin: PathBuf, edge: u32, stamp: FileStamp, img: anyhow::Result<image::DynamicImage>) {
                 // The in-flight marker clears on EVERY outcome — photo
                 // mismatch included — or one failed decode would block
                 // all retries for the rest of the session.
@@ -222,7 +222,7 @@ pub(crate) fn render_retouch_note(lang: Lang, n: &RetouchNote) -> String {
     s
 }
 
-pub(crate) fn on_retouched(&mut self, ctx: &egui::Context, lang: Lang, epoch: u64, done: RetouchDone) {
+pub(crate) fn on_retouched(&mut self, ctx: &Ctx, lang: Lang, epoch: u64, done: RetouchDone) {
                 if epoch != self.workspace.tools().gen_epoch {
                     // A cancelled task's late result: the user already
                     // moved on — never let it mutate the canvas. And the
@@ -432,7 +432,7 @@ pub(crate) fn render_fit_note(lang: Lang, n: &FitNote) -> String {
     out
 }
 
-pub(crate) fn on_fitted(&mut self, ctx: &egui::Context, lang: Lang, boxed: Box<anyhow::Result<FitOutcome>>) {
+pub(crate) fn on_fitted(&mut self, ctx: &Ctx, lang: Lang, boxed: Box<anyhow::Result<FitOutcome>>) {
             match *boxed {
                 // Either way the worker may have persisted a recipe.json
                 // (an Err can land after that write) — recompute badges.

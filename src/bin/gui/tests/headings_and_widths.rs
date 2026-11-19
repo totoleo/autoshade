@@ -24,34 +24,10 @@
  }; editor }).but_lang(lang)
     }
 
-    /// Two frames of the AI panel in a side panel `width` px wide (the panel
-    /// settles its width on the first); every text shape of the last frame
-    /// with its font size, and `buttons::DRAWN` holding that frame's buttons.
+    /// Two frames of the AI panel in a side panel `width` px wide, every text
+    /// shape of the last frame with its font size.
     fn ai_panel_at(app: &mut AutoShadeApp, width: f32) -> Vec<(String, f32)> {
-        fn texts(s: &egui::Shape, out: &mut Vec<(String, f32)>) {
-            if let egui::Shape::Text(t) = s {
-                let size = t.galley.job.sections.first().map_or(0.0, |s| s.format.font_id.size);
-                out.push((t.galley.text().to_owned(), size));
-            } else if let egui::Shape::Vec(v) = s {
-                v.iter().for_each(|s| texts(s, out));
-            }
-        }
-        let ctx = egui::Context::default();
-        crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let screen = egui::Rect::from_x_y_ranges(0.0..=1600.0, 0.0..=20_000.0);
-        let mut seen = Vec::new();
-        for _ in 0..2 {
-            crate::buttons::DRAWN.with_borrow_mut(Vec::clear);
-            let out = ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                egui::SidePanel::left("controls")
-                    .default_width(width)
-                    .show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| app.commands().ai_panel(ui)));
-            });
-            seen.clear();
-            out.shapes.iter().for_each(|c| texts(&c.shape, &mut seen));
-        }
-        seen
+        ai_panel_texts_with_sizes(app, width)
     }
 
     /// User report 2026-10-01 (screenshot: the 「起点」 menu running the whole
@@ -140,41 +116,21 @@
     /// second arm restores 1200 px).
     #[test]
     fn the_controls_panel_width_follows_the_drag_not_the_content() {
-        let run = |ctx: &egui::Context, row: f32| {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 900.0))),
-                ..Default::default()
-            };
-            // The width the panel keeps for the next frame — the response
-            // rect is the CONTENT's (wider when it overflows, narrower when a
-            // 10 px row does not fill the panel), not the panel's.
-            let _ = ctx.run(input, |ctx| {
-                crate::side_panel::controls_side_panel(ctx, |ui| {
-                    ui.allocate_exact_size(egui::vec2(row, 20.0), egui::Sense::hover());
-                });
-            });
-            egui::containers::panel::PanelState::load(ctx, egui::Id::new("controls")).expect("stored").rect.width()
-        };
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let widths: Vec<f32> = (0..4).map(|_| run(&ctx, 900.0)).collect();
+        let widths: Vec<f32> = (0..4).map(|_| controls_panel_with_row(&mut ctx, 900.0)).collect();
         assert!(
             widths.iter().all(|w| (w - crate::theme::CONTROLS_W_DEFAULT).abs() < 0.5),
             "an over-wide row widened the panel: {widths:?}"
         );
 
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let id = egui::Id::new("controls");
-        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
-        ctx.data_mut(|d| d.insert_persisted(id, egui::containers::panel::PanelState { rect }));
-        let max = crate::theme::controls_w_max(&ctx.style());
-        let w = run(&ctx, 10.0);
+        seed_controls_width(&ctx, 1200.0);
+        let max = controls_max_width(&ctx);
+        let w = controls_panel_with_row(&mut ctx, 10.0);
         assert!((w - max).abs() < 0.5, "a remembered 1200 px came back at {w}, not the {max} cap");
-        let style = ctx.style();
-        let column = max
-            - egui::Frame::side_top_panel(&style).inner_margin.sum().x
-            - crate::theme::controls_gutter(&style);
+        let column = controls_column_width(&ctx, max);
         assert!(
             (column - crate::theme::FIELD_W_MAX).abs() < 0.5,
             "at the cap the content column is {column}, not the {} readable ceiling",
@@ -189,48 +145,20 @@
     /// MUTATION THIS CATCHES: `card_fold` never filling its `lift` slot.
     #[test]
     fn a_fold_header_rises_under_the_pointer_and_settles_back() {
-        fn has_fill(shapes: &[egui::epaint::ClippedShape], fill: egui::Color32) -> bool {
-            fn walk(s: &egui::Shape, fill: egui::Color32) -> bool {
-                match s {
-                    egui::Shape::Rect(r) => r.fill == fill,
-                    egui::Shape::Vec(v) => v.iter().any(|s| walk(s, fill)),
-                    _ => false,
-                }
-            }
-            shapes.iter().any(|c| walk(&c.shape, fill))
-        }
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let hover = crate::theme::current_theme().colors().widget_hover;
-        let header = std::cell::Cell::new(egui::Rect::NOTHING);
-        let frame = |t: f64, pointer: Option<egui::Pos2>| {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))),
-                time: Some(t),
-                events: pointer.map(egui::Event::PointerMoved).into_iter().collect(),
-                ..Default::default()
-            };
-            ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    let r = crate::headings::card_fold(ui, egui::CollapsingHeader::new("Fold").default_open(true), |ui| {
-                        ui.add_space(40.0);
-                    });
-                    header.set(r.header_response.rect);
-                });
-            })
-        };
-        let rest = frame(0.0, Some(egui::pos2(390.0, 290.0)));
-        assert!(!has_fill(&rest.shapes, hover), "a header the pointer is not on is flat");
-        let on = header.get().center();
+        let rest = card_fold_frame(&mut ctx, 0.0, Some(pt(390.0, 290.0)));
+        assert!(!shapes_have_fill(&rest.0, hover), "a header the pointer is not on is flat");
+        let on = rest.1.center();
         let mut risen = None;
         for i in 1..=40 {
-            risen = Some(frame(i as f64 / 60.0, Some(on)));
+            risen = Some(card_fold_frame(&mut ctx, i as f64 / 60.0, Some(on)));
         }
-        assert!(has_fill(&risen.unwrap().shapes, hover), "under the pointer the header carries its raised plate");
+        assert!(shapes_have_fill(&risen.unwrap().0, hover), "under the pointer the header carries its raised plate");
         let mut settled = None;
         for i in 41..=80 {
-            settled = Some(frame(i as f64 / 60.0, Some(egui::pos2(390.0, 290.0))));
+            settled = Some(card_fold_frame(&mut ctx, i as f64 / 60.0, Some(pt(390.0, 290.0))));
         }
-        let settled = settled.unwrap();
-        assert!(!has_fill(&settled.shapes, hover), "the plate fades out once the pointer leaves");
+        assert!(!shapes_have_fill(&settled.unwrap().0, hover), "the plate fades out once the pointer leaves");
     }

@@ -81,14 +81,14 @@ pub(crate) fn photo_files_dialog() -> Option<Vec<PathBuf>> {
 /// hand-spelled inversion to drift (and had no answer at all for a brush or
 /// AI mask whose own bit is the only one set).
 pub(crate) fn draw_mask_overlay(
-    ui: &egui::Ui,
+    ui: &Ui,
     xf: ViewXform,
     geom: &MaskGeometry,
     net_inverted: bool,
     lang: Lang,
 ) {
     let p = ui.painter_at(xf.rect);
-    let stroke = egui::Stroke::new(2.0, ACCENT);
+    let stroke = Stroke::new(2.0, ACCENT);
     match geom {
         MaskGeometry::Linear { zero_x, zero_y, full_x, full_y }
         | MaskGeometry::Shaped { zero_x, zero_y, full_x, full_y, .. } => {
@@ -99,8 +99,8 @@ pub(crate) fn draw_mask_overlay(
             p.line_segment([a, b], stroke);
             let v = b - a;
             let len = v.length().max(1.0);
-            let n = egui::vec2(-v.y / len, v.x / len) * 28.0;
-            p.line_segment([zero - n, zero + n], egui::Stroke::new(1.0, ACCENT));
+            let n = vec2(-v.y / len, v.x / len) * 28.0;
+            p.line_segment([zero - n, zero + n], Stroke::new(1.0, ACCENT));
             p.line_segment([full - n, full + n], stroke);
             p.circle_filled(full, 4.0, ACCENT); // full-effect end
             p.circle_stroke(zero, 4.0, stroke); // untouched end
@@ -111,7 +111,7 @@ pub(crate) fn draw_mask_overlay(
             if *angle == 0.0 {
                 let rx = (xf.to_screen(*right, 0.0).x - xf.to_screen(*left, 0.0).x).abs() / 2.0;
                 let ry = (xf.to_screen(0.0, *bottom).y - xf.to_screen(0.0, *top).y).abs() / 2.0;
-                p.add(egui::Shape::ellipse_stroke(c, egui::vec2(rx, ry), stroke));
+                p.add(Shape::ellipse_stroke(c, vec2(rx, ry), stroke));
             } else {
                 // Rotated ellipse: sample parametrically in NORMALISED frame
                 // coords — the same space the engine rotates in (recipe.rs
@@ -119,14 +119,14 @@ pub(crate) fn draw_mask_overlay(
                 // boundary on any frame aspect.
                 let (rx, ry) = ((right - left) / 2.0, (bottom - top) / 2.0);
                 let (s, co) = angle.to_radians().sin_cos();
-                let pts: Vec<egui::Pos2> = (0..48)
+                let pts: Vec<Pos2> = (0..48)
                     .map(|k| {
                         let th = k as f32 / 48.0 * std::f32::consts::TAU;
                         let (ex, ey) = (rx * th.cos(), ry * th.sin());
                         xf.to_screen(cx + ex * co - ey * s, cy + ex * s + ey * co)
                     })
                     .collect();
-                p.add(egui::Shape::closed_line(pts, stroke));
+                p.add(Shape::closed_line(pts, stroke));
             }
             // Filled centre = the effect fills the INSIDE; hollow = the
             // geometry's own `flipped` and/or the adjustment's Invert put the
@@ -143,10 +143,10 @@ pub(crate) fn draw_mask_overlay(
         // canvas from `render::mask_coverage`).
         MaskGeometry::Bitmap { .. } => {
             p.text(
-                xf.rect.left_top() + egui::vec2(10.0, 10.0),
-                egui::Align2::LEFT_TOP,
+                xf.rect.left_top() + vec2(10.0, 10.0),
+                Align2::LEFT_TOP,
                 tr(lang, K_GUI_BITMAP_MASK),
-                egui::FontId::proportional(14.0),
+                FontId::proportional(14.0),
                 ACCENT,
             );
         }
@@ -157,10 +157,10 @@ pub(crate) fn draw_mask_overlay(
         // alpha, so these edges are ours and the badge says so.
         MaskGeometry::Brush { .. } => {
             p.text(
-                xf.rect.left_top() + egui::vec2(10.0, 10.0),
-                egui::Align2::LEFT_TOP,
+                xf.rect.left_top() + vec2(10.0, 10.0),
+                Align2::LEFT_TOP,
                 tr(lang, K_GUI_BRUSH_MASK_DRAWN_FROM_OUR_MEASURED_MODEL),
-                egui::FontId::proportional(14.0),
+                FontId::proportional(14.0),
                 ACCENT,
             );
         }
@@ -172,14 +172,14 @@ pub(crate) fn draw_mask_overlay(
         // other sentence: the mask is carried and nothing is drawn.
         MaskGeometry::AiMask { raster, .. } => {
             p.text(
-                xf.rect.left_top() + egui::vec2(10.0, 10.0),
-                egui::Align2::LEFT_TOP,
+                xf.rect.left_top() + vec2(10.0, 10.0),
+                Align2::LEFT_TOP,
                 if raster.is_some() {
                     tr(lang, K_GUI_AI_MASK_RE_DERIVED_LOCALLY_NOT_ADOBE_S_RASTER)
                 } else {
                     tr(lang, K_GUI_AI_MASK_CARRIED_NOT_YET_RE_DERIVED)
                 },
-                egui::FontId::proportional(14.0),
+                FontId::proportional(14.0),
                 ACCENT,
             );
         }
@@ -193,7 +193,7 @@ pub(crate) fn draw_mask_overlay(
 /// mask's own angle) and 5 = the rotation grip, parked outside the top axis
 /// endpoint so it never shadows it. Bitmap masks carry no parametric knobs
 /// (empty).
-pub(crate) fn mask_handle_points(geom: &MaskGeometry, xf: ViewXform) -> Vec<(u8, egui::Pos2)> {
+pub(crate) fn mask_handle_points(geom: &MaskGeometry, xf: ViewXform) -> Vec<(u8, Pos2)> {
     match *geom {
         MaskGeometry::Linear { zero_x, zero_y, full_x, full_y }
         | MaskGeometry::Shaped { zero_x, zero_y, full_x, full_y, .. } => {
@@ -237,7 +237,7 @@ pub(crate) fn mask_handle_points(geom: &MaskGeometry, xf: ViewXform) -> Vec<(u8,
 
 /// Scale `tex_size` to fit a `max_w` × `avail_y` box (both dimensions — width
 /// alone lets a portrait overflow the panel), never upscaling past 4×.
-pub(crate) fn fit_in(tex_size: egui::Vec2, max_w: f32, avail_y: f32) -> egui::Vec2 {
+pub(crate) fn fit_in(tex_size: Vec2, max_w: f32, avail_y: f32) -> Vec2 {
     fit_in_capped(tex_size, max_w, avail_y, 4.0)
 }
 
@@ -246,7 +246,7 @@ pub(crate) fn fit_in(tex_size: egui::Vec2, max_w: f32, avail_y: f32) -> egui::Ve
 /// itself: the visible window shrinks as zoom grows, the cap re-fit it
 /// smaller, and deep zoom SHRANK the canvas while cursor anchoring drifted
 /// (L13-2). A zoomed canvas passes `f32::INFINITY` and fills the pane box.
-pub(crate) fn fit_in_capped(tex_size: egui::Vec2, max_w: f32, avail_y: f32, cap: f32) -> egui::Vec2 {
+pub(crate) fn fit_in_capped(tex_size: Vec2, max_w: f32, avail_y: f32, cap: f32) -> Vec2 {
     let s = (max_w / tex_size.x.max(1.0))
         .min(avail_y.max(1.0) / tex_size.y.max(1.0))
         .clamp(0.01, cap);
@@ -303,10 +303,10 @@ pub(crate) fn fold_open_in_tests() -> Option<bool> {
 /// The id is PREDICTED (`next_auto_id`) and handed to the widget explicitly, so
 /// this frame's width can honour last frame's focus without a second widget or
 /// a caller-supplied salt.
-pub(crate) fn prompt_field(ui: &mut egui::Ui, buf: &mut String, hint: &str) -> egui::Response {
+pub(crate) fn prompt_field(ui: &mut Ui, buf: &mut String, hint: &str) -> Response {
     let id = ui.next_auto_id();
     let focused = ui.memory(|m| m.has_focus(id));
-    let avail = ui.available_width();
+    let avail = ui.avail_width();
     // `TextEdit` allocates `desired_width` PLUS its own inner margin, so the
     // width it draws is 2 × `TEXT_EDIT_MARGIN_X` wider than the number asked
     // for. Ask for the text area only: the field as drawn is what the ceiling
@@ -315,7 +315,7 @@ pub(crate) fn prompt_field(ui: &mut egui::Ui, buf: &mut String, hint: &str) -> e
     let drawn = if focused { avail } else { avail.min(FIELD_W_MAX) };
     let w = (drawn - 2.0 * TEXT_EDIT_MARGIN_X).max(FIELD_W_MIN);
     let mut resp = ui.add(
-        egui::TextEdit::singleline(buf)
+        TextEdit::singleline(buf)
             .id(id)
             .desired_width(w)
             .hint_text(hint),
@@ -350,22 +350,22 @@ pub(crate) fn section_label(base: &str, active: bool) -> String {
 /// in the text colour it read as a stray white blob beside every header).
 /// The galley's text is [`section_label`]'s, so a test reading the drawn text
 /// still sees the ●.
-pub(crate) fn section_title(base: &str, active: bool) -> egui::WidgetText {
+pub(crate) fn section_title(base: &str, active: bool) -> WidgetText {
     let label = section_label(base, active);
     if !active {
         return label.into();
     }
     let split = base.len();
-    let mut job = egui::text::LayoutJob::default();
-    let text_font = egui::FontId::proportional(TEXT_BODY);
-    job.append(&label[..split], 0.0, egui::TextFormat::simple(text_font, egui::Color32::PLACEHOLDER));
+    let mut job = LayoutJob::default();
+    let text_font = FontId::proportional(TEXT_BODY);
+    job.append(&label[..split], 0.0, TextFormat::simple(text_font, Color32::PLACEHOLDER));
     job.append(
         &label[split..],
         0.0,
-        egui::TextFormat {
-            font_id: egui::FontId::proportional(TEXT_BODY * 0.6),
+        TextFormat {
+            font_id: FontId::proportional(TEXT_BODY * 0.6),
             color: current_theme().colors().accent_text,
-            valign: egui::Align::Center,
+            valign: Align::Center,
             ..Default::default()
         },
     );
@@ -904,21 +904,14 @@ pub(crate) fn same_base(a: &str, b: &str) -> bool {
 
 /// A model picker: a dropdown of `options` that writes the chosen id into `value`,
 /// next to a text field so any custom id can still be typed. Both edit `value`.
-pub(crate) fn model_picker(ui: &mut egui::Ui, salt: &str, value: &mut String, options: &[String], lang: Lang) {
+pub(crate) fn model_picker(ui: &mut Ui, salt: &str, value: &mut String, options: &[String], lang: Lang) {
     let sel = if value.trim().is_empty() { tr(lang, K_GUI_SELECT).to_owned() } else { value.clone() };
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu(salt, sel, Some(200.0), |ui| {
             for opt in options {
                 ui.selectable_value(value, opt.clone(), opt.as_str());
             }
         });
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(170.0)
-            .hint_text(tr(lang, K_GUI_OR_TYPE_A_CUSTOM_ID)),
-    );
+    field(ui, value, Some(tr(lang, K_GUI_OR_TYPE_A_CUSTOM_ID)), false, Some(170.0));
 }
 
 /// A reasoning-effort picker: the tiers this provider documents, plus an
@@ -930,7 +923,7 @@ pub(crate) fn model_picker(ui: &mut egui::Ui, salt: &str, value: &mut String, op
 /// not reason. So the dropdown names it rather than leaving the field blank
 /// and ambiguous.
 pub(crate) fn effort_picker(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     salt: &str,
     value: &mut String,
     tiers: &[&str],
@@ -941,21 +934,13 @@ pub(crate) fn effort_picker(
     } else {
         value.clone()
     };
-    egui::ComboBox::from_id_salt(salt)
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu(salt, sel, Some(200.0), |ui| {
             ui.selectable_value(value, String::new(), tr(lang, K_GUI_PROVIDER_DEFAULT));
             for t in tiers {
                 ui.selectable_value(value, (*t).to_string(), *t);
             }
         });
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .desired_width(170.0)
-            .hint_text(tr(lang, K_GUI_OR_TYPE_A_TIER)),
-    )
-    .on_hover_text(tr(
+    field(ui, value, Some(tr(lang, K_GUI_OR_TYPE_A_TIER)), false, Some(170.0)).on_hover_text(tr(
         lang,
         K_GUI_HOW_HARD_THE_MODEL_IS_ASKED_TO_THINK_HIGHER_TIER,
     ));
@@ -964,13 +949,13 @@ pub(crate) fn effort_picker(
 /// The small note beside an effort picker whose tiers came from the
 /// endpoint's own listing (part D): the list is the model's, or the model
 /// takes none and the field is best left blank.
-pub(crate) fn tiers_note(ui: &mut egui::Ui, none: bool, lang: Lang) {
+pub(crate) fn tiers_note(ui: &mut Ui, none: bool, lang: Lang) {
     let text = if none {
         tr(lang, K_GUI_THIS_MODEL_TAKES_NO_TIER_PER_MODELS_LEAVE_BLANK)
     } else {
         tr(lang, K_GUI_TIERS_PER_MODELS)
     };
-    ui.label(egui::RichText::new(text).weak().small());
+    ui.label(Text::new(text).weak().small());
 }
 
 /// The image role's request-shape picker: `auto`, `responses` or `chat`
@@ -978,7 +963,7 @@ pub(crate) fn tiers_note(ui: &mut egui::Ui, none: bool, lang: Lang) {
 ///
 /// A dropdown and nothing else: the three values are the whole set the
 /// config accepts, so a free-text field could only ever hold a typo.
-pub(crate) fn api_family_picker(ui: &mut egui::Ui, value: &mut String, lang: Lang) {
+pub(crate) fn api_family_picker(ui: &mut Ui, value: &mut String, lang: Lang) {
     const CHOICES: [(&str, &str); 3] = [
         ("auto", "Auto (Responses, then Chat)"),
         ("responses", "Responses API"),
@@ -990,15 +975,11 @@ pub(crate) fn api_family_picker(ui: &mut egui::Ui, value: &mut String, lang: Lan
         .find(|(v, _)| *v == current)
         .map(|(_, label)| tr(lang, label).to_owned())
         .unwrap_or_else(|| tr(lang, CHOICES[0].1).to_owned());
-    egui::ComboBox::from_id_salt("set_image_api_family")
-        .selected_text(sel)
-        .width(200.0)
-        .show_ui(ui, |ui| {
+    ui.menu("set_image_api_family", sel, Some(200.0), |ui| {
             for (v, label) in CHOICES {
                 ui.selectable_value(value, v.to_string(), tr(lang, label));
             }
         })
-        .response
         .on_hover_text(tr(
             lang,
             K_GUI_WHICH_REQUEST_SHAPE_THE_IMAGE_ROLE_SENDS_AUTO_TR,
@@ -1247,17 +1228,17 @@ pub(crate) fn compute_histogram_rgb(rgb: &image::RgbImage) -> Vec<[f32; 4]> {
 }
 
 /// RGB8 → egui texture-ready colour image, without an intermediate RGBA image.
-pub(crate) fn rgb_to_color_image(rgb: &image::RgbImage) -> egui::ColorImage {
-    egui::ColorImage::from_rgb([rgb.width() as usize, rgb.height() as usize], rgb.as_raw())
+pub(crate) fn rgb_to_color_image(rgb: &image::RgbImage) -> ColorImage {
+    ColorImage::from_rgb([rgb.width() as usize, rgb.height() as usize], rgb.as_raw())
 }
 
 /// `DynamicImage` compatibility helper for cold paths (open / variant switch).
-pub(crate) fn to_color_image(img: &image::DynamicImage) -> egui::ColorImage {
+pub(crate) fn to_color_image(img: &image::DynamicImage) -> ColorImage {
     rgb_to_color_image(&img.to_rgb8())
 }
 
 /// Clipping-warning layer over the DEVELOPED RGB8 preview (what export clips).
-pub(crate) fn clipping_overlay_rgb(rgb: &image::RgbImage) -> egui::ColorImage {
+pub(crate) fn clipping_overlay_rgb(rgb: &image::RgbImage) -> ColorImage {
     let (w, h) = (rgb.width() as usize, rgb.height() as usize);
     let mut rgba = vec![0u8; w * h * 4];
     for (i, p) in rgb.pixels().enumerate() {
@@ -1268,7 +1249,7 @@ pub(crate) fn clipping_overlay_rgb(rgb: &image::RgbImage) -> egui::ColorImage {
             px.copy_from_slice(&[70, 110, 255, 255]);
         }
     }
-    egui::ColorImage::from_rgba_unmultiplied([w, h], &rgba)
+    ColorImage::from_rgba_unmultiplied([w, h], &rgba)
 }
 
 /// The clipping layer with the crop's blanking applied — outside the crop
@@ -1280,7 +1261,7 @@ pub(crate) fn clipping_overlay_rgb(rgb: &image::RgbImage) -> egui::ColorImage {
 pub(crate) fn clipping_overlay_for(
     rgb: &image::RgbImage,
     crop: Option<autoshade::recipe::Crop>,
-) -> egui::ColorImage {
+) -> ColorImage {
     let mut overlay = clipping_overlay_rgb(rgb);
     let Some(c) = crop else { return overlay };
     let (w, h) = (rgb.width() as f32, rgb.height() as f32);
@@ -1288,7 +1269,7 @@ pub(crate) fn clipping_overlay_for(
     let y0 = (c.top.clamp(0.0, 1.0) * h) as u32;
     let x1 = ((c.right.clamp(0.0, 1.0) * w) as u32).max(x0 + 1).min(rgb.width());
     let y1 = ((c.bottom.clamp(0.0, 1.0) * h) as u32).max(y0 + 1).min(rgb.height());
-    let transparent = egui::Color32::TRANSPARENT;
+    let transparent = Color32::TRANSPARENT;
     for (i, px) in overlay.pixels.iter_mut().enumerate() {
         let (cx, cy) = (i as u32 % overlay.size[0] as u32, i as u32 / overlay.size[0] as u32);
         if cx < x0 || cx >= x1 || cy < y0 || cy >= y1 {
@@ -1378,7 +1359,7 @@ pub(crate) fn build_preview(
         // Outside the crop nothing exports — blank those warnings so a blown
         // sky the user already cropped away stops shouting.
         if let Some((x, y, w, h)) = crop_px {
-            let transparent = egui::Color32::TRANSPARENT;
+            let transparent = Color32::TRANSPARENT;
             for (i, px) in overlay.pixels.iter_mut().enumerate() {
                 let (cx, cy) = (i as u32 % overlay.size[0] as u32, i as u32 / overlay.size[0] as u32);
                 if cx < x || cx >= x + w || cy < y || cy >= y + h {
@@ -1679,7 +1660,7 @@ pub(crate) fn pixel_identity(path: &std::path::Path) -> PixelIdentity {
 }
 
 /// The pointer's press origin via a Response (`handle_paint` has no `ui`).
-pub(crate) fn ui_press_origin(resp: &egui::Response) -> Option<egui::Pos2> {
+pub(crate) fn ui_press_origin(resp: &Response) -> Option<Pos2> {
     resp.ctx.input(|i| i.pointer.press_origin())
 }
 

@@ -8,7 +8,7 @@
         // pieces (build_preview + finish_redevelop) with a headless egui ctx —
         // never run_native.
         let (mut app, _scrub) = app_with_masked_photo("latest");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let base = app.editor().photo().base_preview.clone().unwrap();
 
         // Dispatch itself (U10): arming must set the in-flight flag and
@@ -57,7 +57,7 @@
         let (mut app, _scrub) = app_with_masked_photo("fade");
         // The fixture opens no file; the fade keys on (photo, version).
         app.editor_mut().photo_mut().src_path.get_or_insert_with(|| PathBuf::from("fade-photo.arw"));
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         let base = app.editor().photo().base_preview.clone().unwrap();
         let frame = |app: &AutoShadeApp| {
             build_preview(base.clone(), app.editor().doc().recipe.clone(), false, None, autoshade::render::SourceFrame::Baked(None))
@@ -80,9 +80,7 @@
 
         // Past the fade, the canvas drops the outgoing frame.
         app.editor_mut().plates_mut().canvas_fade = Some((None, Instant::now() - Duration::from_secs(1)));
-        let _ = ctx.run(Default::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| app.commands().after_view(ui, 400.0, 300.0, false));
-        });
+        ctx.central(|ui| app.commands().after_view(ui, 400.0, 300.0, false));
         assert!(app.editor().plates().canvas_fade.is_none(), "a finished fade is cleared");
     }
 
@@ -186,7 +184,7 @@
         // the stash used to carry only the active canvas, so the strip
         // collapsed and the background variant's unsaved work died.
         let (mut app, _scrub) = app_with_masked_photo("h4stash");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let gen_base = Arc::new(image::DynamicImage::new_rgb8(8, 6));
         // An ✎ card: the only kind a develop over AI pixels can be since the
         // immutability rule (a ✨ card carrying edits is split at the door).
@@ -269,7 +267,7 @@
         // changes WHAT it does, not WHERE — so the full-frame coverage raster
         // must NOT rebuild. Geometry / amount / inversion MUST rebuild.
         let (mut app, _scrub) = app_with_masked_photo("overlay");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
 
         app.commands().refresh_mask_overlay(&ctx);
         assert_eq!(app.workspace().overlay().overlay_build_count, 1, "first coverage build");
@@ -729,7 +727,7 @@
      src_path: Some(src.clone()),
      ..Default::default()
  }; editor });
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let ai_px = Arc::new(image::DynamicImage::new_rgb8(6, 4));
         app.services().tx
             .send(Msg::Opened(Box::new(Ok((
@@ -820,7 +818,7 @@
     fn ai_card_fixture(
         tag: &str,
         active_develop: EditRecipe,
-    ) -> (AutoShadeApp, egui::Context, PathBuf, PathBuf, PathBuf, Arc<image::DynamicImage>, Scrub) {
+    ) -> (AutoShadeApp, harness::Ctx, PathBuf, PathBuf, PathBuf, Arc<image::DynamicImage>, Scrub) {
         let dir = std::env::temp_dir()
             .join(format!("autoshade-gui-ai-card-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -869,7 +867,7 @@
      src_path: Some(src.clone()),
      ..Default::default()
  }; editor });
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let ai_px = Arc::new(image::DynamicImage::new_rgb8(6, 4));
         open_onto_ai_card(&mut app, &ctx, &ai_px, &master);
         (app, ctx, dir, src, master, ai_px, scrub)
@@ -880,7 +878,7 @@
     /// real door.
     fn open_onto_ai_card(
         app: &mut AutoShadeApp,
-        ctx: &egui::Context,
+        ctx: &harness::Ctx,
         ai_px: &Arc<image::DynamicImage>,
         master: &std::path::Path,
     ) {

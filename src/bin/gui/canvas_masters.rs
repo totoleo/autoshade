@@ -26,7 +26,7 @@ impl Commands<'_> {
 /// orientation handling as every other source.
 pub(crate) fn spawn_master_load(
     &mut self,
-    ctx: &egui::Context,
+    ctx: &Ctx,
     photo: PathBuf,
     origin: PathBuf,
 ) {
@@ -89,7 +89,7 @@ pub(crate) fn spawn_master_load(
 /// never by index, so a delete/reorder mid-decode cannot misfile them.
 pub(crate) fn install_master(
     &mut self,
-    ctx: &egui::Context,
+    ctx: &Ctx,
     photo: &PathBuf,
     origin: &PathBuf,
     arc: Arc<image::DynamicImage>,
@@ -269,7 +269,7 @@ pub(crate) fn ensure_source_part(&mut self) -> bool {
 /// recipe. Old frames are dropped without touching textures; `dirty` remains
 /// set by the newer edit and starts next. Texture handles are UPDATED in
 /// place, avoiding a manager allocate/free cycle on every slider tick.
-pub(crate) fn finish_redevelop(&mut self, ctx: &egui::Context, done: anyhow::Result<PreviewDone>) {
+pub(crate) fn finish_redevelop(&mut self, ctx: &Ctx, done: anyhow::Result<PreviewDone>) {
     self.editor.scheduler_mut().inflight = false;
     let frame = match done {
         Ok(frame) => frame,
@@ -311,9 +311,9 @@ pub(crate) fn finish_redevelop(&mut self, ctx: &egui::Context, done: anyhow::Res
     let shows = self.editor.photo().src_path.clone().map(|p| (p, self.editor.active()));
     let plates = self.editor.plates_mut();
     match &mut plates.after_tex {
-        Some(tex) if plates.after_shows == shows => tex.set(frame.after, egui::TextureOptions::LINEAR),
+        Some(tex) if plates.after_shows == shows => tex.set(frame.after, TextureOptions::LINEAR),
         old => {
-            let fresh = ctx.load_texture("after", frame.after, egui::TextureOptions::LINEAR);
+            let fresh = ctx.load_texture("after", frame.after, TextureOptions::LINEAR);
             plates.canvas_fade = Some((old.replace(fresh), Instant::now()));
             ctx.request_repaint();
         }
@@ -338,19 +338,19 @@ pub(crate) fn finish_redevelop(&mut self, ctx: &egui::Context, done: anyhow::Res
     match clip {
         Some(clip) => {
             if let Some(tex) = &mut self.workspace.chrome_mut().clip_tex {
-                tex.set(clip, egui::TextureOptions::NEAREST);
+                tex.set(clip, TextureOptions::NEAREST);
             } else {
                 self.workspace.chrome_mut().clip_tex =
-                    Some(ctx.load_texture("clip", clip, egui::TextureOptions::NEAREST));
+                    Some(ctx.load_texture("clip", clip, TextureOptions::NEAREST));
             }
         }
         None => self.workspace.chrome_mut().clip_tex = None,
     }
     if let Some(v) = self.editor.active_variant_mut() {
         if let Some(tex) = &mut v.thumb {
-            tex.set(frame.thumb, egui::TextureOptions::LINEAR);
+            tex.set(frame.thumb, TextureOptions::LINEAR);
         } else {
-            v.thumb = Some(ctx.load_texture("vthumb", frame.thumb, egui::TextureOptions::LINEAR));
+            v.thumb = Some(ctx.load_texture("vthumb", frame.thumb, TextureOptions::LINEAR));
         }
     }
     // A global change can alter a Range Mask's coverage reference. The

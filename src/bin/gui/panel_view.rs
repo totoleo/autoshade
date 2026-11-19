@@ -43,7 +43,7 @@ impl PanelView<'_, '_> {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn variant_card_buttons(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         i: usize,
         active: bool,
         busy: bool,
@@ -146,9 +146,9 @@ impl PanelView<'_, '_> {
     /// full-frame render.
     pub(crate) fn recipe_preview_tex(
         &mut self,
-        ctx: &egui::Context,
+        ctx: &Ctx,
         name: &str,
-    ) -> Option<(egui::TextureId, egui::Vec2)> {
+    ) -> Option<(TextureId, Vec2)> {
         let src = self.editor.photo().src_path.clone()?;
         let base = self.editor.photo().base_preview.clone()?;
         let entry = autoshade::recipe_library::read(name).ok()?;
@@ -173,11 +173,11 @@ impl PanelView<'_, '_> {
         let img = autoshade::render::develop_preview(plate.shared().as_ref(), &r);
         let rgba = img.to_rgba8();
         let size = [rgba.width() as usize, rgba.height() as usize];
-        let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+        let color = ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
         let texture = ctx.load_texture(
             format!("recipe-preview:{key}"),
             color,
-            egui::TextureOptions::LINEAR,
+            TextureOptions::LINEAR,
         );
         let shown = (texture.id(), texture.size_vec2());
         self.workspace.rlib_mut().recipe_preview = Some(RecipePreview { key, texture });
@@ -185,7 +185,7 @@ impl PanelView<'_, '_> {
     }
     /// The READ side: whether an analysis searches the library, and whether
     /// the references also go to the model as pictures.
-    pub(crate) fn ai_library_use(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn ai_library_use(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let built = matches!(self.workspace.ai().style_info, Some(autoshade::library::Summary::Built { .. }));
         ui.checkbox(&mut self.aip.style_embed, tr(lang, K_AI_SEARCH_THE_LIBRARY_WHEN_ANALYSING))
@@ -194,12 +194,12 @@ impl PanelView<'_, '_> {
             ));
         if built && !self.aip.style_embed {
             ui.label(
-                egui::RichText::new(tr(lang, K_AI_BUILT_BUT_NOT_SEARCHED_THE_SWITCH_ABOVE_IS_OFF))
+                Text::new(tr(lang, K_AI_BUILT_BUT_NOT_SEARCHED_THE_SWITCH_ABOVE_IS_OFF))
                     .color(ui.visuals().warn_fg_color)
                     .small(),
             );
         }
-        ui.add_enabled_ui(built && self.aip.style_embed, |ui| {
+        ui.enabled(built && self.aip.style_embed, |ui| {
             ui.checkbox(&mut self.aip.send_style_ref_image, tr(lang, K_AI_ALSO_SHOW_THE_MODEL_THE_REFERENCE_PHOTOS))
                 .on_hover_text(if built {
                     tr(lang,
@@ -211,7 +211,7 @@ impl PanelView<'_, '_> {
         });
     }
     /// Which library, how big, how old, and where — or why there is none.
-    pub(crate) fn ai_library_status(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn ai_library_status(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let line = match &self.workspace.ai().style_info {
             Some(autoshade::library::Summary::Built { photos, phrased, with_settings, dir, age }) => {
@@ -237,20 +237,20 @@ impl PanelView<'_, '_> {
                         trf(lang, K_AI_BUILT_D_AGO, &[("days", &(secs / (24 * HOUR)).to_string())])
                     });
                 }
-                egui::RichText::new(t).small()
+                Text::new(t).small()
             }
-            Some(autoshade::library::Summary::Unusable(err)) => egui::RichText::new(trf(
+            Some(autoshade::library::Summary::Unusable(err)) => Text::new(trf(
                 lang,
                 K_AI_THE_REFERENCE_LIBRARY_COULD_NOT_BE_READ_REBUILD,
                 &[("err", err)],
             ))
             .color(ui.visuals().warn_fg_color)
             .small(),
-            Some(autoshade::library::Summary::Absent) => egui::RichText::new(tr(lang,
+            Some(autoshade::library::Summary::Absent) => Text::new(tr(lang,
                 K_AI_NO_REFERENCE_LIBRARY_YET_THE_STYLE_SLIDER_ABOVE,
             ))
             .small(),
-            None => egui::RichText::new(tr(lang, K_AI_READING_THE_REFERENCE_LIBRARY)).weak().small(),
+            None => Text::new(tr(lang, K_AI_READING_THE_REFERENCE_LIBRARY)).weak().small(),
         };
         ui.label(line).on_hover_text(trf(
             lang,
@@ -342,11 +342,11 @@ impl PanelView<'_, '_> {
 
     /// The three create tools, the brush-session controls and the AI
     /// segmentation verbs: the panel's "start a mask" half, above the list.
-    pub(crate) fn dev_mask_create_row(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn dev_mask_create_row(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         // R38: three equal cells — three free-width toggles in a
         // non-wrapping row overran the default panel width in English.
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let cell = columns(ui, 3);
             let lin_armed = matches!(self.workspace.masks().placing_mask, Some((MaskKind::Linear, PlaceTarget::NewMask)));
             if toggle_in(ui, cell, lin_armed, tr(lang, K_DEVELOP_LINEAR__2)).on_hover_text(tr(lang, K_DEVELOP_DRAG_ON_THE_IMAGE_START_FULLY_APPLIED_SIDE_END_U)).clicked() {
@@ -386,7 +386,7 @@ impl PanelView<'_, '_> {
         // the bake/cancel pair. Lives up here so it is visible whichever
         // row armed the session.
         if let Some((target, erase)) = self.workspace.masks().mask_brush {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let cell = columns(ui, 3);
                 if toggle_in(ui, cell, erase, tr(lang, K_DEVELOP_ERASE))
                     .on_hover_text(tr(lang, K_DEVELOP_STROKES_REMOVE_FROM_THE_SELECTION_INSTEAD_OF_ADD))
@@ -412,7 +412,7 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_masks(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_masks(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -423,13 +423,10 @@ impl PanelView<'_, '_> {
         // --- 局部调整: manual masks — the SAME recipe.masks the AI writes -----
         let n_masks = self.editor.doc().recipe.masks.len();
         let n_masks_s = n_masks.to_string();
-        card_fold(ui, egui::CollapsingHeader::new(section_title(
+        section_fold(ui, "sec_local", section_title(
             &trf(lang, K_DEVELOP_LOCAL_MASKS, &[("n", &n_masks_s)]),
             self.editor.masks_section_active(),
-        ))
-        .id_salt("sec_local")
-        .default_open(false)
-        , |ui| {
+        ), false, false, |ui| {
             self.dev_mask_create_row(ui);
             self.dev_mask_ai_verbs(ui, n_masks);
             // Mask list: click to select (shows overlay + sliders), 🗑 deletes;
@@ -506,9 +503,9 @@ impl PanelView<'_, '_> {
                             if dead.is_empty() { "" } else { "  ⚠" }
                         );
                         let label = if enabled {
-                            egui::RichText::new(label)
+                            Text::new(label)
                         } else {
-                            egui::RichText::new(label).weak()
+                            Text::new(label).weak()
                         };
                         ui.dnd_drag_source(ui.id().with(("mask_row", i)), i, |ui| {
                             ui.label("☰");
@@ -578,7 +575,7 @@ impl PanelView<'_, '_> {
                     ui.painter().hline(
                         row_resp.rect.x_range(),
                         y,
-                        egui::Stroke::new(2.0, ui.visuals().selection.bg_fill),
+                        Stroke::new(2.0, ui.visuals().selection.bg_fill),
                     );
                     let insert = if below { i + 1 } else { i };
                     if row_resp.dnd_release_payload::<usize>().is_some() {
@@ -638,7 +635,7 @@ impl PanelView<'_, '_> {
         });
         changed
     }
-    pub(crate) fn brush_size_slider(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn brush_size_slider(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         // The band the slider occupies, read off the layout cursor before and
         // after — a wrapper (scope/horizontal) would be one more thing that
@@ -689,9 +686,9 @@ impl PanelView<'_, '_> {
             // x from the Ui's USED region (cursor().max.x can be infinite in an
             // unbounded layout), y from the cursor the slider just advanced.
             let used = ui.min_rect();
-            self.seams.brush_slider_rect = Some(egui::Rect::from_min_max(
-                egui::pos2(used.left(), before.top()),
-                egui::pos2(used.right(), ui.cursor().top()),
+            self.seams.brush_slider_rect = Some(Rect::from_min_max(
+                pos2(used.left(), before.top()),
+                pos2(used.right(), ui.cursor().top()),
             ));
         }
     }
@@ -699,7 +696,7 @@ impl PanelView<'_, '_> {
     /// the raster tools, the composed shapes and the range editor — every edit
     /// up to and including Amount, i.e. the edits that can move the coverage
     /// wash. The caller invalidates the overlay when this returns true.
-    pub(crate) fn dev_mask_geometry_and_range(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_geometry_and_range(&mut self, ui: &mut Ui, i: usize) -> bool {
         let mut changed = self.dev_mask_verbs_and_geometry(ui, i);
         changed |= self.dev_mask_shapes(ui, i);
         changed |= self.dev_mask_range_and_amount(ui, i);
@@ -709,7 +706,7 @@ impl PanelView<'_, '_> {
     /// The selected mask's detail block, or the explainer when there are no
     /// masks, or the "select a mask" hint when the list is non-empty and
     /// nothing is selected. All three arms used to live inline in the section.
-    pub(crate) fn dev_mask_selected_or_hint(&mut self, ui: &mut egui::Ui, n_masks: usize) -> bool {
+    pub(crate) fn dev_mask_selected_or_hint(&mut self, ui: &mut Ui, n_masks: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // Selected mask: its full slider set.
@@ -731,9 +728,9 @@ impl PanelView<'_, '_> {
             // Masks exist, none is selected — one click on the selected
             // row (it toggles) lands here, and the section then showed a
             // list with no adjustments under it and no reason why.
-            ui.add_space(SPACE_XS);
+            ui.gap(SPACE_XS);
             ui.label(
-                egui::RichText::new(tr(lang, K_DEVELOP_SELECT_A_MASK_ABOVE_TO_EDIT_ITS_ADJUSTMENTS))
+                Text::new(tr(lang, K_DEVELOP_SELECT_A_MASK_ABOVE_TO_EDIT_ITS_ADJUSTMENTS))
                     .weak()
                     .small(),
             );
@@ -742,7 +739,7 @@ impl PanelView<'_, '_> {
     }
     /// Lightroom's Add / Subtract / Intersect grammar: add or drop one shape on
     /// this mask and pick which shape the on-image knobs edit.
-    pub(crate) fn dev_mask_shapes(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_shapes(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // --- Shapes（组件）: compose extra geometry onto this mask —
@@ -750,17 +747,14 @@ impl PanelView<'_, '_> {
         // shape projects through the same composition spelling; only
         // Bitmap components remain a named geometry loss.
         {
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_DEVELOP_SHAPES));
                 let mode_label = |m: autoshade::recipe::MaskCombine| match m {
                     autoshade::recipe::MaskCombine::Add => tr(lang, K_DEVELOP_ADD),
                     autoshade::recipe::MaskCombine::Subtract => tr(lang, K_DEVELOP_SUBTRACT),
                     autoshade::recipe::MaskCombine::Intersect => tr(lang, K_DEVELOP_INTERSECT),
                 };
-                egui::ComboBox::from_id_salt("comp_mode")
-                    .selected_text(mode_label(self.workspace.masks().component_mode))
-                    .width(96.0)
-                    .show_ui(ui, |ui| {
+                ui.menu("comp_mode", mode_label(self.workspace.masks().component_mode), Some(96.0), |ui| {
                         for m in [
                             autoshade::recipe::MaskCombine::Add,
                             autoshade::recipe::MaskCombine::Subtract,
@@ -806,7 +800,7 @@ impl PanelView<'_, '_> {
             let n_comp = self.editor.doc().recipe.masks[i].components.len();
             let mut del_comp: Option<usize> = None;
             for c in 0..n_comp {
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let comp = &self.editor.doc().recipe.masks[i].components[c];
                     let icon = match comp.mode {
                         autoshade::recipe::MaskCombine::Add => "＋",
@@ -830,14 +824,11 @@ impl PanelView<'_, '_> {
                         self.workspace.masks_mut().sel_component = if selected { None } else { Some(c) };
                     }
                     let mut mode = comp.mode;
-                    egui::ComboBox::from_id_salt(("comp_row_mode", c))
-                        .selected_text(match mode {
+                    ui.menu(("comp_row_mode", c), match mode {
                             autoshade::recipe::MaskCombine::Add => tr(lang, K_DEVELOP_ADD__2),
                             autoshade::recipe::MaskCombine::Subtract => tr(lang, K_DEVELOP_SUBTRACT__2),
                             autoshade::recipe::MaskCombine::Intersect => tr(lang, K_DEVELOP_INTERSECT__2),
-                        })
-                        .width(88.0)
-                        .show_ui(ui, |ui| {
+                        }, Some(88.0), |ui| {
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Add, tr(lang, K_DEVELOP_ADD__2));
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Subtract, tr(lang, K_DEVELOP_SUBTRACT__2));
                             ui.selectable_value(&mut mode, autoshade::recipe::MaskCombine::Intersect, tr(lang, K_DEVELOP_INTERSECT__2));
@@ -897,7 +888,7 @@ impl PanelView<'_, '_> {
 
     /// The range editor (luminance or colour) and the Amount every range is
     /// judged at — the last coverage-moving control before the adjustments.
-    pub(crate) fn dev_mask_range_and_amount(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_range_and_amount(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // --- Range Mask（LR 范围蒙版）: refines WHERE the geometry applies —
@@ -914,12 +905,9 @@ impl PanelView<'_, '_> {
                 Some(RangeMask::Color { .. }) => 2,
             };
             let mut sel = cur;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 ui.label(tr(lang, K_DEVELOP_RANGE_MASK));
-                egui::ComboBox::from_id_salt("range_kind")
-                    .selected_text([tr(lang, K_DEVELOP_NONE), tr(lang, K_DEVELOP_LUMINANCE), tr(lang, K_DEVELOP_COLOR)][sel])
-                    .width(70.0)
-                    .show_ui(ui, |ui| {
+                ui.menu("range_kind", [tr(lang, K_DEVELOP_NONE), tr(lang, K_DEVELOP_LUMINANCE), tr(lang, K_DEVELOP_COLOR)][sel], Some(70.0), |ui| {
                         ui.selectable_value(&mut sel, 0, tr(lang, K_DEVELOP_NONE));
                         ui.selectable_value(&mut sel, 1, tr(lang, K_DEVELOP_LUMINANCE));
                         ui.selectable_value(&mut sel, 2, tr(lang, K_DEVELOP_COLOR));
@@ -955,7 +943,7 @@ impl PanelView<'_, '_> {
             let mut want_pick = false;
             match &mut self.editor.doc_mut().recipe.masks[i].range {
                 Some(RangeMask::Luminance { lo_outer, lo, hi, hi_outer }) => {
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         ui.label(tr(lang, K_DEVELOP_ORDERED_BOUNDS));
                         ui.monospace(format!(
                             "{lo_outer:.3} <= {lo:.3} <= {hi:.3} <= {hi_outer:.3}"
@@ -984,7 +972,7 @@ impl PanelView<'_, '_> {
                     }
                 }
                 Some(RangeMask::Color { r, g, b, amount, .. }) => {
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         let full = columns(ui, 1);
                         let mut c = [*r, *g, *b];
                         let swatch = ui.color_edit_button_rgb(&mut c);
@@ -994,7 +982,7 @@ impl PanelView<'_, '_> {
                         }
                         // The verb fills the rest of the row after the
                         // swatch (2026-09-27), as the gallery's ✕ row does.
-                        let cell = egui::vec2(
+                        let cell = vec2(
                             (full.x - swatch.rect.width() - ui.spacing().item_spacing.x).max(0.0),
                             full.y,
                         );
@@ -1023,11 +1011,11 @@ impl PanelView<'_, '_> {
 
     /// The name/verb row, the radial knobs and the raster tools: the edits that
     /// belong to the mask itself rather than to its composition.
-    pub(crate) fn dev_mask_verbs_and_geometry(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_verbs_and_geometry(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_MD);
-        ui.horizontal(|ui| {
+        ui.gap(SPACE_MD);
+        ui.row(|ui| {
             // The name edits a LOCAL buffer and commits one recipe
             // mutation on focus loss (Enter included) — binding the
             // TextEdit straight to the recipe pushed one undo step per
@@ -1067,8 +1055,8 @@ impl PanelView<'_, '_> {
                     let label = ui.fonts_mut(|f| {
                         f.layout_no_wrap(
                             tr(lang, K_DEVELOP_REDRAW).to_owned(),
-                            egui::TextStyle::Button.resolve(ui.style()),
-                            egui::Color32::WHITE,
+                            TextStyle::Button.resolve(ui.style()),
+                            Color32::WHITE,
                         )
                         .size()
                         .x
@@ -1081,14 +1069,14 @@ impl PanelView<'_, '_> {
             };
             // The frame's own margin (egui's 4 px each side) lies
             // outside `desired_width`, so it comes off the budget too.
-            let name_margin = egui::Margin::symmetric(4, 2);
+            let name_margin = Margin::symmetric(4, 2);
             let name_resp = {
                 let buf = &mut self.workspace.masks_mut().mask_name_buf.as_mut().expect("seeded above").2;
                 ui.add(
-                    egui::TextEdit::singleline(buf)
+                    TextEdit::singleline(buf)
                         .margin(name_margin)
                         .desired_width(
-                            (ui.available_width() - reserve - name_margin.sum().x).max(110.0),
+                            (ui.avail_width() - reserve - name_margin.sum().x).max(110.0),
                         )
                         .hint_text(tr(lang, K_DEVELOP_NAME)),
                 )
@@ -1177,7 +1165,7 @@ impl PanelView<'_, '_> {
             }
         });
         // R38: the two switches on their own row, under the verbs.
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             // Inversion flips the mask's coverage — its Response.changed()
             // must drive the develop + overlay like every other mask
             // control (was silently discarded: the toggle mutated the
@@ -1210,7 +1198,7 @@ impl PanelView<'_, '_> {
             &mut self.editor.doc_mut().recipe.masks[i].mask
         {
             let mut geo_ch = false;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 geo_ch |= slider_pct(
                     ui,
                     lang,
@@ -1262,7 +1250,7 @@ impl PanelView<'_, '_> {
             // or a full-size re-cut, then the three one-step
             // morphologies — instead of five free-width buttons
             // wrapping wherever the panel width fell.
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let cell = columns(ui, 2);
                 let edit_armed = matches!(self.workspace.masks().mask_brush, Some((Some(j), _)) if j == i);
                 if toggle_in(ui, cell, edit_armed, tr(lang, K_DEVELOP_EDIT_RASTER))
@@ -1286,7 +1274,7 @@ impl PanelView<'_, '_> {
                 )]);
                 }
             });
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let cell = columns(ui, 3);
                 if action_in(ui, cell, true, tr(lang, K_DEVELOP_SOFTEN))
                     .on_hover_text(tr(lang, K_DEVELOP_SOFTEN_THE_MASK_BOUNDARY_ONE_STEP_BAKES_A_NEW_RA))
@@ -1334,10 +1322,10 @@ impl PanelView<'_, '_> {
 
     /// The AI segmentation pair and the empty-list line. `n_masks` is the count
     /// the caller already read for the section title.
-    pub(crate) fn dev_mask_ai_verbs(&mut self, ui: &mut egui::Ui, n_masks: usize) {
+    pub(crate) fn dev_mask_ai_verbs(&mut self, ui: &mut Ui, n_masks: usize) {
         let lang = self.lang;
         // --- AI segmentation → bitmap masks (gap batch A②) ---------------
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             // CAPABILITY, not just state: without the python sidecar on
             // disk these two can only fail, so the button says so up front
             // instead of spending the click on a "not found at …" toast.
@@ -1382,9 +1370,9 @@ impl PanelView<'_, '_> {
         // Empty state: an open section with zero rows looked like a bug;
         // one quiet line says where masks come from.
         if n_masks == 0 {
-            ui.add_space(SPACE_XS);
+            ui.gap(SPACE_XS);
             ui.label(
-                egui::RichText::new(tr(
+                Text::new(tr(
                     lang,
                     K_DEVELOP_NO_MASKS_YET_DRAW_ONE_WITH_THE_TOOLS_ABOVE_AI_AN,
                 ))
@@ -1395,30 +1383,24 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_export(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_export(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
     
         // --- 导出设置 (UX batch): moved out of the toolbar — touched once per
         // delivery, these are Export-dialog contents, not toolbar chrome. The
         // toolbar keeps the ACTIONS; their hover echoes this section's state.
-        ui.add_space(SPACE_MD);
+        ui.gap(SPACE_MD);
         // Delivery preferences have no per-photo neutral, so this header has
         // no adjustment dot. The toolbar's Export hover carries the summary.
-        card_fold(ui, egui::CollapsingHeader::new(tr(lang, K_APP_EXPORT))
-            .id_salt("sec_export")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_export", tr(lang, K_APP_EXPORT), false, false, |ui| {
                 // WHERE first (R22-7): the delivery target is now a setting
                 // rather than a property of which toolbar button was pressed,
                 // and it is the one whose wrong value sends the file somewhere
                 // the user has to hunt for — so it leads the section instead of
                 // hiding under the encoder dials.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_DEVELOP_DESTINATION));
-                    egui::ComboBox::from_id_salt("exp_dest")
-                        .selected_text(tr(lang, self.workspace.exp().dest.label()))
-                        .width(170.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("exp_dest", tr(lang, self.workspace.exp().dest.label()), Some(170.0), |ui| {
                             for d in ExportDest::ALL {
                                 ui.selectable_value(&mut self.workspace.exp_mut().dest, d, tr(lang, d.label()));
                             }
@@ -1428,7 +1410,7 @@ impl PanelView<'_, '_> {
                 // whichever directory the app was launched from, and "last used
                 // folder" says nothing about which folder that is.
                 ui.label(
-                    egui::RichText::new(match self.workspace.export_dest_dir() {
+                    Text::new(match self.workspace.export_dest_dir() {
                         Some(d) => abs_display(&d),
                         None => tr(lang, K_DEVELOP_A_SAVE_DIALOG_OPENS_ON_EVERY_EXPORT).to_string(),
                     })
@@ -1437,27 +1419,21 @@ impl PanelView<'_, '_> {
                 );
                 // One setting per row: two label+combo pairs in a non-wrapping
                 // horizontal overflowed the 320px panel in Chinese.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_DEVELOP_FORMAT));
-                    egui::ComboBox::from_id_salt("save_fmt")
-                        .selected_text(tr(lang, self.workspace.exp().format.label()))
-                        .width(130.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("save_fmt", tr(lang, self.workspace.exp().format.label()), Some(130.0), |ui| {
                             for f in ExportFormat::ALL {
                                 ui.selectable_value(&mut self.workspace.exp_mut().format, f, tr(lang, f.label()));
                             }
                         });
                 });
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_DEVELOP_LONG_EDGE));
-                    egui::ComboBox::from_id_salt("exp_long_edge")
-                        .selected_text(if self.workspace.exp().long_edge == 0 {
+                    ui.menu("exp_long_edge", if self.workspace.exp().long_edge == 0 {
                             tr(lang, K_EXPORT_ORIGINAL_SIZE).to_string()
                         } else {
                             format!("{} px", self.workspace.exp().long_edge)
-                        })
-                        .width(110.0)
-                        .show_ui(ui, |ui| {
+                        }, Some(110.0), |ui| {
                             ui.selectable_value(&mut self.workspace.exp_mut().long_edge, 0, tr(lang, K_EXPORT_ORIGINAL_SIZE));
                             for px in [1600u32, 2048, 2560, 3840, 5120] {
                                 ui.selectable_value(&mut self.workspace.exp_mut().long_edge, px, format!("{px} px"));
@@ -1467,15 +1443,12 @@ impl PanelView<'_, '_> {
                 slider(ui, lang, tr(lang, K_EXPORT_OUTPUT_SHARPENING), &mut self.workspace.exp_mut().sharpen, 0.0, 100.0, 0.0);
                 // Always allocated, merely disabled for TIFF — the old
                 // appear/disappear reflowed every control to its right.
-                ui.add_enabled_ui(self.workspace.exp().format == ExportFormat::Jpeg, |ui| {
+                ui.enabled(self.workspace.exp().format == ExportFormat::Jpeg, |ui| {
                     slider(ui, lang, tr(lang, K_DEVELOP_JPEG_QUALITY), &mut self.workspace.exp_mut().quality, 60.0, 100.0, 95.0);
                 });
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     ui.label(tr(lang, K_DEVELOP_COLOUR_SPACE));
-                    egui::ComboBox::from_id_salt("exp_space")
-                        .selected_text(tr(lang, EXPORT_SPACES[(self.workspace.exp().space as usize).min(2)]))
-                        .width(170.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("exp_space", tr(lang, EXPORT_SPACES[(self.workspace.exp().space as usize).min(2)]), Some(170.0), |ui| {
                             for (i, name) in EXPORT_SPACES.iter().enumerate() {
                                 ui.selectable_value(&mut self.workspace.exp_mut().space, i as u8, tr(lang, name));
                             }
@@ -1497,7 +1470,7 @@ impl PanelView<'_, '_> {
                 // disabled while the checkbox is off — the appear/disappear
                 // reflow rule the JPEG quality slider above follows.
                 let denoise_raw = self.editor.denoise_uses_raw();
-                ui.add_enabled_ui(self.workspace.exp().save_denoise, |ui| {
+                ui.enabled(self.workspace.exp().save_denoise, |ui| {
                     slider_pct_hinted(
                         ui,
                         lang,
@@ -1517,7 +1490,7 @@ impl PanelView<'_, '_> {
                 // one thing users do with an XMP is give it to Lightroom, and
                 // Lightroom only looks for it beside the photo. That left the
                 // hand-off as "browse into %LOCALAPPDATA% yourself".
-                ui.add_space(SPACE_LG);
+                ui.gap(SPACE_LG);
                 let raw = self.editor.can_export_xmp_beside();
                 let label = if self.workspace.exp().xmp_beside_confirm {
                     tr(lang, K_DEVELOP_OVERWRITE_THE_XMP_ALREADY_THERE)
@@ -1548,7 +1521,7 @@ impl PanelView<'_, '_> {
     /// One capability table: the renderer draws each control through its own
     /// implementation and reports a data change (id + value); the registry
     /// applies it. The panel does not know a control by name.
-    pub(crate) fn dev_tone_wb(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_tone_wb(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -1571,15 +1544,12 @@ impl PanelView<'_, '_> {
         // & pixel → versions & export. Captions only: no section moved, no
         // fence rhythm changed.
         group_caption(ui, tr(lang, K_DEVELOP_TONE_COLOUR));
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_TONE_WB), tone_active))
-            .id_salt("sec_tone")
-            .default_open(true)
-            , |ui| {
+        section_fold(ui, "sec_tone", section_title(tr(lang, K_DEVELOP_TONE_WB), tone_active), true, false, |ui| {
                 // R38: wrapped, so the eyedropper drops under the checkbox when
                 // the row is short — the pair is 351 px at the 320 px default,
                 // and a plain `horizontal` never wraps: it widened the
                 // auto-fitting panel by 64 px, the widest row in this panel.
-                ui.horizontal_wrapped(|ui| {
+                ui.row_wrapped(|ui| {
                     // One cell of the grid for the eyedropper, measured at the
                     // row's start (2026-09-27); it wraps under the checkbox.
                     let cell = columns(ui, 2);
@@ -1645,7 +1615,7 @@ impl PanelView<'_, '_> {
                 // checkbox's "off = as-shot" promise. A legacy tint-only
                 // recipe counts as Custom (see the checkbox above) so its
                 // slider stays reachable.
-                ui.add_enabled_ui(custom_wb, |ui| {
+                ui.enabled(custom_wb, |ui| {
                     changed |= self.capability_rows(ui, crate::controls::WB_TINT);
                 });
                 // The tone band is a capability table row each: the panel owns
@@ -1658,12 +1628,12 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_crop(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_crop(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
         // --- 裁剪 + 拉直: recipe.crop / straighten_deg (export + XMP paths) ---
-        ui.add_space(SPACE_MD);
+        ui.gap(SPACE_MD);
         // The `framing` family IS this section — crop rectangle plus
         // straighten angle — so the dot is read straight off the registry
         // (R25 P8, the same derivation as every other section's).
@@ -1671,15 +1641,12 @@ impl PanelView<'_, '_> {
             .iter()
             .filter(|f| f.name == "framing")
             .any(|f| family_is_active(f, &self.editor.doc().recipe));
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CROP), crop_active))
-            .id_salt("sec_crop")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_crop", section_title(tr(lang, K_DEVELOP_CROP), crop_active), false, false, |ui| {
                 // The two verbs share the row as equal cells and the aspect
                 // preset sits under them on a captioned row of its own
                 // (2026-09-27): a 70 px combo between two own-width verbs was
                 // the one three-item row in this panel.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let cell = columns(ui, 2);
                     // ✓ (geometric) — same finish-glyph as 「✓ Apply」; the
                     // emoji ✅ was the odd one out of the check family.
@@ -1697,13 +1664,10 @@ impl PanelView<'_, '_> {
                         changed = true;
                     }
                 });
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tr(lang, K_DEVELOP_ASPECT)).weak().small());
+                ui.row(|ui| {
+                    ui.label(Text::new(tr(lang, K_DEVELOP_ASPECT)).weak().small());
                     let prev_aspect = self.workspace.crop().aspect;
-                    egui::ComboBox::from_id_salt("crop_aspect")
-                        .selected_text(tr(lang, CROP_ASPECTS[self.workspace.crop().aspect].0))
-                        .width(70.0)
-                        .show_ui(ui, |ui| {
+                    ui.menu("crop_aspect", tr(lang, CROP_ASPECTS[self.workspace.crop().aspect].0), Some(70.0), |ui| {
                             for (i, (name, _)) in CROP_ASPECTS.iter().enumerate() {
                                 ui.selectable_value(&mut self.workspace.crop_mut().aspect, i, tr(lang, name));
                             }
@@ -1746,7 +1710,7 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_detail(&mut self, ui: &mut egui::Ui, detail_active: bool) -> bool {
+    pub(crate) fn dev_detail(&mut self, ui: &mut Ui, detail_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -1755,10 +1719,7 @@ impl PanelView<'_, '_> {
         // Group boundary: the group head's own air and gold caption (2026-10-01:
         // the full-width hairline that used to fence each group is gone).
         group_caption(ui, tr(lang, K_DEVELOP_DETAIL_LENS)); // #14b, group 2 of 4 here
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_DETAIL), detail_active))
-            .id_salt("sec_detail")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_detail", section_title(tr(lang, K_DEVELOP_DETAIL), detail_active), false, false, |ui| {
                 {
                     // All eleven controls render since v1.5.0
                     // (`render/detail.rs`), so none carries the "not rendered
@@ -1775,9 +1736,9 @@ impl PanelView<'_, '_> {
                     // `logic::capability` (the radius is a Fine companion: the
                     // sidecar writes one decimal, so the track shows one).
                     changed |= self.capability_rows(ui, crate::controls::SHARPEN);
-                    ui.add_space(SPACE_SM);
+                    ui.gap(SPACE_SM);
                     changed |= self.capability_rows(ui, crate::controls::NOISE_LUMA);
-                    ui.add_space(SPACE_SM);
+                    ui.gap(SPACE_SM);
                     changed |= self.capability_rows(ui, crate::controls::NOISE_COLOR);
                 }
                 let denoise_raw = self.editor.denoise_uses_raw();
@@ -1785,7 +1746,7 @@ impl PanelView<'_, '_> {
                 // export-time denoise (the Export section toggle) stays for
                 // batch/full-res workflows, but nobody should have to export
                 // to find out what the denoiser does.
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 // The verb's OWN dial, directly above it (user decision
                 // 2026-09-12: a control belongs to the fold whose function it
                 // serves; the Export fold's 「on export」 has a dial of its
@@ -1802,7 +1763,7 @@ impl PanelView<'_, '_> {
                         K_DEVELOP_DETAIL_AI_DENOISE_STRENGTH_INDEPENDENT_OF_THE_EX,
                     ),
                 );
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     // CAPABILITY, not just state — the same rule the two
                     // segmentation buttons follow one panel down (R24 batch 2).
                     // Without `python/denoise.py` on disk this click can only
@@ -1848,14 +1809,11 @@ impl PanelView<'_, '_> {
     /// one or the other (`render::apply_gray_mix` in the colour mixer's place,
     /// as in Lightroom) and showing both would be eight sliders that move no
     /// pixel; the point colours follow the mixer ([`Self::point_color_rows`]).
-    pub(crate) fn dev_hsl(&mut self, ui: &mut egui::Ui, hsl_active: bool) -> bool {
+    pub(crate) fn dev_hsl(&mut self, ui: &mut Ui, hsl_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_COLOR_MIXER_HSL), hsl_active))
-            .id_salt("sec_hsl")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_hsl", section_title(tr(lang, K_DEVELOP_COLOR_MIXER_HSL), hsl_active), false, false, |ui| {
                 changed |= ui
                     .checkbox(&mut self.editor.doc_mut().recipe.convert_to_grayscale, tr(lang, K_DEVELOP_BLACK_WHITE))
                     .changed();
@@ -1872,9 +1830,9 @@ impl PanelView<'_, '_> {
                 // invisible, the opposite of what a mixer is for. The B&W
                 // mixer has ONE property (how light each colour turns), so it
                 // has no tabs — its caption stands where they do.
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     if mono {
-                        ui.label(egui::RichText::new(tr(lang, K_DEVELOP_B_W_MIX)).weak().small());
+                        ui.label(Text::new(tr(lang, K_DEVELOP_B_W_MIX)).weak().small());
                     } else {
                         for (i, name) in ["Hue", "Saturation", "Luminance"].iter().enumerate() {
                             if ui.selectable_label(self.workspace.ai().hsl_tab == i, tr(lang, name)).clicked() {
@@ -1911,10 +1869,10 @@ impl PanelView<'_, '_> {
                         (false, 1) => &mut self.editor.doc_mut().recipe.hsl.saturation[b],
                         (false, _) => &mut self.editor.doc_mut().recipe.hsl.luminance[b],
                     };
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         // Band swatch so rows scan like LR's mixer.
                         let (rect, _) = ui
-                            .allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                            .allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                         ui.painter().rect_filled(rect, 2.0, HSL_SWATCH[b]);
                         changed |= slider(ui, lang, tr(lang, name), v, -100.0, 100.0, 0.0);
                     });
@@ -1936,18 +1894,18 @@ impl PanelView<'_, '_> {
     /// which REBUILDS the swatch's three windows: the engine matches pixels
     /// against the stored windows and never reads `range_amount`, so a Range
     /// that only wrote its own number would be a slider that moves no pixel.
-    pub(crate) fn point_color_rows(&mut self, ui: &mut egui::Ui) -> bool {
+    pub(crate) fn point_color_rows(&mut self, ui: &mut Ui) -> bool {
         use autoshade::recipe::MAX_POINT_COLORS;
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_SM);
+        ui.gap(SPACE_SM);
         // Point Color has no colour to act on in black and white, whichever of
         // the two switches produced it (v1.5.0 F7 — see the mixer above).
-        ui.add_enabled_ui(!self.editor.doc().recipe.renders_grayscale(), |ui| {
-            ui.horizontal_wrapped(|ui| {
+        ui.enabled(!self.editor.doc().recipe.renders_grayscale(), |ui| {
+            ui.row_wrapped(|ui| {
                 // One cell of the grid beside the caption (2026-09-27).
                 let cell = columns(ui, 2);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_POINT_COLOR)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_POINT_COLOR)).weak().small());
                 let label = if self.workspace.tools().point_color_picking {
                     tr(lang, K_DEVELOP_CLICK_IN_IMAGE)
                 } else {
@@ -1980,18 +1938,18 @@ impl PanelView<'_, '_> {
             // the loop would invalidate the iterator it is drawn from.
             let mut remove = None;
             for (i, p) in self.editor.doc_mut().recipe.point_colors.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     // The colour the swatch was sampled from, as a chip: the
                     // sliders below say what happens to it, and nothing else
                     // on the row says WHICH colour it is.
                     let rgb = autoshade::render::point_color_rgb(p)
                         .map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
                     let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                        ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
                     ui.painter().rect_filled(
                         rect,
                         2.0,
-                        egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
+                        Color32::from_rgb(rgb[0], rgb[1], rgb[2]),
                     );
                     ui.label(trf(lang, K_DEVELOP_SWATCH, &[("n", &(i + 1).to_string())]));
                     // 🗑, the vocabulary's DELETE-a-list-row glyph (masks,
@@ -2028,24 +1986,21 @@ impl PanelView<'_, '_> {
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_grading(&mut self, ui: &mut egui::Ui, grade_active: bool) -> bool {
+    pub(crate) fn dev_grading(&mut self, ui: &mut Ui, grade_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_COLOR_GRADING), grade_active))
-            .id_salt("sec_grade")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_grade", section_title(tr(lang, K_DEVELOP_COLOR_GRADING), grade_active), false, false, |ui| {
                 // Lightroom's grading panel (2026-10-13): the 3-way view shows
                 // the shadow, midtone and highlight wheels together, each with
                 // its luminance under it; Global is one wheel for the whole
                 // picture (`panels/grade_wheel.rs`).
-                ui.horizontal(|ui| {
+                ui.row(|ui| {
                     let gap = ui.spacing().item_spacing.x;
-                    let w = ((ui.available_width().min(FIELD_W_MAX) - row_h(ui) - 2.0 * gap) / 2.0).floor();
+                    let w = ((ui.avail_width().min(FIELD_W_MAX) - row_h(ui) - 2.0 * gap) / 2.0).floor();
                     for (i, name) in GRADE_VIEWS.iter().enumerate() {
-                        if toggle_in(ui, egui::vec2(w, row_h(ui)), self.workspace.ai().grade_region == i, tr(lang, name)).clicked() {
+                        if toggle_in(ui, vec2(w, row_h(ui)), self.workspace.ai().grade_region == i, tr(lang, name)).clicked() {
                             self.workspace.ai_mut().grade_region = i;
                         }
                     }
@@ -2055,35 +2010,35 @@ impl PanelView<'_, '_> {
                         changed = true;
                     }
                 });
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 let cg = &mut self.editor.doc_mut().recipe.color_grade;
                 // One wheel with its luminance slider in a column `width` wide.
-                let wheel = |ui: &mut egui::Ui, title: &str, width: f32, h: &mut f32, s: &mut f32, l: &mut f32| {
+                let wheel = |ui: &mut Ui, title: &str, width: f32, h: &mut f32, s: &mut f32, l: &mut f32| {
                     let mut c = false;
-                    ui.vertical(|ui| {
+                    ui.column(|ui| {
                         ui.set_width(width);
                         c |= grade_wheel(ui, lang, title, (width - 8.0).min(170.0), h, s);
                         c |= slider(ui, lang, tr(lang, K_DEVELOP_LUMINANCE), l, -100.0, 100.0, 0.0);
                     });
                     c
                 };
-                let avail = ui.available_width();
+                let avail = ui.avail_width();
                 if self.workspace.ai().grade_region == 0 {
                     // Midtones on top, centred; shadows and highlights under it.
                     let half = ((avail - ui.spacing().item_spacing.x) / 2.0).floor();
-                    ui.horizontal(|ui| {
-                        ui.add_space(((avail - half) / 2.0).floor());
+                    ui.row(|ui| {
+                        ui.gap(((avail - half) / 2.0).floor());
                         changed |= wheel(ui, tr(lang, K_DEVELOP_MIDTONES), half, &mut cg.midtone_hue, &mut cg.midtone_sat, &mut cg.midtone_lum);
                     });
-                    ui.add_space(SPACE_SM);
-                    ui.horizontal(|ui| {
+                    ui.gap(SPACE_SM);
+                    ui.row(|ui| {
                         changed |= wheel(ui, tr(lang, K_DEVELOP_SHADOWS), half, &mut cg.shadow_hue, &mut cg.shadow_sat, &mut cg.shadow_lum);
                         changed |= wheel(ui, tr(lang, K_DEVELOP_HIGHLIGHTS), half, &mut cg.highlight_hue, &mut cg.highlight_sat, &mut cg.highlight_lum);
                     });
                 } else {
                     let width = (avail * 0.7).floor();
-                    ui.horizontal(|ui| {
-                        ui.add_space(((avail - width) / 2.0).floor());
+                    ui.row(|ui| {
+                        ui.gap(((avail - width) / 2.0).floor());
                         changed |= wheel(ui, tr(lang, K_DEVELOP_GLOBAL), width, &mut cg.global_hue, &mut cg.global_sat, &mut cg.global_lum);
                     });
                 }
@@ -2108,26 +2063,20 @@ impl PanelView<'_, '_> {
     /// It returns nothing because it changes no recipe field — the merge
     /// writes a master and pushes a card, which is not an edit of the develop
     /// the panel is holding.
-    pub(crate) fn dev_stack(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_stack(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         // The section's ● says this photo HAS a stacked card, which is the
         // only state this fold owns that outlives the click.
         let has = self.editor.doc().variants.iter().any(|v| v.kind == VariantKind::Stacked);
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_STACK), has))
-            .id_salt("sec_stack")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_stack", section_title(tr(lang, K_DEVELOP_STACK), has), false, false, |ui| {
                 explainer(ui, lang, tr(lang, K_DEVELOP_MERGE_SEVERAL_FRAMES_OF_ONE_SCENE_INTO_A_NEW_NEG));
-                ui.add_space(SPACE_SM);
-                egui::ComboBox::from_id_salt("stack_kind")
-                    .selected_text(tr(lang, self.workspace.tools().stack_kind.label()))
-                    .show_ui(ui, |ui| {
+                ui.gap(SPACE_SM);
+                ui.menu("stack_kind", tr(lang, self.workspace.tools().stack_kind.label()), None, |ui| {
                         for k in autoshade::stack::merge::StackKind::ALL {
                             ui.selectable_value(&mut self.workspace.tools_mut().stack_kind, k, tr(lang, k.label()));
                         }
                     })
-                    .response
                     .on_hover_text(tr(
                         lang,
                         K_DEVELOP_HDR_MERGE_AN_EXPOSURE_BRACKET_INTO_ONE_FRAME_HOL,
@@ -2137,8 +2086,8 @@ impl PanelView<'_, '_> {
                         lang,
                         K_DEVELOP_ALIGNMENT_IS_THE_EXPENSIVE_HALF_OF_A_STACK_AND_O,
                     ));
-                ui.add_space(SPACE_SM);
-                ui.horizontal(|ui| {
+                ui.gap(SPACE_SM);
+                ui.row(|ui| {
                     let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy();
                     if action_row(ui, ready, tr(lang, K_DEVELOP_STACK_WITH_OTHER_FRAMES))
                         .on_hover_text(tr(
@@ -2158,7 +2107,7 @@ impl PanelView<'_, '_> {
     }
 
     /// The Lens Blur section of the Develop panel.
-    pub(crate) fn dev_lens_blur(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_lens_blur(&mut self, ui: &mut Ui, _active: bool) -> bool {
         // A verb section: its body returns the actions the worker start
         // needs, and the row's draw applies them (the facade does this for
         // every surface).
@@ -2170,22 +2119,17 @@ impl PanelView<'_, '_> {
         touched
     }
 
-    pub(crate) fn lens_blur_section(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_section(&mut self, ui: &mut Ui) -> Vec<logic::Action> {
         let lang = self.lang;
         let active = logic::lens_blur::active(&self.editor.doc().recipe);
         let mut actions = Vec::new();
-        ui.add_space(SPACE_MD);
-        card_fold(
-            ui,
-            egui::CollapsingHeader::new(section_title(tr(lang, K_LENS_LENS_BLUR), active))
-                .id_salt("sec_lens_blur")
-                .default_open(false),
-            |ui| actions = self.lens_blur_body(ui),
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_lens_blur", section_title(tr(lang, K_LENS_LENS_BLUR), active), false, false, |ui| actions = self.lens_blur_body(ui),
         );
         actions
     }
 
-    pub(crate) fn lens_blur_body(&mut self, ui: &mut egui::Ui) -> Vec<logic::Action> {
+    pub(crate) fn lens_blur_body(&mut self, ui: &mut Ui) -> Vec<logic::Action> {
         let lang = self.lang;
         let mut actions = Vec::new();
         let has_helper = depth_helper_available();
@@ -2204,16 +2148,16 @@ impl PanelView<'_, '_> {
         // borrow into the recipe the facade is about to change.
         let Some((enabled, amount, range)) = self.editor.doc().recipe.lens_blur.as_ref().map(|l| (l.enabled, l.amount, l.range)) else {
             let hint = tr(lang, K_LENS_ESTIMATE_THE_DEPTH_FIRST_THEN_CLICK_THE_PHOTO_TO);
-            ui.label(egui::RichText::new(hint).weak().small());
+            ui.label(Text::new(hint).weak().small());
             return actions;
         };
         let picking = self.workspace.tools().lens_focus_picking;
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let mute = tr(lang, K_LENS_SHOW_MUTE_THE_LENS_BLUR_WITHOUT_LOSING_ITS_SETTI);
             if glyph_toggle(ui, enabled, "👁").on_hover_text(mute).clicked() {
                 actions.push(logic::Action::Lens(logic::lens_blur::LensAction::ToggleLensBlur(!enabled)));
             }
-            let cell = egui::vec2(ui.available_width() - row_h(ui) - ui.spacing().item_spacing.x, row_h(ui));
+            let cell = vec2(ui.avail_width() - row_h(ui) - ui.spacing().item_spacing.x, row_h(ui));
             let how = tr(lang, K_LENS_CLICK_THE_PHOTO_WHATEVER_IS_AT_THAT_DISTANCE_STA);
             if toggle_in(ui, cell, picking, tr(lang, K_LENS_PICK_FOCUS)).on_hover_text(how).clicked() {
                 actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetFocusPicking(!picking)));
@@ -2224,7 +2168,7 @@ impl PanelView<'_, '_> {
         });
         // The two dials of `render::LensBlur`; the copy is what the view may
         // touch, the recipe change goes through the action.
-        ui.add_enabled_ui(enabled, |ui| {
+        ui.enabled(enabled, |ui| {
             let mut next = amount;
             if slider(ui, lang, tr(lang, K_LENS_BLUR_AMOUNT), &mut next, 0.0, 100.0, 50.0) {
                 actions.push(logic::Action::Lens(logic::lens_blur::LensAction::SetBlurAmount(next)));
@@ -2235,12 +2179,12 @@ impl PanelView<'_, '_> {
             }
         });
         let carried = tr(lang, K_LENS_RENDERED_HERE_AND_IN_EVERY_EXPORT_FROM_THIS_APP);
-        ui.label(egui::RichText::new(carried).weak().small());
+        ui.label(Text::new(carried).weak().small());
         actions
     }
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_presence(&mut self, ui: &mut egui::Ui, presence_active: bool) -> bool {
+    pub(crate) fn dev_presence(&mut self, ui: &mut Ui, presence_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
@@ -2249,11 +2193,8 @@ impl PanelView<'_, '_> {
         // two colour sections; Detail moved BELOW them so colour work isn't
         // interrupted by sharpening. add_space fences each header so the ten
         // sections read as groups, not one undivided list.
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_PRESENCE), presence_active))
-            .id_salt("sec_presence")
-            .default_open(true)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_presence", section_title(tr(lang, K_DEVELOP_PRESENCE), presence_active), true, false, |ui| {
                 // Lightroom's Basic-panel order inside Presence is Texture →
                 // Clarity → Dehaze, and the engine runs them in that order too
                 // (R25 B2 put the global texture stage between clarity and
@@ -2272,26 +2213,23 @@ impl PanelView<'_, '_> {
     /// works on the colours these seven leave behind. Lightroom writes all
     /// seven keys on nearly every sidecar, so a photo arriving from Lightroom
     /// usually lands here with values already in it.
-    pub(crate) fn dev_calibration(&mut self, ui: &mut egui::Ui, calibration_active: bool) -> bool {
+    pub(crate) fn dev_calibration(&mut self, ui: &mut Ui, calibration_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CALIBRATION), calibration_active))
-            .id_salt("sec_calibration")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_calibration", section_title(tr(lang, K_DEVELOP_CALIBRATION), calibration_active), false, false, |ui| {
                 // Lightroom's own order and grouping: the shadows tint first,
                 // then a hue + saturation pair per primary. The group captions
                 // stay here; the rows are capability tables.
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_SHADOWS)).weak().small());
+                ui.label(Text::new(tr(lang, K_DEVELOP_SHADOWS)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::CAL_TINT);
                 for (primary, table) in [
                     (tr(lang, K_DEVELOP_RED_PRIMARY), crate::controls::CAL_RED),
                     (tr(lang, K_DEVELOP_GREEN_PRIMARY), crate::controls::CAL_GREEN),
                     (tr(lang, K_DEVELOP_BLUE_PRIMARY), crate::controls::CAL_BLUE),
                 ] {
-                    ui.add_space(SPACE_XS);
-                    ui.label(egui::RichText::new(primary).weak().small());
+                    ui.gap(SPACE_XS);
+                    ui.label(Text::new(primary).weak().small());
                     changed |= self.capability_rows(ui, table);
                 }
             });
@@ -2306,24 +2244,21 @@ impl PanelView<'_, '_> {
     /// Style, Grain size and roughness) show the value the engine actually
     /// renders — Lightroom's own default while the recipe holds none — and a
     /// reset returns them to absent (`companion_slider_edit` + the command).
-    pub(crate) fn dev_effects(&mut self, ui: &mut egui::Ui, effects_active: bool) -> bool {
+    pub(crate) fn dev_effects(&mut self, ui: &mut Ui, effects_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_EFFECTS), effects_active))
-            .id_salt("sec_effects")
-            .default_open(false)
-            , |ui| {
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_POST_CROP_VIGNETTING)).weak().small());
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_effects", section_title(tr(lang, K_DEVELOP_EFFECTS), effects_active), false, false, |ui| {
+                ui.label(Text::new(tr(lang, K_DEVELOP_POST_CROP_VIGNETTING)).weak().small());
                 // Two tables because the panel draws two captioned groups; the
                 // rows, their bands (the catalogue), their feels and their
                 // companion encoding live in `logic::capability`. The style row
                 // is an operator INDEX (1/2/3); the track starts at 1 because
                 // 0 means "the sidecar named none" and only a reset reaches it.
                 changed |= self.capability_rows(ui, crate::controls::VIGNETTE);
-                ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_GRAIN)).weak().small());
+                ui.gap(SPACE_SM);
+                ui.label(Text::new(tr(lang, K_DEVELOP_GRAIN)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::GRAIN);
             });
         changed
@@ -2338,14 +2273,11 @@ impl PanelView<'_, '_> {
     /// are stored either way, and Lightroom's own sidecars keep them across a
     /// mode change), but nothing they do reaches a pixel while the mode is
     /// off. Greying them out instead would hide values the file really holds.
-    pub(crate) fn dev_hdr(&mut self, ui: &mut egui::Ui, hdr_active: bool) -> bool {
+    pub(crate) fn dev_hdr(&mut self, ui: &mut Ui, hdr_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_HDR_SDR), hdr_active))
-            .id_salt("sec_hdr")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_hdr", section_title(tr(lang, K_DEVELOP_HDR_SDR), hdr_active), false, false, |ui| {
                 if ui
                     .checkbox(&mut self.editor.doc_mut().recipe.hdr_edit, tr(lang, K_DEVELOP_HDR_EDIT_MODE))
                     .on_hover_text(tr(
@@ -2357,10 +2289,10 @@ impl PanelView<'_, '_> {
                     changed = true;
                 }
                 changed |= self.capability_rows(ui, crate::controls::HDR_HEADROOM);
-                ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_SDR_RENDITION)).weak().small());
+                ui.gap(SPACE_SM);
+                ui.label(Text::new(tr(lang, K_DEVELOP_SDR_RENDITION)).weak().small());
                 ui.label(
-                    egui::RichText::new(tr(lang, K_DEVELOP_RENDERS_ONLY_IN_HDR_MODE))
+                    Text::new(tr(lang, K_DEVELOP_RENDERS_ONLY_IN_HDR_MODE))
                         .weak()
                         .small(),
                 );
@@ -2388,14 +2320,11 @@ impl PanelView<'_, '_> {
     /// (The Calibration panel used to share this heading. It renders since
     /// v1.5.0 — `dev_calibration` above — and was never in this map: R25
     /// listed seven `CameraCalibration*` keys Lightroom does not write.)
-    pub(crate) fn dev_transform(&mut self, ui: &mut egui::Ui, transform_active: bool) -> bool {
+    pub(crate) fn dev_transform(&mut self, ui: &mut Ui, transform_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
-        ui.add_space(SPACE_MD);
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_TRANSFORM), transform_active))
-            .id_salt("sec_transform")
-            .default_open(false)
-            , |ui| {
+        ui.gap(SPACE_MD);
+        section_fold(ui, "sec_transform", section_title(tr(lang, K_DEVELOP_TRANSFORM), transform_active), false, false, |ui| {
                 // Upright is a MODE, so a dropdown and not a slider — and the
                 // one control in this panel whose answer may come from either
                 // side: Lightroom publishes the matrix its own solver found
@@ -2405,12 +2334,9 @@ impl PanelView<'_, '_> {
                 const MODES: [&str; 6] =
                     ["Off", "Auto", "Level", "Vertical", "Full", "Guided"];
                 let mut mode = self.editor.doc().recipe.perspective_upright.round().clamp(0.0, 5.0) as usize;
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tr(lang, K_DEVELOP_UPRIGHT)).small());
-                    egui::ComboBox::from_id_salt("upright_mode")
-                        .selected_text(tr(lang, MODES[mode]))
-                        .width(90.0)
-                        .show_ui(ui, |ui| {
+                ui.row(|ui| {
+                    ui.label(Text::new(tr(lang, K_DEVELOP_UPRIGHT)).small());
+                    ui.menu("upright_mode", tr(lang, MODES[mode]), Some(90.0), |ui| {
                             for (i, name) in MODES.iter().enumerate() {
                                 ui.selectable_value(&mut mode, i, tr(lang, name));
                             }
@@ -2448,9 +2374,9 @@ impl PanelView<'_, '_> {
                     } else {
                         UPRIGHT_NOTES[2]
                     };
-                    ui.label(egui::RichText::new(tr(lang, upright_note)).weak().small());
+                    ui.label(Text::new(tr(lang, upright_note)).weak().small());
                 }
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 // One capability table: bands and resets (Rotate ±10, scale
                 // 50..150 resetting to 100) come from `logic::capability`.
                 changed |= self.capability_rows(ui, crate::controls::TRANSFORM);
@@ -2461,7 +2387,7 @@ impl PanelView<'_, '_> {
                 {
                     changed = true;
                 }
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 explainer(ui, lang, tr(lang, K_DEVELOP_ONE_PROJECTIVE_MAP_AFTER_THE_LENS_CORRECTION_AND));
                 // v1.5.0 F7 — WHICH rendering this photograph starts from.
                 // Read-only here on purpose: the profile is a file on the
@@ -2470,11 +2396,11 @@ impl PanelView<'_, '_> {
                 // to offer a picker for something the sidecar decides.
                 let look = self.editor.doc().recipe.look.clone();
                 if !self.editor.doc().recipe.camera_profile.is_empty() || look.is_some() {
-                    ui.add_space(SPACE_MD);
-                    let pair = |ui: &mut egui::Ui, label: String, value: &str| {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(label).small());
-                            ui.label(egui::RichText::new(value).small().strong());
+                    ui.gap(SPACE_MD);
+                    let pair = |ui: &mut Ui, label: String, value: &str| {
+                        ui.row(|ui| {
+                            ui.label(Text::new(label).small());
+                            ui.label(Text::new(value).small().strong());
                         });
                     };
                     if !self.editor.doc().recipe.camera_profile.is_empty() {
@@ -2503,17 +2429,17 @@ impl PanelView<'_, '_> {
                         } else {
                             tr(lang, K_DEVELOP_NEITHER_ITS_CREATIVE_COLOUR_TABLE_NOR_ITS_BAKED)
                         };
-                        ui.label(egui::RichText::new(line).weak().small());
+                        ui.label(Text::new(line).weak().small());
                     }
                 }
                 if self.editor.doc().recipe.passthrough.is_empty() {
                     return;
                 }
-                ui.add_space(SPACE_MD);
+                ui.gap(SPACE_MD);
                 // In PASSTHROUGH_CRS order (Adobe's own grouping), which is
                 // also the order the writer emits — one order everywhere, so
                 // the panel and the sidecar read the same way.
-                let rows = |ui: &mut egui::Ui, caption: Option<&str>, keys: &[&str]| {
+                let rows = |ui: &mut Ui, caption: Option<&str>, keys: &[&str]| {
                     let present: Vec<(&str, &str)> = keys
                         .iter()
                         .filter_map(|k| {
@@ -2524,12 +2450,12 @@ impl PanelView<'_, '_> {
                         return;
                     }
                     if let Some(caption) = caption {
-                        ui.label(egui::RichText::new(caption).weak().small());
+                        ui.label(Text::new(caption).weak().small());
                     }
                     for (key, value) in present {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(format!("crs:{key}")).small());
-                            ui.label(egui::RichText::new(value).small().strong());
+                        ui.row(|ui| {
+                            ui.label(Text::new(format!("crs:{key}")).small());
+                            ui.label(Text::new(value).small().strong());
                         });
                     }
                 };
@@ -2539,9 +2465,9 @@ impl PanelView<'_, '_> {
                 // an owned control shown above, so what is left is one block
                 // with one caption.
                 rows(ui, Some(tr(lang, K_DEVELOP_UPRIGHT_SOLVER_BOOKKEEPING)), &autoshade::xmp::PASSTHROUGH_CRS);
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 ui.label(
-                    egui::RichText::new(tr(
+                    Text::new(tr(
                         lang,
                         K_DEVELOP_CARRIED_THROUGH_TO_THE_SIDECAR_UNCHANGED_AUTOSHA,
                     ))
@@ -2554,12 +2480,12 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_lens(&mut self, ui: &mut egui::Ui, _active: bool) -> bool {
+    pub(crate) fn dev_lens(&mut self, ui: &mut Ui, _active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
         // --- 镜头校正: in-camera profile + manual corrections -----------------
-        ui.add_space(SPACE_MD);
+        ui.gap(SPACE_MD);
         // Two as-opened states are neutral here: the camera's available
         // components on, or all off with the sidecar's DisabledInSidecar stamp.
         // Neither lights the dot; hand-made all-off and other moves away do.
@@ -2572,10 +2498,7 @@ impl PanelView<'_, '_> {
             .filter(|f| f.name == "lens" || f.name == "lens_effects")
             .any(|f| family_is_active(f, &self.editor.doc().recipe))
             || !self.editor.doc().recipe.lens_profile.is_as_opened();
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_LENS), lens_active))
-            .id_salt("sec_lens")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_lens", section_title(tr(lang, K_DEVELOP_LENS), lens_active), false, false, |ui| {
                 // In-camera profile corrections (lensmeta): the manufacturer's
                 // exact per-shot data read from the RAW itself — no lens
                 // database. Toggling a component ON whose data a legacy
@@ -2589,9 +2512,9 @@ impl PanelView<'_, '_> {
                 if has_v || has_d || has_c {
                     ui.label(tr(lang, K_DEVELOP_PROFILE_CORRECTIONS_FROM_CAMERA_METADATA));
                     let mut pch = false;
-                    ui.horizontal(|ui| {
+                    ui.row(|ui| {
                         if ui
-                            .add_enabled(has_v, egui::Checkbox::new(&mut lp.vignette_on, tr(lang, K_DEVELOP_VIGNETTING)))
+                            .add_enabled(has_v, Checkbox::new(&mut lp.vignette_on, tr(lang, K_DEVELOP_VIGNETTING)))
                             .on_hover_text(tr(lang, K_DEVELOP_THE_CAMERA_S_OWN_FALLOFF_MAP_FOR_THIS_SHOT_APPLI))
                             .changed()
                         {
@@ -2601,7 +2524,7 @@ impl PanelView<'_, '_> {
                             pch = true;
                         }
                         if ui
-                            .add_enabled(has_d, egui::Checkbox::new(&mut lp.distortion_on, tr(lang, K_DEVELOP_DISTORTION)))
+                            .add_enabled(has_d, Checkbox::new(&mut lp.distortion_on, tr(lang, K_DEVELOP_DISTORTION)))
                             .on_hover_text(tr(lang, K_DEVELOP_THE_CAMERA_S_OWN_GEOMETRIC_CORRECTION_MASKS_AND))
                             .changed()
                         {
@@ -2611,7 +2534,7 @@ impl PanelView<'_, '_> {
                             pch = true;
                         }
                         if ui
-                            .add_enabled(has_c, egui::Checkbox::new(&mut lp.ca_on, tr(lang, K_DEVELOP_CHROMATIC_ABERRATION)))
+                            .add_enabled(has_c, Checkbox::new(&mut lp.ca_on, tr(lang, K_DEVELOP_CHROMATIC_ABERRATION)))
                             .on_hover_text(tr(lang, K_DEVELOP_PER_CHANNEL_RADIUS_CORRECTION_REMOVES_RED_BLUE_C))
                             .changed()
                         {
@@ -2636,14 +2559,14 @@ impl PanelView<'_, '_> {
                         self.workspace.overlay_mut().overlay_stale = true;
                         changed = true;
                     }
-                    ui.add_space(SPACE_MD);
+                    ui.gap(SPACE_MD);
                 } else if self.editor.photo().src_path.as_deref().is_some_and(autoshade::decode::is_raw) {
                     ui.label(
-                        egui::RichText::new(tr(lang, K_DEVELOP_NO_IN_CAMERA_LENS_CORRECTION_DATA_IN_THIS_FILE))
+                        Text::new(tr(lang, K_DEVELOP_NO_IN_CAMERA_LENS_CORRECTION_DATA_IN_THIS_FILE))
                             .weak()
                             .small(),
                     );
-                    ui.add_space(SPACE_MD);
+                    ui.gap(SPACE_MD);
                 }
                 // 「Lens vignetting」, not 「Vignette」 (R25 B2): the Effects
                 // section above now carries Lightroom's POST-CROP vignette,
@@ -2667,11 +2590,11 @@ impl PanelView<'_, '_> {
                 // that component's off switch — which is why they are drawn
                 // even when this photo has no profile data, so a recipe
                 // imported from Lightroom shows what it carries.
-                ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_PROFILE_CORRECTION_STRENGTH)).weak().small());
+                ui.gap(SPACE_SM);
+                ui.label(Text::new(tr(lang, K_DEVELOP_PROFILE_CORRECTION_STRENGTH)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::LENS_PROFILE);
-                ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_CHROMATIC_ABERRATION_MANUAL)).weak().small());
+                ui.gap(SPACE_SM);
+                ui.label(Text::new(tr(lang, K_DEVELOP_CHROMATIC_ABERRATION_MANUAL)).weak().small());
                 changed |= self.capability_rows(ui, crate::controls::LENS_CA);
                 // …and the rest of the same panel: Adobe's auto switch and the
                 // whole de-fringe block. Carried and unrendered until v1.5.0;
@@ -2687,13 +2610,13 @@ impl PanelView<'_, '_> {
                 {
                     changed = true;
                 }
-                ui.add_space(SPACE_SM);
-                ui.label(egui::RichText::new(tr(lang, K_DEVELOP_DEFRINGE)).weak().small());
+                ui.gap(SPACE_SM);
+                ui.label(Text::new(tr(lang, K_DEVELOP_DEFRINGE)).weak().small());
                 // Adobe's bands and neutrals: amounts rest at 0, the hue
                 // windows at 30/70 and 40/60 (the one block whose neutral is
                 // not zero — the row resets carry them).
                 changed |= self.capability_rows(ui, crate::controls::LENS_DEFRINGE);
-                ui.add_space(SPACE_SM);
+                ui.gap(SPACE_SM);
                 explainer(ui, lang, tr(lang, K_DEVELOP_VIGNETTE_POSITIVE_BRIGHTENS_THE_CORNERS_COMPENSA));
             });
         changed
@@ -2701,17 +2624,14 @@ impl PanelView<'_, '_> {
 
     /// One develop-panel section — body extracted verbatim from
     /// develop_panel (round-12 decomposition; spacing included).
-    pub(crate) fn dev_curves(&mut self, ui: &mut egui::Ui, curves_active: bool) -> bool {
+    pub(crate) fn dev_curves(&mut self, ui: &mut Ui, curves_active: bool) -> bool {
         let lang = self.lang;
         let mut changed = false;
     
-        ui.add_space(SPACE_MD);
+        ui.gap(SPACE_MD);
         // --- 曲线: master + RGB tone curves (engine + XMP already apply them,
         // this is purely the editing surface — Lightroom's panel order) --------
-        card_fold(ui, egui::CollapsingHeader::new(section_title(tr(lang, K_DEVELOP_CURVES), curves_active))
-            .id_salt("sec_curves")
-            .default_open(false)
-            , |ui| {
+        section_fold(ui, "sec_curves", section_title(tr(lang, K_DEVELOP_CURVES), curves_active), false, false, |ui| {
                 changed |= self.curve_editor(ui);
                 changed |= parametric_curve(ui, lang, &mut self.editor.doc_mut().recipe);
             });
@@ -2720,7 +2640,7 @@ impl PanelView<'_, '_> {
     /// What one Analyze run wrote — the verdict, the rationale sentence and
     /// the deep-thinking working — drawn by both the Analysis fold's bounded
     /// box and the full-text window, so the two can never disagree.
-    pub(crate) fn analysis_output(&self, ui: &mut egui::Ui) {
+    pub(crate) fn analysis_output(&self, ui: &mut Ui) {
         let lang = self.lang;
         if let Some((d, reasons)) = &self.editor.analysis().verdict {
             // Accept reads calm; anything else (Revise/Reject)
@@ -2742,7 +2662,7 @@ impl PanelView<'_, '_> {
                     ("reasons", &reasons.join("; ")),
                 ],
             );
-            ui.label(egui::RichText::new(text).color(col));
+            ui.label(Text::new(text).color(col));
         }
         // The deterministic tail renders LOCALIZED when its typed
         // notes ride along and still match the string's suffix
@@ -2777,7 +2697,7 @@ impl PanelView<'_, '_> {
         let shown = localized.as_deref().unwrap_or(&self.editor.analysis().rationale);
         if !shown.is_empty() {
             ui.label(
-                egui::RichText::new(format!("“{shown}”"))
+                Text::new(format!("“{shown}”"))
                     .italics()
                     .weak(),
             );
@@ -2788,7 +2708,7 @@ impl PanelView<'_, '_> {
     }
     /// The colour-field row (the mask's own "one luminance colour" row; not a
     /// mask, which is why it is not a list entry).
-    pub(crate) fn dev_mask_colour_field(&mut self, ui: &mut egui::Ui) -> bool {
+    pub(crate) fn dev_mask_colour_field(&mut self, ui: &mut Ui) -> bool {
         let lang = self.lang;
         let mut changed = false;
         // R33 §G. The colour field, in the Masks section because that is
@@ -2801,9 +2721,9 @@ impl PanelView<'_, '_> {
         // questions a user actually has about it — is it on, how much of
         // it, and get rid of it.
         if self.editor.doc().recipe.colour_field.is_some() {
-            ui.add_space(SPACE_XS);
+            ui.gap(SPACE_XS);
             let mut remove_field = false;
-            ui.horizontal(|ui| {
+            ui.row(|ui| {
                 let field = self.editor.doc_mut().recipe.colour_field.as_mut().expect("just checked");
                 if glyph_toggle(ui, field.enabled, "👁")
                     .on_hover_text(tr(
@@ -2821,9 +2741,9 @@ impl PanelView<'_, '_> {
                     tr(lang, K_DEVELOP_ENGINE_ONLY),
                 );
                 ui.label(if field.enabled {
-                    egui::RichText::new(label)
+                    Text::new(label)
                 } else {
-                    egui::RichText::new(label).weak()
+                    Text::new(label).weak()
                 })
                 .on_hover_text(tr(
                     lang,
@@ -2859,7 +2779,7 @@ impl PanelView<'_, '_> {
     /// The selected mask's adjustment half: the four captioned groups and the
     /// mask's own curve editor. Tone edits are not coverage, so they are
     /// deliberately outside the overlay invalidation above.
-    pub(crate) fn dev_mask_adjustments(&mut self, ui: &mut egui::Ui, i: usize) -> bool {
+    pub(crate) fn dev_mask_adjustments(&mut self, ui: &mut Ui, i: usize) -> bool {
         let lang = self.lang;
         let mut changed = false;
         let m = &mut self.editor.doc_mut().recipe.masks[i];
@@ -2870,7 +2790,7 @@ impl PanelView<'_, '_> {
         // grouping replaces — the same reason the global panel is
         // sectioned. `Tone` is our own caption for LR's "Light" group:
         // the key "Light" already means the light THEME.
-        let group = |ui: &mut egui::Ui, title: &str| sub_caption(ui, title);
+        let group = |ui: &mut Ui, title: &str| sub_caption(ui, title);
         group(ui, tr(lang, K_DEVELOP_TONE));
         changed |= slider(ui, lang, tr(lang, K_DEVELOP_EXPOSURE), &mut m.exposure_ev, -5.0, 5.0, 0.0);
         changed |= slider(ui, lang, tr(lang, K_DEVELOP_CONTRAST), &mut m.contrast, -100.0, 100.0, 0.0);
@@ -2977,12 +2897,12 @@ impl PanelView<'_, '_> {
         // slider — a disclosure plus the one action that makes sense
         // on a value the user never typed.
         if m.color_gains.is_some() {
-            ui.horizontal_wrapped(|ui| {
+            ui.row_wrapped(|ui| {
                 // One cell of the grid, measured at the row's start;
                 // it wraps under the note when the note is long (2026-09-27).
                 let cell = columns(ui, 2);
                 ui.label(
-                    egui::RichText::new(tr(lang, K_DEVELOP_CARRIES_REVERSE_FIT_RECOLOUR_WRITTEN_TO_XMP_AS_T))
+                    Text::new(tr(lang, K_DEVELOP_CARRIES_REVERSE_FIT_RECOLOUR_WRITTEN_TO_XMP_AS_T))
                         .weak()
                         .small(),
                 );
@@ -3013,7 +2933,7 @@ impl PanelView<'_, '_> {
     /// surface for sliders).
     pub(crate) fn capability_rows(
         &mut self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         table: &[&dyn crate::controls::ControlWidget],
     ) -> bool {
         crate::panels::develop_forms::render_and_apply(ui, self.lang, &mut self.editor.doc_mut().recipe, table)
@@ -3027,7 +2947,7 @@ impl PanelView<'_, '_> {
     /// Toggle the clipping overlay (the J overlay and the histogram's corner
     /// triangles share it). At rest it drops the layer; once on it rebuilds
     /// from the retained RGB frame, so the toggle is instant — no redevelop.
-    pub(crate) fn toggle_clipping(&mut self, ctx: &egui::Context) {
+    pub(crate) fn toggle_clipping(&mut self, ctx: &Ctx) {
         self.workspace.chrome_mut().show_clipping = !self.workspace.chrome().show_clipping;
         if !self.workspace.chrome().show_clipping {
             self.workspace.chrome_mut().clip_tex = None; // OFF is just dropping the layer
@@ -3037,10 +2957,10 @@ impl PanelView<'_, '_> {
             Some(rgb) => {
                 let clip = clipping_overlay_for(rgb, self.editor.doc().recipe.crop);
                 if let Some(tex) = &mut self.workspace.chrome_mut().clip_tex {
-                    tex.set(clip, egui::TextureOptions::NEAREST);
+                    tex.set(clip, TextureOptions::NEAREST);
                 } else {
                     self.workspace.chrome_mut().clip_tex =
-                        Some(ctx.load_texture("clip", clip, egui::TextureOptions::NEAREST));
+                        Some(ctx.load_texture("clip", clip, TextureOptions::NEAREST));
                 }
             }
             None => self.editor.session_mut().dirty = true, // nothing retained (fresh open) — worker builds it

@@ -61,7 +61,7 @@ pub(crate) trait ControlWidget: Sync {
     /// Draw this control. Reports a change as data; writes happen in `apply`.
     fn draw(
         &self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         lang: Lang,
         recipe: &EditRecipe,
         out: &mut Vec<CapabilityChange>,
@@ -108,7 +108,7 @@ impl ControlWidget for Plain {
 
     fn draw(
         &self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         lang: Lang,
         recipe: &EditRecipe,
         out: &mut Vec<CapabilityChange>,
@@ -171,7 +171,7 @@ impl ControlWidget for Hinted {
 
     fn draw(
         &self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         lang: Lang,
         recipe: &EditRecipe,
         out: &mut Vec<CapabilityChange>,
@@ -237,7 +237,7 @@ impl ControlWidget for Companion {
 
     fn draw(
         &self,
-        ui: &mut egui::Ui,
+        ui: &mut Ui,
         lang: Lang,
         recipe: &EditRecipe,
         out: &mut Vec<CapabilityChange>,
@@ -599,7 +599,7 @@ mod tests {
             }
             fn draw(
                 &self,
-                ui: &mut egui::Ui,
+                ui: &mut Ui,
                 _lang: Lang,
                 recipe: &EditRecipe,
                 out: &mut Vec<CapabilityChange>,
@@ -615,10 +615,10 @@ mod tests {
         let table: &[&dyn ControlWidget] = &[&Fake];
         let mut recipe = EditRecipe::default();
         let mut out = Vec::new();
-        let ctx = egui::Context::default();
+        let mut ctx = crate::harness::Ctx::new();
         let mut drew = false;
-        let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+        ctx.run_default(|ctx| {
+            crate::harness::central_panel(ctx, |ui| {
                 render_rows(ui, Lang::En, &recipe, table, &mut out);
                 drew = true;
             });

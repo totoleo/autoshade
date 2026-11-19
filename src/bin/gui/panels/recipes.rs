@@ -12,7 +12,7 @@ impl Commands<'_> {
     }
 
     /// One `recipe_library` window frame.
-    pub(crate) fn recipe_library_window(&mut self, ctx: &egui::Context) {
+    pub(crate) fn recipe_library_window(&mut self, ctx: &Ctx) {
         if !self.workspace.rlib().show_recipes {
             return;
         }
@@ -21,10 +21,10 @@ impl Commands<'_> {
         }
         let lang = self.lang;
         let mut open = true;
-        egui::Window::new(tr(lang, K_RECIPES_RECIPE_LIBRARY))
+        Window::new(tr(lang, K_RECIPES_RECIPE_LIBRARY))
             // Fixed id: the title varies with the language and egui keys
             // window state (position, size) off the id.
-            .id(egui::Id::new("recipe_library_window"))
+            .id(Id::new("recipe_library_window"))
             .collapsible(false)
             .default_width(520.0)
             .open(&mut open)
@@ -34,16 +34,16 @@ impl Commands<'_> {
         }
     }
 
-    fn recipe_library_ui(&mut self, ui: &mut egui::Ui) {
+    fn recipe_library_ui(&mut self, ui: &mut Ui) {
         let lang = self.lang;
         let colors = self.workspace.ui().theme.colors();
         let n = self.workspace.rlib().recipes.len();
         ui.set_min_width(540.0);
 
         // --- new recipe ------------------------------------------------------
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(tr(lang, K_RECIPES_NEW_RECIPE)).weak().small());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.row(|ui| {
+            ui.label(Text::new(tr(lang, K_RECIPES_NEW_RECIPE)).weak().small());
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if action(ui, true, tr(lang, K_RECIPES_IMPORT_FILE))
                     .on_hover_text(tr(lang, K_RECIPES_ADD_A_RECIPE_JSON_OR_A_LIGHTROOM_CAMERA_RAW_XMP))
                     .clicked()
@@ -54,19 +54,19 @@ impl Commands<'_> {
                 }
             });
         });
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let ready = self.editor.photo().src_path.is_some() && !self.workspace.busy();
             let button_w = 92.0;
-            let field_w = (ui.available_width() - button_w - ui.spacing().item_spacing.x).max(180.0);
+            let field_w = (ui.avail_width() - button_w - ui.spacing().item_spacing.x).max(180.0);
             let resp = ui.add_sized(
                 [field_w, row_h(ui)],
-                egui::TextEdit::singleline(&mut self.workspace.rlib_mut().recipe_name_buf).hint_text(tr(lang, K_RECIPES_RECIPE_NAME)),
+                TextEdit::singleline(&mut self.workspace.rlib_mut().recipe_name_buf).hint_text(tr(lang, K_RECIPES_RECIPE_NAME)),
             );
             // Enter in the name field saves, like every other name box in the
             // app (the U10 boundary rule): a typed name plus Enter is the
             // shortest path from "this look" to "a named look".
-            let entered = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-            let clicked = primary_in(ui, egui::vec2(button_w, row_h(ui)), ready, tr(lang, K_RECIPES_SAVE))
+            let entered = resp.lost_focus() && ui.input(|i| i.key_pressed(view::Key::Enter));
+            let clicked = primary_in(ui, vec2(button_w, row_h(ui)), ready, tr(lang, K_RECIPES_SAVE))
                 .on_hover_text(tr(
                     lang,
                     K_RECIPES_SAVES_THIS_PHOTO_S_LOOK_UNDER_THE_NAME_IN_THE_FI,
@@ -79,26 +79,26 @@ impl Commands<'_> {
                 )]);
             }
         });
-        ui.separator();
+        ui.rule();
 
         // --- filter ----------------------------------------------------------
         let filter_empty = self.workspace.rlib().recipes_filter.trim().is_empty();
-        ui.horizontal(|ui| {
+        ui.row(|ui| {
             let clear_w = if filter_empty { 0.0 } else { row_h(ui) + ui.spacing().item_spacing.x };
             let count_w = 80.0;
-            let w = (ui.available_width() - clear_w - count_w - ui.spacing().item_spacing.x).max(140.0);
+            let w = (ui.avail_width() - clear_w - count_w - ui.spacing().item_spacing.x).max(140.0);
             ui.add_sized(
                 [w, row_h(ui)],
-                egui::TextEdit::singleline(&mut self.workspace.rlib_mut().recipes_filter).hint_text(tr(lang, K_RECIPES_FILTER)),
+                TextEdit::singleline(&mut self.workspace.rlib_mut().recipes_filter).hint_text(tr(lang, K_RECIPES_FILTER)),
             );
             if !filter_empty
                 && glyph(ui, true, "✕").on_hover_text(tr(lang, K_RECIPES_CLEAR_FILTER)).clicked()
             {
                 self.workspace.rlib_mut().recipes_filter.clear();
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.label(
-                    egui::RichText::new(trf(lang, K_RECIPES_SAVED, &[("n", &n.to_string())])).weak().small(),
+                    Text::new(trf(lang, K_RECIPES_SAVED, &[("n", &n.to_string())])).weak().small(),
                 );
             });
         });
@@ -119,10 +119,10 @@ impl Commands<'_> {
             .collect();
         let mut picked: Option<String> = None;
         let mut commit_rename: Option<(String, String)> = None;
-        ui.add_space(SPACE_XS);
-        egui::ScrollArea::vertical().id_salt("recipe_list").max_height(260.0).show(ui, |ui| {
+        ui.gap(SPACE_XS);
+        ScrollArea::vertical().id_salt("recipe_list").max_height(260.0).show(ui, |ui| {
             if rows.is_empty() {
-                ui.add_space(SPACE_LG);
+                ui.gap(SPACE_LG);
                 let (headline, hint) = if self.workspace.rlib().recipes.is_empty() {
                     (
                         tr(lang, K_RECIPES_NO_RECIPES_YET),
@@ -135,12 +135,12 @@ impl Commands<'_> {
                     )
                 };
                 ui.vertical_centered(|ui| {
-                    ui.label(egui::RichText::new("🖼").size(22.0).weak());
-                    ui.add_space(SPACE_XS);
-                    ui.label(egui::RichText::new(headline).weak());
-                    ui.label(egui::RichText::new(hint).weak().small());
+                    ui.label(Text::new("🖼").size(22.0).weak());
+                    ui.gap(SPACE_XS);
+                    ui.label(Text::new(headline).weak());
+                    ui.label(Text::new(hint).weak().small());
                 });
-                ui.add_space(SPACE_LG);
+                ui.gap(SPACE_LG);
             }
             for (name, age, masks, error) in &rows {
                 let selected = self.workspace.rlib().recipe_sel.as_deref() == Some(name.as_str());
@@ -148,9 +148,9 @@ impl Commands<'_> {
                 if editing {
                     let mut buf = self.workspace.rlib().recipe_rename.as_ref().map(|(_, b)| b.clone()).unwrap_or_default();
                     let resp = ui.add_sized(
-                        [ui.available_width(), RECIPE_ROW_H],
-                        egui::TextEdit::singleline(&mut buf)
-                            .id(egui::Id::new(("recipe_rename", name))),
+                        [ui.avail_width(), RECIPE_ROW_H],
+                        TextEdit::singleline(&mut buf)
+                            .id(Id::new(("recipe_rename", name))),
                     );
                     if let Some((_, b)) = self.workspace.rlib_mut().recipe_rename.as_mut() {
                         *b = buf;
@@ -207,20 +207,20 @@ impl Commands<'_> {
             self.workspace.rlib_mut().recipe_sel = Some(name);
             self.workspace.rlib_mut().recipe_delete_armed = None;
         }
-        ui.separator();
+        ui.rule();
         // The selected entry: what it looks like on this photo, what it
         // changes, and the verbs that act on IT (the library-wide verbs —
         // paste onto the selection, open the folder — stay below).
         if let Some(name) = self.workspace.rlib().recipe_sel.clone() {
             self.recipe_details_pane(ui, &name);
-            ui.separator();
+            ui.rule();
         }
 
         // --- the library-wide verbs ------------------------------------------
         let sel = self.workspace.rlib().recipe_sel.clone();
         let targets = self.workspace.gal().multi_sel.len();
         let busy = self.workspace.busy();
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if action(
                 ui,
                 sel.is_some() && targets > 0 && !busy,
@@ -242,7 +242,7 @@ impl Commands<'_> {
                     logic::recipes::RecipeAction::ApplyToSelection(name.to_owned()),
                 )]);
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if action(ui, true, tr(lang, K_RECIPES_SHOW_LIBRARY_FOLDER))
                     .on_hover_text(tr(lang, K_RECIPES_OPENS_THE_FOLDER_THAT_HOLDS_THESE_RECIPE_FILES))
                     .clicked()
@@ -259,7 +259,7 @@ impl Commands<'_> {
 
     /// The selected entry: its look developed on the open photo, the settings
     /// it actually changes, and the verbs that act on it.
-    fn recipe_details_pane(&mut self, ui: &mut egui::Ui, name: &str) {
+    fn recipe_details_pane(&mut self, ui: &mut Ui, name: &str) {
         let lang = self.lang;
         let entry = autoshade::recipe_library::read(name);
         let colors = self.workspace.ui().theme.colors();
@@ -267,25 +267,25 @@ impl Commands<'_> {
         ui.horizontal_top(|ui| {
             const PREVIEW_W: f32 = 200.0;
             const PREVIEW_H: f32 = 140.0;
-            let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(ui.ctx(), name)) } else { None };
-            ui.vertical(|ui| {
+            let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(&Ctx::from_ref(ui.ctx()), name)) } else { None };
+            ui.column(|ui| {
                 let (rect, _) =
-                    ui.allocate_exact_size(egui::vec2(PREVIEW_W, PREVIEW_H), egui::Sense::hover());
+                    ui.allocate_exact_size(vec2(PREVIEW_W, PREVIEW_H), Sense::hover());
                 match tex {
                     Some((id, size)) => {
                         let scale = (PREVIEW_W / size.x).min(PREVIEW_H / size.y).min(1.0);
                         let shown = size * scale;
-                        let at = egui::Rect::from_center_size(rect.center(), shown);
-                        egui::Image::new(egui::load::SizedTexture::new(id, shown)).paint_at(ui, at);
+                        let at = Rect::from_center_size(rect.center(), shown);
+                        Image::new(load::SizedTexture::new(id, shown)).paint_at(ui, at);
                         ui.painter().rect_stroke(
                             at.expand(1.0),
                             RADIUS_SM,
-                            egui::Stroke::new(1.0, colors.hairline),
-                            egui::StrokeKind::Middle,
+                            Stroke::new(1.0, colors.hairline),
+                            StrokeKind::Middle,
                         );
                         if let Some(stem) = &photo_stem {
                             ui.label(
-                                egui::RichText::new(trf(lang, K_RECIPES_ON, &[("photo", stem)]))
+                                Text::new(trf(lang, K_RECIPES_ON, &[("photo", stem)]))
                                     .weak()
                                     .small(),
                             );
@@ -295,34 +295,34 @@ impl Commands<'_> {
                         ui.painter().rect_filled(rect, RADIUS_MD, colors.canvas_bed);
                         ui.painter().text(
                             rect.center(),
-                            egui::Align2::CENTER_CENTER,
+                            Align2::CENTER_CENTER,
                             tr(lang, K_RECIPES_OPEN_A_PHOTO_TO_SEE_THIS_RECIPE_ON_IT),
-                            egui::TextStyle::Small.resolve(ui.style()),
+                            TextStyle::Small.resolve(ui.style()),
                             ui.visuals().weak_text_color(),
                         );
                     }
                 }
             });
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new(name).strong());
+            ui.column(|ui| {
+                ui.label(Text::new(name).strong());
                 match &entry {
                     Ok(r) => {
                         let facts = recipe_facts(self.lang, r);
                         if facts.is_empty() {
                             ui.label(
-                                egui::RichText::new(tr(lang, K_RECIPES_NO_EDITS_THIS_RECIPE_IS_NEUTRAL)).weak().small(),
+                                Text::new(tr(lang, K_RECIPES_NO_EDITS_THIS_RECIPE_IS_NEUTRAL)).weak().small(),
                             );
                         } else {
-                            egui::Grid::new("recipe_facts")
+                            Grid::new("recipe_facts")
                                 .num_columns(2)
                                 .spacing([16.0, 3.0])
                                 .show(ui, |ui| {
                                     for (label, value) in facts {
-                                        ui.label(egui::RichText::new(label).weak().small());
+                                        ui.label(Text::new(label).weak().small());
                                         ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            Layout::right_to_left(Align::Center),
                                             |ui| {
-                                                ui.label(egui::RichText::new(value).small());
+                                                ui.label(Text::new(value).small());
                                             },
                                         );
                                         ui.end_row();
@@ -332,7 +332,7 @@ impl Commands<'_> {
                     }
                     Err(e) => {
                         ui.label(
-                            egui::RichText::new(trf(lang, K_RECIPES_UNREADABLE__2, &[("err", &e.to_string())]))
+                            Text::new(trf(lang, K_RECIPES_UNREADABLE__2, &[("err", &e.to_string())]))
                                 .color(colors.toast_err_fg)
                                 .small(),
                         );
@@ -343,7 +343,7 @@ impl Commands<'_> {
         let ok = entry.is_ok();
         let has_photo = self.editor.photo().src_path.is_some();
         let busy = self.workspace.busy();
-        ui.add_space(SPACE_XS);
+        ui.gap(SPACE_XS);
         let running = tr(lang, K_RECIPES_A_TASK_IS_RUNNING_WAIT_FOR_IT_TO_FINISH);
         let needs_photo = || {
             if has_photo {
@@ -352,7 +352,7 @@ impl Commands<'_> {
                 tr(lang, K_RECIPES_OPEN_A_PHOTO_FIRST)
             }
         };
-        ui.horizontal_wrapped(|ui| {
+        ui.row_wrapped(|ui| {
             if primary(ui, ok && has_photo && !busy, tr(lang, K_RECIPES_APPLY_TO_THIS_PHOTO))
                 .on_hover_text(tr(lang, K_RECIPES_REPLACES_WHAT_IS_ON_THE_CANVAS_CTRL_Z_UNDOES_IT))
                 .on_disabled_hover_text(needs_photo())
@@ -407,43 +407,43 @@ impl Commands<'_> {
 /// rather than composed so every row is the same line whatever the name's
 /// length (a long stem truncates; the tooltip carries it whole).
 fn paint_recipe_row(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     colors: &crate::theme::ThemeColors,
     name: &str,
     meta: &str,
     selected: bool,
     broken: bool,
-) -> (egui::Response, bool) {
+) -> (Response, bool) {
     let (rect, resp) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), RECIPE_ROW_H), egui::Sense::click());
+        ui.allocate_exact_size(vec2(ui.avail_width(), RECIPE_ROW_H), Sense::click());
     if !ui.is_rect_visible(rect) {
         return (resp, false);
     }
     if resp.hovered() {
         // A row is a click target, like a gallery thumbnail (the same cursor
         // language everywhere a click does something).
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
     }
     let painter = ui.painter();
     if selected {
-        painter.rect_filled(rect.shrink2(egui::vec2(0.0, 1.0)), RADIUS_SM, colors.sel_bg);
-        let bar = egui::Rect::from_min_size(
-            rect.left_center() - egui::vec2(0.0, 10.0),
-            egui::vec2(2.0, 20.0),
+        painter.rect_filled(rect.shrink2(vec2(0.0, 1.0)), RADIUS_SM, colors.sel_bg);
+        let bar = Rect::from_min_size(
+            rect.left_center() - vec2(0.0, 10.0),
+            vec2(2.0, 20.0),
         );
         painter.rect_filled(bar, 1.0, colors.accent_fill);
     } else if resp.hovered() {
         // One quiet step off the panel: the selection is the strong state,
         // the pointer's wash must not out-shout it.
-        painter.rect_filled(rect.shrink2(egui::vec2(0.0, 1.0)), RADIUS_SM, colors.card_fill);
+        painter.rect_filled(rect.shrink2(vec2(0.0, 1.0)), RADIUS_SM, colors.card_fill);
     }
-    let font = egui::TextStyle::Body.resolve(ui.style());
-    let small = egui::TextStyle::Small.resolve(ui.style());
+    let font = TextStyle::Body.resolve(ui.style());
+    let small = TextStyle::Small.resolve(ui.style());
     let weak = if broken { colors.toast_err_fg } else { ui.visuals().weak_text_color() };
     let meta_galley = painter.layout_no_wrap(meta.to_owned(), small, weak);
     let meta_w = meta_galley.size().x;
     painter.galley(
-        rect.right_center() - egui::vec2(12.0 + meta_w, meta_galley.size().y / 2.0),
+        rect.right_center() - vec2(12.0 + meta_w, meta_galley.size().y / 2.0),
         meta_galley,
         weak,
     );
@@ -458,8 +458,8 @@ fn paint_recipe_row(
     let shown = truncate_to(ui, name, font.clone(), name_w);
     let truncated = shown != name;
     painter.text(
-        rect.left_center() + egui::vec2(14.0, 0.0),
-        egui::Align2::LEFT_CENTER,
+        rect.left_center() + vec2(14.0, 0.0),
+        Align2::LEFT_CENTER,
         shown,
         font,
         name_color,
@@ -470,10 +470,10 @@ fn paint_recipe_row(
 /// `text` cut to `max_w` with an ellipsis (egui 0.29 has no overflow
 /// character on a laid-out galley, so this walks the tail off and re-measures;
 /// the galleys are cached, and a row name is a few dozen characters).
-fn truncate_to(ui: &egui::Ui, text: &str, font: egui::FontId, max_w: f32) -> String {
+fn truncate_to(ui: &Ui, text: &str, font: FontId, max_w: f32) -> String {
     let width = |s: &str| {
         ui.fonts_mut(|f| {
-            f.layout_no_wrap(s.to_owned(), font.clone(), egui::Color32::PLACEHOLDER).size().x
+            f.layout_no_wrap(s.to_owned(), font.clone(), Color32::PLACEHOLDER).size().x
         })
     };
     if width(text) <= max_w {

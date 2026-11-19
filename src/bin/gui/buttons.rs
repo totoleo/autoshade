@@ -46,20 +46,20 @@ use super::*;
 
 /// Text on the solid gold primary fill — the same near-black on both
 /// themes, because the fill is the same gold on both.
-pub(crate) const PRIMARY_FG: egui::Color32 = egui::Color32::from_gray(26);
+pub(crate) const PRIMARY_FG: Color32 = Color32::from_gray(26);
 
 /// One row: the height every button in this vocabulary stands.
-pub(crate) fn row_h(ui: &egui::Ui) -> f32 {
+pub(crate) fn row_h(ui: &Ui) -> f32 {
     ui.spacing().interact_size.y
 }
 
 /// The size each of `n` equal cells takes across the rest of the row, in
 /// whole pixels so `n` of them never overrun the row by a rounding error.
-pub(crate) fn columns(ui: &egui::Ui, n: usize) -> egui::Vec2 {
+pub(crate) fn columns(ui: &Ui, n: usize) -> Vec2 {
     let n = n.max(1);
     let gaps = ui.spacing().item_spacing.x * (n - 1) as f32;
-    let width = ui.available_width().min(FIELD_W_MAX);
-    egui::vec2(((width - gaps) / n as f32).floor().max(0.0), row_h(ui))
+    let width = ui.avail_width().min(FIELD_W_MAX);
+    vec2(((width - gaps) / n as f32).floor().max(0.0), row_h(ui))
 }
 
 /// Every button this vocabulary drew on this thread — read by the
@@ -69,7 +69,7 @@ pub(crate) fn columns(ui: &egui::Ui, n: usize) -> egui::Vec2 {
 pub(crate) struct Drawn {
     pub(crate) kind: &'static str,
     pub(crate) label: String,
-    pub(crate) rect: egui::Rect,
+    pub(crate) rect: Rect,
     /// Whether the label fit its cell on one line — measured, not assumed.
     pub(crate) fits: bool,
     /// Whether the button was laid in a grid cell (the side-panel rule) or at
@@ -93,13 +93,13 @@ thread_local! {
 /// the panel and widened the auto-fitting side panel every frame (R19's
 /// runaway, met again as +47 px/frame while this vocabulary went in).
 fn place(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     kind: &'static str,
-    cell: Option<egui::Vec2>,
+    cell: Option<Vec2>,
     enabled: bool,
-    text: egui::WidgetText,
-    style: impl FnOnce(egui::Button<'static>) -> egui::Button<'static>,
-) -> egui::Response {
+    text: WidgetText,
+    style: impl FnOnce(Button<'static>) -> Button<'static>,
+) -> Response {
     // A glyph fills its square edge to edge: a 24 px symbol plus egui's
     // 2 x 4 px of horizontal padding asks for 32 px, which the justified
     // layout cannot centre inside a 26 px square — it overflows it. A text
@@ -110,7 +110,7 @@ fn place(
     #[cfg(test)]
     let fits = cell.is_none_or(|cell| {
         let width = ui.fonts_mut(|f| {
-            f.layout_no_wrap(label.clone(), egui::TextStyle::Button.resolve(ui.style()), egui::Color32::WHITE)
+            f.layout_no_wrap(label.clone(), TextStyle::Button.resolve(ui.style()), Color32::WHITE)
                 .size()
                 .x
         });
@@ -124,18 +124,18 @@ fn place(
     // BEFORE the button, so it lies beneath the icon). A selected glyph
     // keeps its selection frame.
     let ghost = square && !matches!(kind, "glyph_toggle_on");
-    let button = style(egui::Button::new(text));
-    let button = if ghost { button.frame(false) } else { button.stroke(egui::Stroke::NONE) };
+    let button = style(Button::new(text));
+    let button = if ghost { button.frame(false) } else { button.stroke(Stroke::NONE) };
     // A cell's label TRUNCATES rather than extends (2026-10-18, user
     // screenshot): a row's default wrap mode is Extend, so a label wider
     // than its cell — a side panel dragged narrower than the default the
     // `fits` pin measures at — grew the button past the cell and pushed the
     // row's last button out of its card. The cell is the width contract.
     let button = if cell.is_some() { button.truncate() } else { button };
-    let plate = ui.painter().add(egui::Shape::Noop);
+    let plate = ui.painter().add(Shape::Noop);
     let response = match cell {
         Some(cell) => {
-            let layout = egui::Layout::centered_and_justified(ui.layout().main_dir());
+            let layout = Layout::centered_and_justified(ui.layout().main_dir());
             ui.allocate_ui_with_layout(cell, layout, |ui| {
                 if square {
                     ui.spacing_mut().button_padding.x = 0.0;
@@ -149,7 +149,7 @@ fn place(
     if ghost && enabled && (response.hovered() || response.has_focus()) {
         let w = &ui.visuals().widgets;
         let fill = if response.is_pointer_button_down_on() { w.active.weak_bg_fill } else { w.hovered.weak_bg_fill };
-        ui.painter().set(plate, egui::Shape::rect_filled(response.rect, w.hovered.corner_radius, fill));
+        ui.painter().set(plate, Shape::rect_filled(response.rect, w.hovered.corner_radius, fill));
     }
     #[cfg(test)]
     let kind = if kind == "glyph_toggle_on" { "glyph_toggle" } else { kind };
@@ -169,17 +169,17 @@ fn place(
 /// two buttons with none) only wraps a hair early: the buttons still lay
 /// out at their own widths.
 pub(crate) fn group<R>(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     labels: &[&str],
     glyphs: usize,
-    add: impl FnOnce(&mut egui::Ui) -> R,
+    add: impl FnOnce(&mut Ui) -> R,
 ) -> R {
-    let font = egui::TextStyle::Button.resolve(ui.style());
+    let font = TextStyle::Button.resolve(ui.style());
     let padding = 2.0 * ui.spacing().button_padding.x;
     let text: f32 = ui.fonts_mut(|f| {
         labels
             .iter()
-            .map(|l| f.layout_no_wrap((*l).to_owned(), font.clone(), egui::Color32::WHITE).size().x + padding)
+            .map(|l| f.layout_no_wrap((*l).to_owned(), font.clone(), Color32::WHITE).size().x + padding)
             .sum()
     });
     let items = labels.len() + glyphs;
@@ -187,92 +187,92 @@ pub(crate) fn group<R>(
         + glyphs as f32 * row_h(ui)
         + ui.spacing().item_spacing.x * items.saturating_sub(1) as f32
         + SPACE_LG;
-    let layout = egui::Layout::left_to_right(egui::Align::Center);
-    ui.allocate_ui_with_layout(egui::vec2(width.ceil(), row_h(ui)), layout, |ui| {
+    let layout = Layout::left_to_right(Align::Center);
+    ui.allocate_ui_with_layout(vec2(width.ceil(), row_h(ui)), layout, |ui| {
         let r = add(ui);
         // The fence between groups, INSIDE the allocation: a separator or a
         // space of its own would wrap to a line start and sit there orphaned.
-        ui.add_space(SPACE_LG);
+        ui.gap(SPACE_LG);
         r
     })
     .inner
 }
 
-fn primary_text(text: impl Into<String>) -> egui::WidgetText {
-    egui::RichText::new(text).color(PRIMARY_FG).into()
+fn primary_text(text: impl Into<String>) -> WidgetText {
+    Text::new(text).color(PRIMARY_FG).into()
 }
 
 /// A secondary text verb at its own width.
-pub(crate) fn action(ui: &mut egui::Ui, enabled: bool, text: impl Into<egui::WidgetText>) -> egui::Response {
+pub(crate) fn action(ui: &mut Ui, enabled: bool, text: impl Into<WidgetText>) -> Response {
     place(ui, "action", None, enabled, text.into(), |b| b)
 }
 
 /// A secondary text verb filling one grid cell of the row ([`columns`]).
 pub(crate) fn action_in(
-    ui: &mut egui::Ui,
-    cell: egui::Vec2,
+    ui: &mut Ui,
+    cell: Vec2,
     enabled: bool,
-    text: impl Into<egui::WidgetText>,
-) -> egui::Response {
+    text: impl Into<WidgetText>,
+) -> Response {
     place(ui, "action", Some(cell), enabled, text.into(), |b| b)
 }
 
 /// The group's one main verb at its own width.
-pub(crate) fn primary(ui: &mut egui::Ui, enabled: bool, text: impl Into<String>) -> egui::Response {
+pub(crate) fn primary(ui: &mut Ui, enabled: bool, text: impl Into<String>) -> Response {
     place(ui, "primary", None, enabled, primary_label(text, enabled), |b| primary_fill(b, enabled))
 }
 
 /// The group's one main verb filling one grid cell of the row.
-pub(crate) fn primary_in(ui: &mut egui::Ui, cell: egui::Vec2, enabled: bool, text: impl Into<String>) -> egui::Response {
+pub(crate) fn primary_in(ui: &mut Ui, cell: Vec2, enabled: bool, text: impl Into<String>) -> Response {
     place(ui, "primary", Some(cell), enabled, primary_label(text, enabled), |b| primary_fill(b, enabled))
 }
 
 /// A disabled primary is an ordinary disabled button (2026-10-13): egui's
 /// disabled fade over the gold fill made a muddy brown slab — the panel's
 /// loudest colour on a control that cannot be pressed.
-fn primary_fill(b: egui::Button<'static>, enabled: bool) -> egui::Button<'static> {
+fn primary_fill(b: Button<'static>, enabled: bool) -> Button<'static> {
     if enabled { b.fill(current_theme().colors().accent_fill) } else { b }
 }
 
 /// …and its label takes the theme's text colour then, not the near-black
 /// made for the gold.
-fn primary_label(text: impl Into<String>, enabled: bool) -> egui::WidgetText {
-    if enabled { primary_text(text) } else { egui::WidgetText::from(text.into()) }
+fn primary_label(text: impl Into<String>, enabled: bool) -> WidgetText {
+    if enabled { primary_text(text) } else { WidgetText::from(text.into()) }
 }
 
 /// A row's one secondary verb, filling the row (one cell of [`columns`] 1).
-pub(crate) fn action_row(ui: &mut egui::Ui, enabled: bool, text: impl Into<egui::WidgetText>) -> egui::Response {
+pub(crate) fn action_row(ui: &mut Ui, enabled: bool, text: impl Into<WidgetText>) -> Response {
     let cell = columns(ui, 1);
     action_in(ui, cell, enabled, text)
 }
 
 /// A row's one main verb, filling the row.
-pub(crate) fn primary_row(ui: &mut egui::Ui, enabled: bool, text: impl Into<String>) -> egui::Response {
+pub(crate) fn primary_row(ui: &mut Ui, enabled: bool, text: impl Into<String>) -> Response {
     let cell = columns(ui, 1);
     primary_in(ui, cell, enabled, text)
 }
 
 /// The primary verb as a builder, for the one row that sizes its button by
 /// hand (the Reimagine prompt row measures it against its field).
-pub(crate) fn primary_button(text: impl Into<String>) -> egui::Button<'static> {
-    egui::Button::new(primary_text(text)).fill(current_theme().colors().accent_fill)
+pub(crate) fn primary_button(text: impl Into<String>) -> Button<'static> {
+    Button::new(primary_text(text)).fill(current_theme().colors().accent_fill)
 }
 
 /// An armed / selected text state filling one grid cell of the row.
-pub(crate) fn toggle_in(ui: &mut egui::Ui, cell: egui::Vec2, on: bool, text: impl Into<egui::WidgetText>) -> egui::Response {
+pub(crate) fn toggle_in(ui: &mut Ui, cell: Vec2, on: bool, text: impl Into<WidgetText>) -> Response {
     place(ui, "toggle", Some(cell), true, text.into(), |b| b.selected(on))
 }
 
 /// An icon-only verb: an exact square of the row height.
-pub(crate) fn glyph(ui: &mut egui::Ui, enabled: bool, g: impl Into<egui::WidgetText>) -> egui::Response {
+pub(crate) fn glyph(ui: &mut Ui, enabled: bool, g: impl Into<WidgetText>) -> Response {
     let h = row_h(ui);
-    place(ui, "glyph", Some(egui::vec2(h, h)), enabled, g.into(), |b| b)
+    place(ui, "glyph", Some(vec2(h, h)), enabled, g.into(), |b| b)
 }
 
 /// An icon-only armed / selected state: the same square, the selection
 /// frame while on.
-pub(crate) fn glyph_toggle(ui: &mut egui::Ui, on: bool, g: impl Into<egui::WidgetText>) -> egui::Response {
+pub(crate) fn glyph_toggle(ui: &mut Ui, on: bool, g: impl Into<WidgetText>) -> Response {
     let h = row_h(ui);
     let kind = if on { "glyph_toggle_on" } else { "glyph_toggle" };
-    place(ui, kind, Some(egui::vec2(h, h)), true, g.into(), |b| b.selected(on))
+    place(ui, kind, Some(vec2(h, h)), true, g.into(), |b| b.selected(on))
 }

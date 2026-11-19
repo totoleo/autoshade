@@ -2,6 +2,7 @@
 // `mod tests` (indentation kept — raw-string fixtures must not
 // change by one byte). `super::*` still resolves to the root.
     use super::*;
+    use crate::harness::*;
 
     // The tests themselves, in parts under tests/: each file is spliced in here
     // by include!, so its items are items of this module and every test keeps
@@ -97,36 +98,4 @@
             }
         }
         text[..=end].to_string()
-    }
-
-    /// One headless frame of the whole app (`run_frame`, i.e. `update`
-    /// without the prefs flush) over a `size`-point screen, with `events`.
-    fn app_frame(
-        ctx: &egui::Context,
-        app: &mut AutoShadeApp,
-        size: egui::Vec2,
-        frame: usize,
-        events: Vec<egui::Event>,
-    ) -> egui::FullOutput {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
-            time: Some(frame as f64 / 2.0),
-            events,
-            ..Default::default()
-        };
-        ctx.run(input, |ctx| app.run_frame(ctx))
-    }
-
-    /// A primary click at `at`: press on one frame, release on the next.
-    fn click_at(ctx: &egui::Context, app: &mut AutoShadeApp, size: egui::Vec2, frame: &mut usize, at: egui::Pos2) {
-        let button = |pressed| egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        };
-        for events in [vec![egui::Event::PointerMoved(at), button(true)], vec![button(false)]] {
-            app_frame(ctx, app, size, *frame, events);
-            *frame += 1;
-        }
     }

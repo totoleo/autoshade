@@ -38,7 +38,7 @@
         autoshade::store::write_pixel_source(src, &gone, false).unwrap();
         std::fs::remove_file(&gone).unwrap(); // recorded, and now unresolvable
         assert!(autoshade::store::has_pixel_source(src), "premise: a record survives");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(src.to_path_buf()),
@@ -166,7 +166,7 @@
         // the sizes differing: a RAW smaller than the preference decodes
         // un-upscaled, and calling that source canvas a stale bake is a lie on
         // the surface that never expires.
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let src = |base: Option<Arc<image::DynamicImage>>| Variant {
             id: String::new(),
             name: None,
@@ -305,7 +305,7 @@
     fn an_undo_to_a_superseded_master_discloses_its_resolution() {
         // Undo/redo wrote no status at all, so the quietest door onto the same
         // canvas/preference disagreement said nothing.
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let superseded = Arc::new(image::DynamicImage::new_rgb8(640, 480));
         // 800 is what the SOURCE delivers here, and it is NOT the preference
         // (1280): the retraction therefore comes from the delivered-edge arm
@@ -387,7 +387,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
         // BACKGROUND variant, whose baked raster the preference cannot
         // re-decode — silently, and carrying the deleted canvas's own
         // disclosure forward.
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let baked = |w: u32, h: u32, tag: &str| Variant {
             id: String::new(),
             name: None,
@@ -489,7 +489,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
         // reason there is nothing to guard. (The photo's unsaved work is not
         // lost: open_path stashed it before the flight.)
         let mut app = AutoShadeApp::default();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.editor_mut().photo_mut().src_path = Some(std::env::temp_dir().join(format!("autoshade-deadopen-{}/__autoshade_deadopen__.ARW", std::process::id())));
         app.editor_mut().doc_mut().variants = vec![Variant {
             id: String::new(),
@@ -680,7 +680,7 @@ source_preview: Some(Arc::new(image::DynamicImage::new_rgb8(800, 600))),
                 origin: None,
                 thumb: None,
             },
-            &egui::Context::default(),
+            &harness::Ctx::new(),
         );
         assert_eq!(
             app.editor().doc().variants[0].recipe.masks[0].name, "sky gradient",

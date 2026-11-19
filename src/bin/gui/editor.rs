@@ -434,8 +434,8 @@ impl Editor {
     /// the develop and every raster live in), mapped out of the transformed
     /// view. `None` until the click. A tool that samples the canvas base reads
     /// it at [`Self::orig_to_base_norm`] of this point.
-    pub(crate) fn clicked_orig_norm(&self, ui: &egui::Ui, resp: &egui::Response, xf: ViewXform) -> Option<(f32, f32)> {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    pub(crate) fn clicked_orig_norm(&self, ui: &Ui, resp: &Response, xf: ViewXform) -> Option<(f32, f32)> {
+        ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
         if !resp.clicked() {
             return None;
         }
@@ -446,15 +446,15 @@ impl Editor {
 
     /// The focus point as a small ring while the pick is armed, so the
     /// photographer sees where the current focus sits before moving it.
-    pub(crate) fn draw_lens_focus(&self, ui: &egui::Ui, xf: ViewXform) {
+    pub(crate) fn draw_lens_focus(&self, ui: &Ui, xf: ViewXform) {
         let Some(lb) = self.doc().recipe.lens_blur.as_ref() else { return };
         let ((bw, bh), deg, dist) = self.geom_ctx();
         let (vx, vy) = orig_norm_to_view(lb.focus[0], lb.focus[1], (bw, bh), deg, &dist);
         let c = xf.to_screen(vx, vy);
         let p = ui.painter();
-        p.circle_stroke(c, 9.0, egui::Stroke::new(3.0, egui::Color32::from_black_alpha(150)));
-        p.circle_stroke(c, 9.0, egui::Stroke::new(1.5, egui::Color32::from_white_alpha(235)));
-        p.circle_filled(c, 2.0, egui::Color32::WHITE);
+        p.circle_stroke(c, 9.0, Stroke::new(3.0, Color32::from_black_alpha(150)));
+        p.circle_stroke(c, 9.0, Stroke::new(1.5, Color32::from_white_alpha(235)));
+        p.circle_filled(c, 2.0, Color32::WHITE);
     }
 }
 
@@ -544,12 +544,12 @@ impl Editor {
     /// between the source and the edit, and a swap's first frame fades in
     /// over the frame it replaced. `id` is the texture `comparing` selects;
     /// the other one is painted over it while the compare fade runs.
-    pub(crate) fn paint_canvas_image(&mut self, ui: &egui::Ui, rect: egui::Rect, uv: egui::Rect, id: egui::TextureId, comparing: bool) {
+    pub(crate) fn paint_canvas_image(&mut self, ui: &Ui, rect: Rect, uv: Rect, id: TextureId, comparing: bool) {
         let painter = ui.painter_at(rect);
         let ctx = ui.ctx();
         // 1 = showing the source. Driven by `comparing`, so a held B fades
         // in and its release fades back.
-        let to_before = ctx.animate_bool_with_time(egui::Id::new("canvas_compare"), comparing, MOTION_FADE_S);
+        let to_before = ctx.animate_bool_with_time(Id::new("canvas_compare"), comparing, MOTION_FADE_S);
         let other_alpha = if comparing { 1.0 - to_before } else { to_before };
         let swap = self.plates().canvas_fade.as_ref().map(|(old, t)| (old.clone(), ease_out(t.elapsed().as_secs_f32() / MOTION_FADE_S)));
         match &swap {
@@ -557,21 +557,21 @@ impl Editor {
             // fading in on top (from the bare canvas when there was none).
             Some((old, k)) if *k < 1.0 => {
                 if let Some(old) = old {
-                    painter.image(old.id(), rect, uv, egui::Color32::WHITE);
+                    painter.image(old.id(), rect, uv, Color32::WHITE);
                 }
-                painter.image(id, rect, uv, egui::Color32::WHITE.gamma_multiply(*k));
+                painter.image(id, rect, uv, Color32::WHITE.gamma_multiply(*k));
                 ctx.request_repaint();
             }
             _ => {
                 self.plates_mut().canvas_fade = None;
-                painter.image(id, rect, uv, egui::Color32::WHITE);
+                painter.image(id, rect, uv, Color32::WHITE);
             }
         }
         let other = if comparing { &self.plates().after_tex } else { &self.plates().before_tex };
         if other_alpha > 0.0
             && let Some(t) = other
         {
-            painter.image(t.id(), rect, uv, egui::Color32::WHITE.gamma_multiply(other_alpha));
+            painter.image(t.id(), rect, uv, Color32::WHITE.gamma_multiply(other_alpha));
         }
     }
 }
@@ -910,8 +910,8 @@ impl Editor {
     /// the develop and the depth map share.
     pub(crate) fn handle_lens_focus_pick(
         &self,
-        ui: &egui::Ui,
-        resp: &egui::Response,
+        ui: &Ui,
+        resp: &Response,
         xf: ViewXform,
     ) -> Option<logic::Action> {
         let (nx, ny) = self.clicked_orig_norm(ui, resp, xf)?;
@@ -929,13 +929,13 @@ impl Editor {
     /// The Before pane: `base` under the canvas recipe's START alone
     /// (`EditRecipe::start_only` — its camera curve, or since v1.17.0 the
     /// creative Look's baked half on its profile's base), every slider at 0.
-    pub(crate) fn set_before(&mut self, workspace: &mut WorkspaceView, ctx: &egui::Context, base: &image::DynamicImage, start: &EditRecipe) {
+    pub(crate) fn set_before(&mut self, workspace: &mut WorkspaceView, ctx: &Ctx, base: &image::DynamicImage, start: &EditRecipe) {
         let img = if start.start_only() == EditRecipe::default() {
             to_color_image(base)
         } else {
             to_color_image(&autoshade::render::develop_preview(base, &start.start_only()))
         };
-        self.plates_mut().before_tex = Some(ctx.load_texture("before", img, egui::TextureOptions::LINEAR));
+        self.plates_mut().before_tex = Some(ctx.load_texture("before", img, TextureOptions::LINEAR));
         workspace.open_mut().before_start = start.start_only();
     }
 
@@ -943,32 +943,32 @@ impl Editor {
     /// Lightroom — except while the crop tool is open, which needs the full
     /// frame) narrowed by zoom/pan. `pan` is stored in crop-window coords and
     /// re-clamped here so edge panning never accumulates out of range.
-    pub(crate) fn view_uv(&mut self, workspace: &mut WorkspaceView) -> egui::Rect {
+    pub(crate) fn view_uv(&mut self, workspace: &mut WorkspaceView) -> Rect {
         let win = match (&self.doc().recipe.crop, workspace.crop().mode) {
-            (Some(c), false) => egui::Rect::from_min_max(
-                egui::pos2(c.left.min(c.right), c.top.min(c.bottom)),
-                egui::pos2(c.right.max(c.left), c.bottom.max(c.top)),
+            (Some(c), false) => Rect::from_min_max(
+                pos2(c.left.min(c.right), c.top.min(c.bottom)),
+                pos2(c.right.max(c.left), c.bottom.max(c.top)),
             ),
-            _ => egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            _ => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
         };
         let half = 0.5 / workspace.view().zoom.clamp(1.0, 12.0);
-        workspace.view_mut().pan = egui::vec2(
+        workspace.view_mut().pan = vec2(
             workspace.view().pan.x.clamp(half, 1.0 - half),
             workspace.view().pan.y.clamp(half, 1.0 - half),
         );
-        egui::Rect::from_min_max(
-            egui::pos2(
+        Rect::from_min_max(
+            pos2(
                 win.min.x + (workspace.view().pan.x - half) * win.width(),
                 win.min.y + (workspace.view().pan.y - half) * win.height(),
             ),
-            egui::pos2(
+            pos2(
                 win.min.x + (workspace.view().pan.x + half) * win.width(),
                 win.min.y + (workspace.view().pan.y + half) * win.height(),
             ),
         )
     }
 
-    pub(crate) fn ensure_mask_tex(&mut self, workspace: &mut WorkspaceView, ctx: &egui::Context) {
+    pub(crate) fn ensure_mask_tex(&mut self, workspace: &mut WorkspaceView, ctx: &Ctx) {
         // The canvas lives in the ORIGINAL frame (strokes are mapped there so
         // fill/heal edit source pixels), but the texture is blitted over the
         // After image, which has been through distortion + straighten — the
@@ -1032,8 +1032,8 @@ impl Editor {
                     if let Some(tex) = overlay.mask_tex.as_mut() {
                         tex.set_partial(
                             [x0 as usize, y0 as usize],
-                            egui::ColorImage::from_rgba_unmultiplied([w, h], &sub),
-                            egui::TextureOptions::LINEAR,
+                            ColorImage::from_rgba_unmultiplied([w, h], &sub),
+                            TextureOptions::LINEAR,
                         );
                     }
                     overlay.mask_dirty_rect = None;
@@ -1073,13 +1073,13 @@ impl Editor {
                         img = autoshade::render::rotate_straighten_rgba(&img, xform_now.0);
                     }
                     let rgba = img;
-                    egui::ColorImage::from_rgba_unmultiplied(
+                    ColorImage::from_rgba_unmultiplied(
                         [rgba.width() as usize, rgba.height() as usize],
                         rgba.as_raw(),
                     )
                 } else {
                     // Common case: no geometry — zero-copy view of the canvas.
-                    egui::ColorImage::from_rgba_unmultiplied(
+                    ColorImage::from_rgba_unmultiplied(
                         [m.width() as usize, m.height() as usize],
                         m.as_raw(),
                     )
@@ -1089,10 +1089,10 @@ impl Editor {
                 // churn finish_redevelop documents avoiding (set() re-uploads,
                 // size changes included).
                 if let Some(tex) = &mut workspace.overlay_mut().mask_tex {
-                    tex.set(ci, egui::TextureOptions::LINEAR);
+                    tex.set(ci, TextureOptions::LINEAR);
                 } else {
                     workspace.overlay_mut().mask_tex =
-                        Some(ctx.load_texture("paintmask", ci, egui::TextureOptions::LINEAR));
+                        Some(ctx.load_texture("paintmask", ci, TextureOptions::LINEAR));
                 }
                 workspace.overlay_mut().mask_tex_xform = xform_now;
                 workspace.overlay_mut().mask_tex_built = Instant::now();
@@ -1130,13 +1130,13 @@ impl Editor {
                 ((c.right - c.left).abs().max(1e-6), (c.bottom - c.top).abs().max(1e-6));
             workspace.view_mut().pan = if on {
                 // crop-window coords → full-frame coords
-                egui::vec2(l + workspace.view().pan.x * w, t + workspace.view().pan.y * h)
+                vec2(l + workspace.view().pan.x * w, t + workspace.view().pan.y * h)
             } else {
                 // full-frame coords → crop-window coords
-                egui::vec2((workspace.view().pan.x - l) / w, (workspace.view().pan.y - t) / h)
+                vec2((workspace.view().pan.x - l) / w, (workspace.view().pan.y - t) / h)
             };
             // view_uv re-clamps against zoom each frame; keep it sane here.
-            workspace.view_mut().pan = egui::vec2(workspace.view().pan.x.clamp(0.0, 1.0), workspace.view().pan.y.clamp(0.0, 1.0));
+            workspace.view_mut().pan = vec2(workspace.view().pan.x.clamp(0.0, 1.0), workspace.view().pan.y.clamp(0.0, 1.0));
         }
         workspace.crop_mut().mode = on;
     }
@@ -1608,7 +1608,7 @@ impl Editor {
     /// Commit the current state as ONE undo step once the edit gesture settles
     /// (pointer released) — dragging a slider is one step, not one per frame.
     /// Programmatic edits (Analyze, Reset) land here on the next frame.
-    pub(crate) fn commit_if_settled(&mut self, workspace: &WorkspaceView, ctx: &egui::Context) {
+    pub(crate) fn commit_if_settled(&mut self, workspace: &WorkspaceView, ctx: &Ctx) {
         if !ctx.input(|i| i.pointer.any_down()) {
             self.commit_now(workspace);
         }
