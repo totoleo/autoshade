@@ -147,7 +147,7 @@ pub(crate) fn decide(state: QuitState) -> (TerminateReply, bool) {
 
 static STATE: AtomicU8 = AtomicU8::new(0);
 static CLOSE_REQUESTED: AtomicBool = AtomicBool::new(false);
-static CTX: OnceLock<Context> = OnceLock::new();
+static CTX: OnceLock<Ctx> = OnceLock::new();
 
 /// Record what quitting would cost right now. Called once per frame.
 pub(crate) fn publish(state: QuitState) {
@@ -165,7 +165,7 @@ pub(crate) fn state() -> QuitState {
 /// idle: egui is a lazy repainter, so without this the confirm layer would not
 /// appear until the user happened to move the mouse. Set once, from the app's
 /// creation closure.
-pub(crate) fn set_ctx(ctx: &Context) {
+pub(crate) fn set_ctx(ctx: &Ctx) {
     let _ = CTX.set(ctx.clone());
 }
 

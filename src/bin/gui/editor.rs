@@ -929,7 +929,7 @@ impl Editor {
     /// The Before pane: `base` under the canvas recipe's START alone
     /// (`EditRecipe::start_only` — its camera curve, or since v1.17.0 the
     /// creative Look's baked half on its profile's base), every slider at 0.
-    pub(crate) fn set_before(&mut self, workspace: &mut WorkspaceView, ctx: &Context, base: &image::DynamicImage, start: &EditRecipe) {
+    pub(crate) fn set_before(&mut self, workspace: &mut WorkspaceView, ctx: &Ctx, base: &image::DynamicImage, start: &EditRecipe) {
         let img = if start.start_only() == EditRecipe::default() {
             to_color_image(base)
         } else {
@@ -968,7 +968,7 @@ impl Editor {
         )
     }
 
-    pub(crate) fn ensure_mask_tex(&mut self, workspace: &mut WorkspaceView, ctx: &Context) {
+    pub(crate) fn ensure_mask_tex(&mut self, workspace: &mut WorkspaceView, ctx: &Ctx) {
         // The canvas lives in the ORIGINAL frame (strokes are mapped there so
         // fill/heal edit source pixels), but the texture is blitted over the
         // After image, which has been through distortion + straighten — the
@@ -1608,7 +1608,7 @@ impl Editor {
     /// Commit the current state as ONE undo step once the edit gesture settles
     /// (pointer released) — dragging a slider is one step, not one per frame.
     /// Programmatic edits (Analyze, Reset) land here on the next frame.
-    pub(crate) fn commit_if_settled(&mut self, workspace: &WorkspaceView, ctx: &Context) {
+    pub(crate) fn commit_if_settled(&mut self, workspace: &WorkspaceView, ctx: &Ctx) {
         if !ctx.input(|i| i.pointer.any_down()) {
             self.commit_now(workspace);
         }

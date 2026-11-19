@@ -505,7 +505,7 @@ pub(crate) fn read_font_capped(p: &str, cap: u64) -> Option<Vec<u8>> {
 /// be skipped, not registered. Everything is appended as FALLBACKS, and the
 /// embedded subsets stay AHEAD of every runtime face, so Latin text keeps
 /// egui's default look and the symbol glyphs stay machine-independent.
-pub(crate) fn install_fonts(ctx: &Context) {
+pub(crate) fn install_fonts(ctx: &Ctx) {
     // The OS font database answers "which file is this family" — DirectWrite
     // on Windows, CoreText on macOS, fontconfig on Linux (fontdb). Nothing here
     // names a directory or a file, so a face installed anywhere the OS knows
@@ -773,7 +773,7 @@ pub(crate) fn paint_slider_knob(ui: &Ui, rail: &Response, value: f32, min: f32, 
 }
 
 /// [`install_look`] keeping the accent last installed — a theme change alone.
-pub(crate) fn install_theme(ctx: &Context, theme: ThemePref) {
+pub(crate) fn install_theme(ctx: &Ctx, theme: ThemePref) {
     install_look(ctx, theme, current_accent());
 }
 
@@ -783,7 +783,7 @@ pub(crate) fn install_theme(ctx: &Context, theme: ThemePref) {
 /// calmer type scale, and restrained hover feedback. Geometry and typography
 /// are shared between themes; only colours differ. Idempotent — called at
 /// startup, after prefs restore, and on every picker change.
-pub(crate) fn install_look(ctx: &Context, theme: ThemePref, accent: AccentPref) {
+pub(crate) fn install_look(ctx: &Ctx, theme: ThemePref, accent: AccentPref) {
     use {CornerRadius, FontFamily, FontId, Stroke, TextStyle};
     let c = palette(theme, accent);
     CURRENT_THEME.set(theme);

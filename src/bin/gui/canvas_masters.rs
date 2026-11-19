@@ -26,7 +26,7 @@ impl Commands<'_> {
 /// orientation handling as every other source.
 pub(crate) fn spawn_master_load(
     &mut self,
-    ctx: &Context,
+    ctx: &Ctx,
     photo: PathBuf,
     origin: PathBuf,
 ) {
@@ -89,7 +89,7 @@ pub(crate) fn spawn_master_load(
 /// never by index, so a delete/reorder mid-decode cannot misfile them.
 pub(crate) fn install_master(
     &mut self,
-    ctx: &Context,
+    ctx: &Ctx,
     photo: &PathBuf,
     origin: &PathBuf,
     arc: Arc<image::DynamicImage>,
@@ -269,7 +269,7 @@ pub(crate) fn ensure_source_part(&mut self) -> bool {
 /// recipe. Old frames are dropped without touching textures; `dirty` remains
 /// set by the newer edit and starts next. Texture handles are UPDATED in
 /// place, avoiding a manager allocate/free cycle on every slider tick.
-pub(crate) fn finish_redevelop(&mut self, ctx: &Context, done: anyhow::Result<PreviewDone>) {
+pub(crate) fn finish_redevelop(&mut self, ctx: &Ctx, done: anyhow::Result<PreviewDone>) {
     self.editor.scheduler_mut().inflight = false;
     let frame = match done {
         Ok(frame) => frame,

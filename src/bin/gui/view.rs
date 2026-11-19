@@ -13,6 +13,40 @@
 
 use std::path::Path;
 
+/// The app's event-loop context, as the app's own type. Production code names
+/// this, never the framework's `Context`: the framework's type appears only
+/// here, in the anti-corruption layer. It owns a clone (the framework shares
+/// its context), so `Deref` still serves the methods the app calls, and the
+/// entries below convert at the boundary.
+#[derive(Clone)]
+pub(crate) struct Ctx(pub(crate) egui::Context);
+
+impl Ctx {
+    /// A context from the framework's own handle (a cheap clone).
+    pub(crate) fn from_ref(ctx: &egui::Context) -> Self {
+        Self(ctx.clone())
+    }
+
+    /// A headless context: the services' default and the tests.
+    pub(crate) fn new() -> Self {
+        Self(egui::Context::default())
+    }
+}
+
+impl Default for Ctx {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::ops::Deref for Ctx {
+    type Target = egui::Context;
+
+    fn deref(&self) -> &egui::Context {
+        &self.0
+    }
+}
+
 use crate::theme::{install_fonts, install_theme, ThemePref};
 use crate::{AutoShadeApp, Prefs};
 
@@ -97,10 +131,6 @@ pub(crate) use eframe::egui::{
     vec2,
     viewport,
 };
-
-/// Test-only: the inline test modules build raw frames from this.
-#[cfg(test)]
-pub(crate) use eframe::egui::RawInput;
 
 /// The eframe STORAGE KEY — not a display name; the window title is set on the
 /// viewport. With `persistence_path` unset (every real launch) eframe derives
@@ -249,12 +279,13 @@ pub(crate) fn run() -> eframe::Result<()> {
         adopt_pre_rename_prefs(),
         opts,
         Box::new(|cc| {
-            install_fonts(&cc.egui_ctx); // embedded symbol subsets + system CJK
+            let ctx = Ctx::from_ref(&cc.egui_ctx);
+            install_fonts(&ctx); // embedded symbol subsets + system CJK
             // Dark before prefs are readable; AutoShadeApp::new re-installs the
             // saved choice one call later (same shape as the greeting string).
-            install_theme(&cc.egui_ctx, ThemePref::Dark);
+            install_theme(&ctx, ThemePref::Dark);
             let prefs = cc.storage.and_then(|s| eframe::get_value::<Prefs>(s, eframe::APP_KEY));
-            Ok(Box::new(AutoShadeApp::new(&cc.egui_ctx, prefs))) // restores prefs + last library
+            Ok(Box::new(AutoShadeApp::new(&ctx, prefs))) // restores prefs + last library
         }),
     )
 }
@@ -264,7 +295,7 @@ pub(crate) fn run() -> eframe::Result<()> {
 /// of a frame lives in `shell.rs`; what persists belongs to `app.rs`.
 impl eframe::App for AutoShadeApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.run_frame(ctx);
+        self.run_frame(&Ctx::from_ref(ctx));
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {

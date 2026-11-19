@@ -5,7 +5,7 @@
 use crate::*;
 
 impl Commands<'_> {
-pub(crate) fn on_opened(&mut self, ctx: &Context, lang: Lang, boxed: Box<anyhow::Result<OpenedBase>>) {
+pub(crate) fn on_opened(&mut self, ctx: &Ctx, lang: Lang, boxed: Box<anyhow::Result<OpenedBase>>) {
                 // `keep` distinguishes a fresh open from a preview-resolution
                 // re-decode (the px combo): consumed whether the open
                 // succeeds or fails so a failure can't leak it into a later
@@ -962,7 +962,7 @@ pub(crate) fn on_opened(&mut self, ctx: &Context, lang: Lang, boxed: Box<anyhow:
 
 pub(crate) fn on_base_redeveloped(
     &mut self,
-    ctx: &Context,
+    ctx: &Ctx,
     path: PathBuf,
     part: autoshade::render::BasePart,
     img: anyhow::Result<Arc<image::DynamicImage>>,

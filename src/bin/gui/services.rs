@@ -14,13 +14,13 @@ use crate::model::Msg;
 pub(crate) struct Services {
     pub(crate) rx: Option<Receiver<Msg>>,
     pub(crate) tx: Sender<Msg>,
-    pub(crate) view_ctx: Context,
+    pub(crate) view_ctx: Ctx,
 }
 
 impl Default for Services {
     fn default() -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
-        Self { rx: Some(rx), tx, view_ctx: Context::default() }
+        Self { rx: Some(rx), tx, view_ctx: Ctx::default() }
     }
 }
 

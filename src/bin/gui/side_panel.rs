@@ -26,7 +26,7 @@ const CONTROLS_ID: &str = "controls";
 /// overflowing row is clipped by the panel (egui clips it already) instead of
 /// becoming next frame's width.
 pub(crate) fn controls_side_panel<R>(
-    ctx: &Context,
+    ctx: &Ctx,
     add_contents: impl FnOnce(&mut Ui) -> R,
 ) -> InnerResponse<R> {
     let id = Id::new(CONTROLS_ID);

@@ -12,31 +12,26 @@
 
 use eframe::egui;
 
-/// The headless frame context a test drives, as the app's own type. It owns the
-/// framework context so a test can hand it to code that expects one through
-/// `Deref`, and so no test file has to spell the framework's name.
-pub(crate) struct Ctx(egui::Context);
+/// The frame context the tests drive: the app's own context, owned by the ACL.
+pub(crate) use crate::view::Ctx;
 
 impl Ctx {
-    pub(crate) fn new() -> Self {
-        Self(egui::Context::default())
-    }
 
     /// One frame over a `w`x`h`-point screen with no clock advance, `draw` as
     /// the frame body.
-    pub(crate) fn run(&mut self, w: f32, h: f32, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run(&mut self, w: f32, h: f32, draw: impl FnMut(&Ctx)) -> Out {
         self.run_with(w, h, None, draw)
     }
 
     /// One frame over a `w`x`h`-point screen at `tick` (the clock the frame
     /// tests use: half a second per tick), `draw` as the frame body.
-    pub(crate) fn run_at(&mut self, w: f32, h: f32, tick: usize, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_at(&mut self, w: f32, h: f32, tick: usize, draw: impl FnMut(&Ctx)) -> Out {
         self.run_with(w, h, Some(tick as f64 / 2.0), draw)
     }
 
     /// One frame over a `w`x`h`-point screen with an explicit frame clock, for
     /// tests that drive the framework's own animations.
-    pub(crate) fn run_with(&mut self, w: f32, h: f32, time: Option<f64>, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_with(&mut self, w: f32, h: f32, time: Option<f64>, draw: impl FnMut(&Ctx)) -> Out {
         self.run_input(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
@@ -47,14 +42,14 @@ impl Ctx {
         )
     }
 
-    fn run_input(&mut self, input: egui::RawInput, draw: impl FnMut(&egui::Context)) -> Out {
-        Out(self.0.run(input, draw))
+    fn run_input(&mut self, input: egui::RawInput, mut draw: impl FnMut(&Ctx)) -> Out {
+        Out(self.0.run(input, |ctx| draw(&Ctx::from_ref(ctx))))
     }
 
     /// One frame with the framework's default input (no screen rect), with
     /// `draw` as the frame body.
-    pub(crate) fn run_default(&mut self, draw: impl FnMut(&egui::Context)) -> Out {
-        Out(self.0.run(egui::RawInput::default(), draw))
+    pub(crate) fn run_default(&mut self, draw: impl FnMut(&Ctx)) -> Out {
+        self.run_input(egui::RawInput::default(), draw)
     }
 
     /// One frame whose whole body is a central panel (the canvas-style draws).
@@ -65,20 +60,6 @@ impl Ctx {
                 egui::CentralPanel::default().show(ctx, |ui| body(ui));
             }
         });
-    }
-}
-
-impl Default for Ctx {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl std::ops::Deref for Ctx {
-    type Target = egui::Context;
-
-    fn deref(&self) -> &egui::Context {
-        &self.0
     }
 }
 
@@ -316,7 +297,7 @@ impl Ctx {
             events: events.into_iter().map(Event::into_egui).collect(),
             ..Default::default()
         };
-        Out(self.0.run(input, |ctx| app.run_frame(ctx)))
+        Out(self.0.run(input, |ctx| app.run_frame(&Ctx::from_ref(ctx))))
     }
 
     /// A primary click at `at`: press on one frame, release on the next, the
@@ -335,7 +316,7 @@ impl Ctx {
 /// and the texts it drew.
 pub(crate) fn tall_frame(app: &mut crate::AutoShadeApp, f: impl Fn(&mut crate::AutoShadeApp, &mut egui::Ui)) -> Vec<String> {
     let mut ctx = Ctx::new();
-    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), crate::theme::ThemePref::Dark);
     let out = ctx.run_input(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
@@ -358,7 +339,7 @@ pub(crate) fn side_panel(ctx: &egui::Context, id: &'static str, width: f32, body
 
 impl Ctx {
     /// One frame with the framework's default input but `events` injected.
-    pub(crate) fn run_default_events(&mut self, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_default_events(&mut self, events: Vec<Event>, draw: impl FnMut(&Ctx)) -> Out {
         self.run_input(
             egui::RawInput {
                 events: events.into_iter().map(Event::into_egui).collect(),
@@ -369,7 +350,7 @@ impl Ctx {
     }
 
     /// One frame over a `w`x`h`-point screen at `tick`, injecting `events`.
-    pub(crate) fn run_events(&mut self, w: f32, h: f32, tick: usize, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_events(&mut self, w: f32, h: f32, tick: usize, events: Vec<Event>, draw: impl FnMut(&Ctx)) -> Out {
         self.run_input(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
@@ -509,7 +490,7 @@ pub(crate) fn controls_panel(ctx: &egui::Context, app: &mut crate::AutoShadeApp,
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 100.0));
         ctx.data_mut(|d| d.insert_persisted(id, egui::containers::panel::PanelState { rect }));
     }
-    rect(crate::side_panel::controls_side_panel(ctx, |ui| app.controls_column(ui)).response.rect)
+    rect(crate::side_panel::controls_side_panel(&Ctx::from_ref(ctx), |ui| app.controls_column(ui)).response.rect)
 }
 
 /// [`controls_panel`] run `frames` times over a `size`-point screen at `ppp`;
@@ -523,8 +504,8 @@ pub(crate) fn controls_shot(
     frames: usize,
 ) -> (image::RgbaImage, Out, RectT) {
     let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    crate::theme::install_theme(&ctx, theme);
+    crate::theme::install_fonts(&Ctx::from_ref(&ctx));
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), theme);
     let mut tex = ShotTextures::default();
     let mut last = None;
     let mut panel = rect(egui::Rect::NOTHING);
@@ -575,7 +556,7 @@ pub(crate) fn controls_gutter_report(shot: &Out, panel: RectT, theme: crate::the
         }
     }
     let ctx = egui::Context::default();
-    crate::theme::install_theme(&ctx, theme);
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), theme);
     let style = ctx.style();
     // The panel frame's own right margin, then the bar inside it.
     let content_right = panel.max.x - f32::from(egui::Frame::side_top_panel(&style).inner_margin.right);
@@ -598,8 +579,8 @@ pub(crate) fn controls_gutter_report(shot: &Out, panel: RectT, theme: crate::the
 /// The analysis full-text window alone, on a 720 x 560 screen at 2x.
 pub(crate) fn window_shot(app: &mut crate::AutoShadeApp, theme: crate::theme::ThemePref) -> image::RgbaImage {
     let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    crate::theme::install_theme(&ctx, theme);
+    crate::theme::install_fonts(&Ctx::from_ref(&ctx));
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), theme);
     let size = egui::vec2(720.0, 560.0);
     let mut tex = ShotTextures::default();
     let mut last = None;
@@ -610,7 +591,7 @@ pub(crate) fn window_shot(app: &mut crate::AutoShadeApp, theme: crate::theme::Th
             ..Default::default()
         };
         input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(2.0);
-        let out = ctx.run(input, |ctx| app.commands().analysis_full_window(ctx));
+        let out = ctx.run(input, |ctx| app.commands().analysis_full_window(&Ctx::from_ref(ctx)));
         tex.apply(&out.textures_delta);
         last = Some(out);
     }
@@ -625,8 +606,8 @@ pub(crate) fn full_window_shot(app: &mut crate::AutoShadeApp, theme: crate::them
     // The app reads its own theme field for the bars and the canvas bed.
     app.workspace_mut().ui_mut().theme = theme;
     let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    crate::theme::install_theme(&ctx, theme);
+    crate::theme::install_fonts(&Ctx::from_ref(&ctx));
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), theme);
     // A warm-rock / blue-sky gradient standing in for a photo.
     let (w, h) = (600usize, 400usize);
     let px: Vec<egui::Color32> = (0..w * h)
@@ -654,13 +635,14 @@ pub(crate) fn full_window_shot(app: &mut crate::AutoShadeApp, theme: crate::them
         };
         input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(ppp);
         let out = ctx.run(input, |ctx| {
-            app.upd_top_bar(ctx);
-            app.upd_status_bar(ctx);
-            app.upd_strips_and_side_panels(ctx);
-            app.upd_central(ctx);
+            let app_ctx = Ctx::from_ref(ctx);
+            app.upd_top_bar(&app_ctx);
+            app.upd_status_bar(&app_ctx);
+            app.upd_strips_and_side_panels(&app_ctx);
+            app.upd_central(&app_ctx);
             // Sheets (Settings, keyboard, the recipe library) are part of the
             // window too; with none open this draws nothing.
-            app.upd_sheets(ctx);
+            app.upd_sheets(&app_ctx);
         });
         tex.apply(&out.textures_delta);
         last = Some(out);
@@ -679,8 +661,8 @@ pub(crate) fn window_frame(app: &mut crate::AutoShadeApp, w: f32, h: f32) -> (Ve
     let theme = crate::theme::ThemePref::Dark;
     app.workspace_mut().ui_mut().theme = theme;
     let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    crate::theme::install_theme(&ctx, theme);
+    crate::theme::install_fonts(&Ctx::from_ref(&ctx));
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), theme);
     let (pw, ph) = (600usize, 400usize);
     let px: Vec<egui::Color32> = (0..pw * ph)
         .map(|i| {
@@ -700,10 +682,11 @@ pub(crate) fn window_frame(app: &mut crate::AutoShadeApp, w: f32, h: f32) -> (Ve
         };
         input.viewports.entry(egui::ViewportId::ROOT).or_default().native_pixels_per_point = Some(1.5);
         let out = ctx.run(input, |ctx| {
-            app.upd_top_bar(ctx);
-            app.upd_status_bar(ctx);
-            app.upd_strips_and_side_panels(ctx);
-            app.upd_central(ctx);
+            let app_ctx = Ctx::from_ref(ctx);
+            app.upd_top_bar(&app_ctx);
+            app.upd_status_bar(&app_ctx);
+            app.upd_strips_and_side_panels(&app_ctx);
+            app.upd_central(&app_ctx);
         });
         tex.apply(&out.textures_delta);
         last = Some(out);
@@ -718,7 +701,7 @@ pub(crate) fn window_frame(app: &mut crate::AutoShadeApp, w: f32, h: f32) -> (Ve
 /// fold open (the one workspace's sidebar order tests read them).
 pub(crate) fn controls_panel_texts(app: &mut crate::AutoShadeApp, w: f32, h: f32, frames: usize) -> Vec<String> {
     let mut ctx = Ctx::new();
-    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), crate::theme::ThemePref::Dark);
     let mut out = None;
     for i in 0..frames {
         out = Some(ctx.run_with(w, h, Some(i as f64), |ctx| {
@@ -789,7 +772,7 @@ pub(crate) fn paint_canvas_frame(
 
 impl Ctx {
     /// One frame over a `w`x`h` screen with an explicit clock and `events`.
-    pub(crate) fn run_events_with(&mut self, w: f32, h: f32, time: Option<f64>, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_events_with(&mut self, w: f32, h: f32, time: Option<f64>, events: Vec<Event>, draw: impl FnMut(&Ctx)) -> Out {
         self.run_input(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
@@ -814,7 +797,7 @@ pub(crate) fn ai_panel_texts_with_sizes(app: &mut crate::AutoShadeApp, width: f3
         }
     }
     let mut ctx = Ctx::new();
-    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    crate::theme::install_theme(&Ctx::from_ref(&ctx), crate::theme::ThemePref::Dark);
     let mut seen = Vec::new();
     for _ in 0..2 {
         crate::buttons::DRAWN.with_borrow_mut(Vec::clear);
@@ -898,7 +881,7 @@ pub(crate) struct Mods {
 impl Ctx {
     /// One frame with the framework's default input, `mods` held down and
     /// `events` injected.
-    pub(crate) fn run_default_mods(&mut self, mods: Mods, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+    pub(crate) fn run_default_mods(&mut self, mods: Mods, events: Vec<Event>, draw: impl FnMut(&Ctx)) -> Out {
         self.run_input(
             egui::RawInput {
                 modifiers: egui::Modifiers {
@@ -942,7 +925,8 @@ pub(crate) fn v2(x: f32, y: f32) -> egui::Vec2 {
 
 /// One empty frame on the app's own view context (the worker pump's tick).
 pub(crate) fn tick_view(app: &mut crate::AutoShadeApp) {
-    let _ = app.services().view_ctx.run(Default::default(), |_| {});
+    let ctx: &egui::Context = &app.services().view_ctx;
+    let _ = ctx.run(Default::default(), |_| {});
 }
 
 

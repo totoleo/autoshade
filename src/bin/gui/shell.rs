@@ -10,7 +10,7 @@ use crate::*;
 impl Commands<'_> {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_dropped_and_title(&mut self, ctx: &Context) {
+    pub(crate) fn upd_dropped_and_title(&mut self, ctx: &Ctx) {
         let dropped: Vec<PathBuf> = if self.workspace.modal_up() {
             Vec::new()
         } else {
@@ -85,7 +85,7 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_top_bar(&mut self, ctx: &Context) {
+    pub(crate) fn upd_top_bar(&mut self, ctx: &Ctx) {
         // egui's side_top_panel frame keeps only 2px of vertical margin —
         // at that spacing the action row visually touches the strip edges.
         window_chrome::edge_resize(ctx);
@@ -180,14 +180,14 @@ impl Commands<'_> {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.editor.undo(self.workspace, self.lang, &ctx);
+                        self.editor.undo(self.workspace, self.lang, &Ctx::from_ref(&ctx));
                     }
                     if action(ui, ready && !self.editor.session().hist.redo_stack.is_empty(), tr(lang, K_APP_REDO))
                         .on_hover_text(tr(lang, K_APP_CTRL_Y_REDO_THE_UNDONE_EDIT))
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.editor.redo(self.workspace, self.lang, &ctx);
+                        self.editor.redo(self.workspace, self.lang, &Ctx::from_ref(&ctx));
                     }
                 });
                 group(ui, &[tr(lang, K_APP_TURN_LEFT), tr(lang, K_APP_TURN_RIGHT)], 0, |ui| {
@@ -216,7 +216,7 @@ impl Commands<'_> {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.editor.rotate_photo(self.workspace, self.lang, 3, &ctx); // anticlockwise = three clockwise
+                        self.editor.rotate_photo(self.workspace, self.lang, 3, &Ctx::from_ref(&ctx)); // anticlockwise = three clockwise
                     }
                     let right_hover = if can_rotate {
                         tr(lang, K_APP_A_QUARTER_TURN_CLOCKWISE_THE_CROP_AND_EVERY_MASK)
@@ -228,7 +228,7 @@ impl Commands<'_> {
                         .clicked()
                     {
                         let ctx = ui.ctx().clone();
-                        self.editor.rotate_photo(self.workspace, self.lang, 1, &ctx);
+                        self.editor.rotate_photo(self.workspace, self.lang, 1, &Ctx::from_ref(&ctx));
                     }
                 });
                 group(ui, &[tr(lang, K_APP_COMPARE), tr(lang, K_APP_SINGLE)], 0, |ui| {
@@ -310,7 +310,7 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_status_bar(&mut self, ctx: &Context) {
+    pub(crate) fn upd_status_bar(&mut self, ctx: &Ctx) {
         let frame = Frame::side_top_panel(&ctx.style()).fill(self.workspace.ui().theme.colors().bar_fill);
         TopBottomPanel::bottom("status").frame(frame).show(ctx, |ui| {
             ui.row(|ui| {
@@ -439,7 +439,7 @@ impl Commands<'_> {
         });
     }
 
-    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Context) {
+    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Ctx) {
         // Variant strip — sits directly above the status bar (registered after
         // it so it stacks on top), only when a photo is open. The selector for
         // 原片 / AI 生成 / 反推 renditions.
@@ -484,7 +484,7 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_central(&mut self, ctx: &Context) {
+    pub(crate) fn upd_central(&mut self, ctx: &Ctx) {
         // The canvas sits on a bed one step below the panel fill (recessed
         // stage / raised chrome) — keep the stock margins, swap the fill.
         let bed = Frame::central_panel(&ctx.style())
@@ -567,7 +567,7 @@ impl Commands<'_> {
 
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
-    pub(crate) fn upd_sheets(&mut self, ctx: &Context) {
+    pub(crate) fn upd_sheets(&mut self, ctx: &Ctx) {
         self.analysis_full_window(ctx);
         self.recipe_library_window(ctx);
         // Settings window (provider / model / API keys). A local `open` avoids a

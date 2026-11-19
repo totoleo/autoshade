@@ -146,7 +146,7 @@ impl PanelView<'_, '_> {
     /// full-frame render.
     pub(crate) fn recipe_preview_tex(
         &mut self,
-        ctx: &Context,
+        ctx: &Ctx,
         name: &str,
     ) -> Option<(TextureId, Vec2)> {
         let src = self.editor.photo().src_path.clone()?;
@@ -2947,7 +2947,7 @@ impl PanelView<'_, '_> {
     /// Toggle the clipping overlay (the J overlay and the histogram's corner
     /// triangles share it). At rest it drops the layer; once on it rebuilds
     /// from the retained RGB frame, so the toggle is instant — no redevelop.
-    pub(crate) fn toggle_clipping(&mut self, ctx: &Context) {
+    pub(crate) fn toggle_clipping(&mut self, ctx: &Ctx) {
         self.workspace.chrome_mut().show_clipping = !self.workspace.chrome().show_clipping;
         if !self.workspace.chrome().show_clipping {
             self.workspace.chrome_mut().clip_tex = None; // OFF is just dropping the layer

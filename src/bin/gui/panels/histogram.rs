@@ -141,7 +141,7 @@ impl PanelView<'_, '_> {
         }
         if toggle {
             let ctx = ui.ctx().clone();
-            self.toggle_clipping(&ctx); // instant — rebuilt from the retained frame
+            self.toggle_clipping(&Ctx::from_ref(&ctx)); // instant — rebuilt from the retained frame
         }
     }
 

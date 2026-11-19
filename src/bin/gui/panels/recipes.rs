@@ -12,7 +12,7 @@ impl Commands<'_> {
     }
 
     /// One `recipe_library` window frame.
-    pub(crate) fn recipe_library_window(&mut self, ctx: &Context) {
+    pub(crate) fn recipe_library_window(&mut self, ctx: &Ctx) {
         if !self.workspace.rlib().show_recipes {
             return;
         }
@@ -267,7 +267,7 @@ impl Commands<'_> {
         ui.horizontal_top(|ui| {
             const PREVIEW_W: f32 = 200.0;
             const PREVIEW_H: f32 = 140.0;
-            let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(ui.ctx(), name)) } else { None };
+            let tex = if entry.is_ok() { self.with_panel(|p| p.recipe_preview_tex(&Ctx::from_ref(ui.ctx()), name)) } else { None };
             ui.column(|ui| {
                 let (rect, _) =
                     ui.allocate_exact_size(vec2(PREVIEW_W, PREVIEW_H), Sense::hover());

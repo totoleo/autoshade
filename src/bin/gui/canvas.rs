@@ -16,7 +16,7 @@ impl Commands<'_> {
     /// mask, not WHERE it applies. Range masks include their PREFIX
     /// reference recipe (earlier masks applied — the engine's own stacking
     /// rule) because their coverage genuinely depends on pixels.
-    pub(crate) fn refresh_mask_overlay(&mut self, ctx: &Context) {
+    pub(crate) fn refresh_mask_overlay(&mut self, ctx: &Ctx) {
         if !self.workspace.overlay().show_mask_overlay {
             self.workspace.overlay_mut().mask_overlay_tex = None;
             self.workspace.overlay_mut().overlay_key = None;
@@ -285,7 +285,7 @@ impl Commands<'_> {
                     .clicked()
                 {
                     let ctx = ui.ctx().clone();
-                    self.with_panel(|p| p.toggle_clipping(&ctx)); // instant — no redevelop
+                    self.with_panel(|p| p.toggle_clipping(&Ctx::from_ref(&ctx))); // instant — no redevelop
                 }
                 ui.label(Text::new(format!("{:.0}%", scale * 100.0)).weak().small());
                 // --- preview resolution (gap batch E): 1:1 that actually
@@ -484,7 +484,7 @@ impl Commands<'_> {
             }
         } else if self.workspace.tools().clone_mode {
             self.handle_clone(ui, &resp, xf);
-            self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
+            self.editor.ensure_mask_tex(&mut self.workspace, &Ctx::from_ref(ui.ctx()));
             if let Some(t) = &self.workspace.overlay().mask_tex {
                 ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }
@@ -494,7 +494,7 @@ impl Commands<'_> {
             }
         } else if self.workspace.masks().paint_mode {
             self.handle_paint(&resp, xf);
-            self.editor.ensure_mask_tex(&mut self.workspace, ui.ctx());
+            self.editor.ensure_mask_tex(&mut self.workspace, &Ctx::from_ref(ui.ctx()));
             if let Some(t) = &self.workspace.overlay().mask_tex {
                 ui.painter_at(rect).image(t.id(), rect, uv, Color32::WHITE);
             }

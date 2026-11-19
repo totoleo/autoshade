@@ -336,7 +336,7 @@ impl Commands<'_> {
             });
         });
         if let Some(a) = act {
-            self.dispatch_variant_action(a, ui.ctx());
+            self.dispatch_variant_action(a, &Ctx::from_ref(ui.ctx()));
         }
     }
 
@@ -703,7 +703,7 @@ impl Commands<'_> {
         // The edit-state list's card action, performed through the SAME owner
         // the strip uses — after the section's closures have released `self`.
         if let Some(a) = act {
-            self.dispatch_variant_action(a, ui.ctx());
+            self.dispatch_variant_action(a, &Ctx::from_ref(ui.ctx()));
         }
         false
     }

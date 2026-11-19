@@ -9,7 +9,7 @@ impl Commands<'_> {
     /// rebuild the before texture. Per-variant transient state (undo history,
     /// local selection, view) restarts — like a soft re-open; what persists is
     /// each variant's recipe + pixels. Shared by switch / push / delete.
-    pub(crate) fn load_active(&mut self, ctx: &Context) {
+    pub(crate) fn load_active(&mut self, ctx: &Ctx) {
         let lang = self.lang;
         let active = self.editor.active();
         let Some(v) = self.editor.doc().variants.get(active) else { return };
@@ -139,7 +139,7 @@ impl Commands<'_> {
 /// Switch the active variant losslessly (strip click): in-flight slider
 /// edits are saved back into the variant you leave, then the target's
 /// recipe + pixels become current.
-pub(crate) fn switch_variant(&mut self, idx: usize, ctx: &Context) {
+pub(crate) fn switch_variant(&mut self, idx: usize, ctx: &Ctx) {
     if idx == self.editor.doc().active || idx >= self.editor.doc().variants.len() {
         return;
     }
@@ -188,7 +188,7 @@ pub(crate) fn switch_variant(&mut self, idx: usize, ctx: &Context) {
 
 /// Append a variant and switch to it (its recipe/pixels become live).
 /// Saves the outgoing variant's edits first so nothing is lost.
-pub(crate) fn push_variant(&mut self, v: Variant, ctx: &Context) {
+pub(crate) fn push_variant(&mut self, v: Variant, ctx: &Ctx) {
     // "Nothing is lost" includes a rename still sitting in its TextEdit:
     // both callers are ASYNC completions (reverse-fit, generative edit)
     // that switch variants while the user may be mid-typing, and the
@@ -212,7 +212,7 @@ pub(crate) fn push_variant(&mut self, v: Variant, ctx: &Context) {
 /// busy: an in-flight retouch worker resolves its target by `self.editor.doc().active` at
 /// COMPLETION time, so re-anchoring `active` mid-flight would bake its result
 /// onto the wrong variant.
-pub(crate) fn delete_variant(&mut self, idx: usize, ctx: &Context) {
+pub(crate) fn delete_variant(&mut self, idx: usize, ctx: &Ctx) {
     if self.workspace.busy() {
         let t = tr(self.lang, K_ACTIONS_BUSY_VARIANTS_UNLOCK_WHEN_THE_CURRENT_TASK_FINIS);
         self.workspace.toast(ToastKind::Error, t);
@@ -472,7 +472,7 @@ pub(crate) fn fit_source_menu(&self) -> (String, Vec<(String, String)>) {
 /// construction, so "applying" it would hand the negative an almost-empty
 /// develop. Same judgement (and same remedy) as Ctrl+S's XMP refusal and
 /// 「＋ Save as version」's.
-pub(crate) fn apply_to_original(&mut self, idx: usize, ctx: &Context) {
+pub(crate) fn apply_to_original(&mut self, idx: usize, ctx: &Ctx) {
     let lang = self.lang;
     if self.workspace.busy() {
         let t = tr(lang, K_ACTIONS_BUSY_VARIANTS_UNLOCK_WHEN_THE_CURRENT_TASK_FINIS);
@@ -597,7 +597,7 @@ pub(crate) fn commit_variant_name_buf(&mut self) {
 /// The arms are mutually exclusive by construction — [`VariantAction`] is
 /// one value — which preserves the chain's guarantee that one frame cannot
 /// switch a card AND delete it.
-pub(crate) fn dispatch_variant_action(&mut self, act: VariantAction, ctx: &Context) {
+pub(crate) fn dispatch_variant_action(&mut self, act: VariantAction, ctx: &Ctx) {
     match act {
         VariantAction::Switch(i) => self.switch_variant(i, ctx),
         VariantAction::Delete(i) => self.delete_variant(i, ctx),

@@ -130,7 +130,7 @@ fn window_buttons(ui: &mut Ui, bar: Rect, lang: Lang) {
 /// resize cursor and hands a press to the OS as a resize drag. Not while
 /// maximized (there is no edge to pull) and not over an open popup. Runs
 /// before the panels, so the band's cursor wins over theirs.
-pub(crate) fn edge_resize(ctx: &Context) {
+pub(crate) fn edge_resize(ctx: &Ctx) {
     if !CUSTOM_CHROME || ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
         return;
     }
@@ -162,7 +162,7 @@ pub(crate) fn edge_resize(ctx: &Context) {
 
 /// A hairline round the undecorated window, so its edge does not melt into
 /// a dark desktop or a neighbouring dark window. None while maximized.
-pub(crate) fn window_outline(ctx: &Context) {
+pub(crate) fn window_outline(ctx: &Ctx) {
     if !CUSTOM_CHROME || ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
         return;
     }

@@ -37,7 +37,7 @@ impl Commands<'_> {
     /// switched to its ✨ card. Not over a running job (the answer could not
     /// start), not once the user said not to ask, and not without the
     /// negative's preview [`Self::start_fit`] reads.
-    pub(crate) fn offer_fit_prompt(&mut self, ctx: &Context, divergence: f32) {
+    pub(crate) fn offer_fit_prompt(&mut self, ctx: &Ctx, divergence: f32) {
         if self.workspace.busy()
             || !self.workspace.fit().ask_fit_after_generate
             || self.editor.photo().source_preview.is_none()
@@ -76,7 +76,7 @@ impl Commands<'_> {
     /// the panel button's; the strength and the switches stay the fold's
     /// controls (the AI review is paid, and its cost is named there), and the
     /// layer only states them.
-    pub(crate) fn fit_prompt_layer(&mut self, ctx: &Context) {
+    pub(crate) fn fit_prompt_layer(&mut self, ctx: &Ctx) {
         let lang = self.lang;
         let Some(mut prompt) = self.workspace.fit_mut().fit_prompt.take() else {
             return;
@@ -194,7 +194,7 @@ impl Commands<'_> {
     /// lose; 「Save all & quit」 writes each pending develop exactly like
     /// Ctrl+S (explicit user save → no backup gate), 「Discard & quit」 makes
     /// the state clean so the close guard lets the next close through.
-    pub(crate) fn confirm_quit_layer(&mut self, ctx: &Context) {
+    pub(crate) fn confirm_quit_layer(&mut self, ctx: &Ctx) {
         let lang = self.lang;
         // Everything quitting would lose: the stash + the open photo's canvas
         // (the live canvas outranks its own stale stash entry). Each entry

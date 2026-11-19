@@ -131,7 +131,7 @@ impl Commands<'_> {
     /// resizable, scrolling, its text selectable. Not a transient sheet — it
     /// is a reading pane, so the editor's keys stay live beside it. Closes
     /// itself once there is nothing to show (a new photo, a cleared result).
-    pub(crate) fn analysis_full_window(&mut self, ctx: &Context) {
+    pub(crate) fn analysis_full_window(&mut self, ctx: &Ctx) {
         if !self.workspace.ui().show_analysis_full {
             return;
         }

@@ -136,7 +136,7 @@ impl AutoShadeApp {
     /// Restore persisted prefs (last folder, view mode, export options) and
     /// re-open the library the user was browsing. Window geometry itself is
     /// restored by eframe's own persistence layer.
-    pub(crate) fn new(ctx: &Context, prefs: Option<Prefs>) -> Self {
+    pub(crate) fn new(ctx: &Ctx, prefs: Option<Prefs>) -> Self {
         // The REAL event-loop context replaces default()'s headless one:
         // workers wake the loop through this clone (see `spawn_worker`).
         let mut app = Self {
@@ -296,7 +296,7 @@ impl AutoShadeApp {
         )
     }
 
-    pub(crate) fn poll_workers(&mut self, ctx: &Context) {
+    pub(crate) fn poll_workers(&mut self, ctx: &Ctx) {
         // UI-thread language for the status/toast strings built HERE, at
         // landing. Worker results carry typed FACTS (FitOutcome, RetouchNote,
         // PasteOutcome, …) that the landing arms render in the language live
@@ -598,7 +598,7 @@ impl AutoShadeApp {
     /// One update() phase — body extracted verbatim from the eframe
     /// update loop (round-12 decomposition).
     // pub(crate): the zoom-keys test drives a real headless frame through it.
-    pub(crate) fn upd_shortcuts(&mut self, ctx: &Context) {
+    pub(crate) fn upd_shortcuts(&mut self, ctx: &Ctx) {
         // Tab's egui focus traversal fired last frame despite the consume (see
         // `defocus_next`): drop that focus now so the panel toggle doesn't
         // leave a surprise-focused widget eating every later shortcut.
@@ -1011,15 +1011,15 @@ impl AutoShadeApp {
     // entry per phase so `run_frame` and the headless tests keep their call
     // shape (`app.upd_top_bar(ctx)`), and this impl does not grow a body per
     // overlay.
-    fn upd_dropped_and_title(&mut self, ctx: &Context) {
+    fn upd_dropped_and_title(&mut self, ctx: &Ctx) {
         self.commands().upd_dropped_and_title(ctx);
     }
 
-    pub(crate) fn upd_top_bar(&mut self, ctx: &Context) {
+    pub(crate) fn upd_top_bar(&mut self, ctx: &Ctx) {
         self.commands().upd_top_bar(ctx);
     }
 
-    pub(crate) fn upd_status_bar(&mut self, ctx: &Context) {
+    pub(crate) fn upd_status_bar(&mut self, ctx: &Ctx) {
         self.commands().upd_status_bar(ctx);
     }
 
@@ -1028,15 +1028,15 @@ impl AutoShadeApp {
         self.commands().controls_column(ui);
     }
 
-    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Context) {
+    pub(crate) fn upd_strips_and_side_panels(&mut self, ctx: &Ctx) {
         self.commands().upd_strips_and_side_panels(ctx);
     }
 
-    pub(crate) fn upd_central(&mut self, ctx: &Context) {
+    pub(crate) fn upd_central(&mut self, ctx: &Ctx) {
         self.commands().upd_central(ctx);
     }
 
-    pub(crate) fn upd_sheets(&mut self, ctx: &Context) {
+    pub(crate) fn upd_sheets(&mut self, ctx: &Ctx) {
         self.commands().upd_sheets(ctx);
 
     }
@@ -1065,7 +1065,7 @@ impl Default for AutoShadeApp {
 impl AutoShadeApp {
     /// One frame of the app: the whole of `update` but the prefs flush, so a
     /// headless test can drive it with a bare `Context`.
-    pub(crate) fn run_frame(&mut self, ctx: &Context) {
+    pub(crate) fn run_frame(&mut self, ctx: &Ctx) {
         // First frame: re-issue the OS-titlebar theme. install_theme sends it
         // from the creation closure, but viewport commands sent before the
         // event loop runs are dropped — a FIRST-ever launch (no prefs, so no

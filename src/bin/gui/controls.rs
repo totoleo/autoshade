@@ -615,10 +615,10 @@ mod tests {
         let table: &[&dyn ControlWidget] = &[&Fake];
         let mut recipe = EditRecipe::default();
         let mut out = Vec::new();
-        let ctx = Context::default();
+        let mut ctx = crate::harness::Ctx::new();
         let mut drew = false;
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            CentralPanel::default().show(ctx, |ui| {
+        ctx.run_default(|ctx| {
+            crate::harness::central_panel(ctx, |ui| {
                 render_rows(ui, Lang::En, &recipe, table, &mut out);
                 drew = true;
             });

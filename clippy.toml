@@ -10,6 +10,7 @@ disallowed-types = [
     "eframe::CreationContext",
     "eframe::NativeOptions",
     # Framework types the door owns outright.
+    "egui::Context",
     "egui::IconData",
     "egui::ViewportBuilder",
 ]

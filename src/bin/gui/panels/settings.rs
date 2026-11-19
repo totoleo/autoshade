@@ -50,7 +50,7 @@ impl PanelView<'_, '_> {
             }
         });
         if (self.workspace.ui().theme, self.workspace.ui().accent) != before {
-            install_look(ui.ctx(), self.workspace.ui().theme, self.workspace.ui().accent);
+            install_look(&Ctx::from_ref(ui.ctx()), self.workspace.ui().theme, self.workspace.ui().accent);
         }
         // 「Zoned fit (sky)」 MOVED to the AI panel's reverse-fit sub-area (R22
         // #4): it is a setting for ONE button, and it sat two panels away from
