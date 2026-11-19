@@ -46,19 +46,13 @@
     #[test]
     fn the_installed_theme_survives_an_opposite_mode_os() {
         for (pref, want_dark) in [(ThemePref::Dark, true), (ThemePref::Light, false)] {
-            let ctx = egui::Context::default();
-            let os_reports =
-                if want_dark { egui::Theme::Light } else { egui::Theme::Dark };
-            let input = egui::RawInput {
-                system_theme: Some(os_reports),
-                ..Default::default()
-            };
+            let mut ctx = harness::Ctx::new();
             // Startup order: install BEFORE the first frame (system theme
             // unknown), exactly like main()'s creation closure.
             install_theme(&ctx, pref);
             // One real frame with the adversarial system theme — the moment
             // the old bug swapped the stock style in.
-            let _ = ctx.run(input, |_| {});
+            ctx.run_system_theme(!want_dark);
             assert_eq!(
                 ctx.style().visuals.dark_mode,
                 want_dark,
@@ -81,13 +75,6 @@
     /// focus) is exercised, not a hand-called helper.
     #[test]
     fn zoom_keys_step_fit_and_jump_to_one_to_one() {
-        let key = |k: egui::Key| egui::Event::Key {
-            key: k,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::NONE,
-        };
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(PathBuf::from("x.png")),
@@ -99,33 +86,31 @@
                 // what the canvas computed last frame
                 zoom: 2.0,
                 zoom_target: 2.0,
-                pan: egui::vec2(0.7, 0.7),
+                pan: v2(0.7, 0.7),
                 ..Default::default()
             }; view });
 
-        let ctx = egui::Context::default();
-        let run_key = |app: &mut AutoShadeApp, k: egui::Key| {
-            let mut input = egui::RawInput::default();
-            input.events.push(key(k));
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        let mut ctx = harness::Ctx::new();
+        let mut run_key = |app: &mut AutoShadeApp, k: harness::Key| {
+            ctx.run_default_events(vec![harness::Event::Key(k)], |ctx| app.upd_shortcuts(ctx));
         };
-        run_key(&mut app, egui::Key::Plus);
+        run_key(&mut app, harness::Key::Plus);
         assert!((app.workspace().view().zoom_target - 2.5).abs() < 1e-4, "`+` retargets ×1.25, got {}", app.workspace().view().zoom_target);
-        run_key(&mut app, egui::Key::Minus);
+        run_key(&mut app, harness::Key::Minus);
         assert!((app.workspace().view().zoom_target - 2.0).abs() < 1e-4, "`-` steps back, got {}", app.workspace().view().zoom_target);
-        run_key(&mut app, egui::Key::Num1);
+        run_key(&mut app, harness::Key::Num1);
         assert_eq!(app.workspace().view().zoom_target, 4.0, "`1` targets the stored 1:1 zoom");
-        run_key(&mut app, egui::Key::Num0);
+        run_key(&mut app, harness::Key::Num0);
         assert_eq!(app.workspace().view().zoom_target, 1.0, "`0` refits");
-        assert_eq!(app.workspace().view().pan, egui::vec2(0.5, 0.5), "`0` recentres the pan (instant)");
+        assert_eq!(app.workspace().view().pan, v2(0.5, 0.5), "`0` recentres the pan (instant)");
         // Ceiling: from 11× one `+` press must stop at the 12× clamp.
         app.workspace_mut().view_mut().zoom_target = 11.0;
-        run_key(&mut app, egui::Key::Plus);
+        run_key(&mut app, harness::Key::Plus);
         assert_eq!(app.workspace().view().zoom_target, 12.0, "zoom keys respect the 12x ceiling");
         // No photo → the keys are inert (same gate as the canvas buttons).
         app.editor_mut().photo_mut().src_path = None;
         app.workspace_mut().view_mut().zoom_target = 3.0;
-        run_key(&mut app, egui::Key::Num0);
+        run_key(&mut app, harness::Key::Num0);
         assert_eq!(app.workspace().view().zoom_target, 3.0, "no photo: zoom keys must not act");
     }
 
@@ -202,19 +187,10 @@
 
             }; editor });
         app.editor_mut().doc_mut().recipe.exposure_ev = 1.5;
-        let ctx = egui::Context::default();
-        let run_copy = |app: &mut AutoShadeApp, shift: bool| {
-            let input = egui::RawInput {
-                modifiers: egui::Modifiers {
-                    command: true,
-                    ctrl: true,
-                    shift,
-                    ..Default::default()
-                },
-                events: vec![egui::Event::Copy],
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| app.upd_shortcuts(ctx));
+        let mut ctx = harness::Ctx::new();
+        let mut run_copy = |app: &mut AutoShadeApp, shift: bool| {
+            let mods = harness::Mods { command: true, ctrl: true, shift };
+            ctx.run_default_mods(mods, vec![harness::Event::Copy], |ctx| app.upd_shortcuts(ctx));
         };
         run_copy(&mut app, false);
         assert!(app.workspace().genai().copied.is_none(), "bare Ctrl+C belongs to egui's text copy");
@@ -391,11 +367,11 @@
     /// now request a repaint from inside `spawn_worker`.
     #[test]
     fn worker_spawn_and_completion_both_wake_the_event_loop() {
-        let app = AutoShadeApp::default();
+        let mut app = AutoShadeApp::default();
         // Drain the fresh context's startup frames (egui schedules a couple
         // on its own) until it reports quiet.
         for _ in 0..8 {
-            let _ = app.services().view_ctx.run(Default::default(), |_| {});
+            tick_view(&mut app);
         }
         assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: context drained");
         let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
@@ -412,7 +388,7 @@
         // Consume that request the way real frames would; the worker is
         // still gated, so quiet must return…
         for _ in 0..8 {
-            let _ = app.services().view_ctx.run(Default::default(), |_| {});
+            tick_view(&mut app);
         }
         assert!(!app.services().view_ctx.has_requested_repaint(), "sanity: drained again");
         // …until the worker completes: edge 2, the completion itself must

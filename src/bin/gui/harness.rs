@@ -163,6 +163,8 @@ pub(crate) enum Event {
     Key(Key),
     /// A key pressed with the command modifier (Ctrl on Windows).
     KeyCommand(Key),
+    /// The framework's copy event (the text/copy shortcut).
+    Copy,
 }
 
 /// The keys the GUI tests press, as the app's own names.
@@ -173,6 +175,10 @@ pub(crate) enum Key {
     E,
     R,
     S,
+    Plus,
+    Minus,
+    Num0,
+    Num1,
 }
 
 impl Key {
@@ -183,6 +189,10 @@ impl Key {
             Key::E => egui::Key::E,
             Key::R => egui::Key::R,
             Key::S => egui::Key::S,
+            Key::Plus => egui::Key::Plus,
+            Key::Minus => egui::Key::Minus,
+            Key::Num0 => egui::Key::Num0,
+            Key::Num1 => egui::Key::Num1,
         }
     }
 }
@@ -211,6 +221,7 @@ impl Event {
                 repeat: false,
                 modifiers: egui::Modifiers::COMMAND,
             },
+            Event::Copy => egui::Event::Copy,
         }
     }
 }
@@ -871,4 +882,54 @@ pub(crate) fn shapes_have_fill(out: &Out, fill: egui::Color32) -> bool {
         }
     }
     out.0.shapes.iter().any(|c| walk(&c.shape, fill))
+}
+
+
+/// The modifiers a test holds down for a frame.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Mods {
+    pub command: bool,
+    pub ctrl: bool,
+    pub shift: bool,
+}
+
+impl Ctx {
+    /// One frame with the framework's default input, `mods` held down and
+    /// `events` injected.
+    pub(crate) fn run_default_mods(&mut self, mods: Mods, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_input(
+            egui::RawInput {
+                modifiers: egui::Modifiers {
+                    command: mods.command,
+                    ctrl: mods.ctrl,
+                    shift: mods.shift,
+                    ..Default::default()
+                },
+                events: events.into_iter().map(Event::into_egui).collect(),
+                ..Default::default()
+            },
+            draw,
+        )
+    }
+
+    /// One empty frame with the OS reporting `dark` as the system theme.
+    pub(crate) fn run_system_theme(&mut self, dark: bool) {
+        let input = egui::RawInput {
+            system_theme: Some(if dark { egui::Theme::Dark } else { egui::Theme::Light }),
+            ..Default::default()
+        };
+        let _ = self.run_input(input, |_| {});
+    }
+
+
+}
+
+/// A point size for app state (the canvas pan), as the app's own value.
+pub(crate) fn v2(x: f32, y: f32) -> egui::Vec2 {
+    egui::vec2(x, y)
+}
+
+/// One empty frame on the app's own view context (the worker pump's tick).
+pub(crate) fn tick_view(app: &mut crate::AutoShadeApp) {
+    let _ = app.services().view_ctx.run(Default::default(), |_| {});
 }
