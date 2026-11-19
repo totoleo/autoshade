@@ -2,6 +2,7 @@
 // `mod tests` (indentation kept — raw-string fixtures must not
 // change by one byte). `super::*` still resolves to the root.
     use super::*;
+    use crate::harness::*;
 
     // The tests themselves, in parts under tests/: each file is spliced in here
     // by include!, so its items are items of this module and every test keeps

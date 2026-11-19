@@ -269,6 +269,27 @@ impl Ctx {
     }
 }
 
+/// One tall frame of the controls column: a 1400x20 000 screen, every fold
+/// open, the left panel at 320 points, `f` drawing inside its scroll area —
+/// and the texts it drew.
+pub(crate) fn tall_frame(app: &mut crate::AutoShadeApp, f: impl Fn(&mut crate::AutoShadeApp, &mut egui::Ui)) -> Vec<String> {
+    let mut ctx = Ctx::new();
+    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    let out = ctx.run_input(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
+            ..Default::default()
+        },
+        |ctx| {
+            ctx.memory_mut(|m| m.set_everything_is_visible(true));
+            egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| f(app, ui));
+            });
+        },
+    );
+    out.texts()
+}
+
 /// One left side panel of the given width, drawn into the current frame.
 pub(crate) fn side_panel(ctx: &egui::Context, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) {
     egui::SidePanel::left(id).default_width(width).show(ctx, |ui| body(ui));

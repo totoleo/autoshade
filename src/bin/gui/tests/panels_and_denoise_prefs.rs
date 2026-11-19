@@ -360,25 +360,6 @@
         }
     }
 
-    fn tall_frame(app: &mut AutoShadeApp, f: impl Fn(&mut AutoShadeApp, &mut egui::Ui)) -> Vec<String> {
-        let ctx = egui::Context::default();
-        crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1400.0, 20_000.0),
-            )),
-            ..Default::default()
-        };
-        let out = ctx.run(input, |ctx| {
-            ctx.memory_mut(|m| m.set_everything_is_visible(true));
-            egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| f(app, ui));
-            });
-        });
-        drawn_texts(&out.shapes)
-    }
-
     /// User decision 2026-09-20: the AI header describes this photo's verdict
     /// and Direction. Saved taste dials alone must never light it, even when
     /// all three differ from their defaults. Read the drawn header in both
@@ -514,15 +495,6 @@
         assert_eq!(req.style, 0.2);
     }
 
-    #[derive(Default)]
-    struct PrefsMemory(std::collections::HashMap<String, String>);
-
-    impl eframe::Storage for PrefsMemory {
-        fn get_string(&self, key: &str) -> Option<String> { self.0.get(key).cloned() }
-        fn set_string(&mut self, key: &str, value: String) { self.0.insert(key.into(), value); }
-        fn flush(&mut self) {}
-    }
-
     /// A prefs file written while the removed mode page existed still
     /// decodes: RON ignores its unknown `mode` key, and every setting beside
     /// it is restored.
@@ -533,9 +505,9 @@
             "(mode:Portraits)",
             "(mode:Landscape,lang:Zh)",
         ] {
-            let mut storage = PrefsMemory::default();
-            eframe::Storage::set_string(&mut storage, eframe::APP_KEY, old.into());
-            let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY)
+            let mut storage = harness::PrefsStore::empty();
+            storage.set_raw(old);
+            let prefs: Prefs = storage.prefs()
                 .unwrap_or_else(|| panic!("{old}: a prefs file with a mode key still loads"));
             let mut app = AutoShadeApp::default();
             app.restore_prefs(prefs);
@@ -548,10 +520,9 @@
     #[test]
     fn era_zero_denoise_prefs_reset_both_dials_and_explain_the_old_values() {
         for lang in [Lang::En, Lang::Zh] {
-            let mut storage = PrefsMemory::default();
-            eframe::Storage::set_string(&mut storage, eframe::APP_KEY,
-                format!("(denoise_strength:0.65,save_denoise_strength:0.5,lang:{lang:?})"));
-            let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+            let mut storage = harness::PrefsStore::empty();
+            storage.set_raw(format!("(denoise_strength:0.65,save_denoise_strength:0.5,lang:{lang:?})"));
+            let prefs: Prefs = storage.prefs().unwrap();
             assert_eq!(prefs.prefs_era, 0, "a missing key must not inherit the current era");
             let mut app = AutoShadeApp::default();
             app.restore_prefs(prefs);
@@ -594,9 +565,9 @@
 
     #[test]
     fn prefs_without_denoise_keys_restore_the_raw_defaults_without_a_note() {
-        let mut storage = PrefsMemory::default();
-        eframe::Storage::set_string(&mut storage, eframe::APP_KEY, "()".into());
-        let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let mut storage = harness::PrefsStore::empty();
+        storage.set_raw( "()");
+        let prefs: Prefs = storage.prefs().unwrap();
         assert_eq!(prefs.prefs_era, 0);
         let mut app = AutoShadeApp::default();
         app.restore_prefs(prefs);
@@ -612,9 +583,8 @@
                 save_denoise_strength: 0.5,
                 ..Default::default()
             }; view });
-        let mut storage = PrefsMemory::default();
-        eframe::App::save(&mut app, &mut storage);
-        let saved: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let storage = harness::PrefsStore::save(&mut app);
+        let saved = storage.prefs().unwrap();
         assert_eq!(saved.prefs_era, PREFS_ERA);
         let mut reopened = AutoShadeApp::default();
         reopened.restore_prefs(saved);
@@ -695,9 +665,8 @@
         app.restore_prefs(Prefs { prefs_era: 1, denoise_strength: 0.45,
             save_denoise_strength: 0.6, ..Prefs::default() });
         app.editor_mut().photo_mut().src_path = Some(PathBuf::from("master.tif"));
-        let mut storage = PrefsMemory::default();
-        eframe::App::save(&mut app, &mut storage);
-        let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let storage = harness::PrefsStore::save(&mut app);
+        let prefs = storage.prefs().unwrap();
         assert_eq!(prefs.prefs_era, 2);
         let mut reopened = AutoShadeApp::default();
         reopened.restore_prefs(prefs);

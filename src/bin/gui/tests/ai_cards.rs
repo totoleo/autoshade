@@ -400,9 +400,8 @@
         restored.restore_prefs(Prefs { adjust_quality: 7, ..Prefs::default() });
         assert_eq!(restored.workspace().genai().adjust_quality, 2, "restore clamps to the panel's choices");
         let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.genai_mut() = GenerativeState { adjust_quality: 1, ..Default::default() }; view });
-        let mut storage = PrefsMemory::default();
-        eframe::App::save(&mut app, &mut storage);
-        let saved: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let storage = harness::PrefsStore::save(&mut app);
+        let saved = storage.prefs().unwrap();
         assert_eq!(saved.adjust_quality, 1, "save writes the app's value back");
     }
 

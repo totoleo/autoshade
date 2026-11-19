@@ -331,9 +331,8 @@
         let mut restored = AutoShadeApp::default();
         restored.restore_prefs(Prefs { style_describe: true, ..Prefs::default() });
         assert!(restored.aip().style_describe, "the saved preference must be restored at start-up");
-        let mut storage = PrefsMemory::default();
-        eframe::App::save(&mut restored, &mut storage);
-        let saved: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let storage = harness::PrefsStore::save(&mut restored);
+        let saved = storage.prefs().unwrap();
         assert!(saved.style_describe, "…and written back when preferences are saved");
     }
 
