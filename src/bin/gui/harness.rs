@@ -912,6 +912,15 @@ impl Ctx {
         )
     }
 
+    /// A `w`x`h` gray texture for tests that need a thumbnail-carrying row.
+    pub(crate) fn gray_texture(&self, name: &str, w: u32, h: u32) -> egui::TextureHandle {
+        self.0.load_texture(
+            name,
+            egui::ColorImage::filled([w as usize, h as usize], egui::Color32::GRAY),
+            egui::TextureOptions::LINEAR,
+        )
+    }
+
     /// One empty frame with the OS reporting `dark` as the system theme.
     pub(crate) fn run_system_theme(&mut self, dark: bool) {
         let input = egui::RawInput {

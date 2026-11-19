@@ -414,28 +414,19 @@
 
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             let mut app = AutoShadeApp::default().but_lang(lang);
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            };
             let mut widths = Vec::new();
             for _ in 0..3 {
-                let _ = ctx.run(input(), |ctx| {
-                    let r = egui::SidePanel::left("controls")
-                        .default_width(320.0)
-                        .show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.commands().ai_panel(ui);
-                                app.commands().retouch_panel(ui);
-                            });
+                ctx.run(1400.0, 900.0, |ctx| {
+                    let r = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| {
+                            app.commands().ai_panel(ui);
+                            app.commands().retouch_panel(ui);
                         });
+                    });
                     // the panel's rendered width, the runaway's witness
-                    widths.push(r.response.rect.width());
+                    widths.push(r.width());
                 });
             }
             assert!(
@@ -443,7 +434,7 @@
                 "{lang:?}: the side panel must not grow across frames: {widths:?}"
             );
             let btn = app.seams().reimagine_btn_rect.expect("the button records its rect (test seam)");
-            let one_line = ctx.style().spacing.interact_size.y;
+            let one_line = row_height(&ctx);
             assert!(
                 btn.height() <= one_line + 1.0,
                 "{lang:?}: the Generate button must be one line tall ({} vs {one_line})",
@@ -462,15 +453,8 @@
             app.workspace_mut().genai_mut().reimagine_prompt = app.workspace().ai().guidance.clone();
             app.workspace_mut().genai_mut().adjust_prompt = app.workspace().ai().guidance.clone();
             app.workspace_mut().genai_mut().fill_prompt = app.workspace().ai().guidance.clone();
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 1200.0),
-                )),
-                ..Default::default()
-            };
             // Three frames, because a WIDTH rule and an auto-fitting side panel
             // is exactly the pair that produced R19's +8 px/frame runaway: the
             // cap only ever asks for LESS than the row has (which cannot grow
@@ -478,20 +462,19 @@
             let mut widths = Vec::new();
             for _ in 0..3 {
                 app.seams().prompt_rects.clear(); // the LAST frame's evidence only
-                let _ = ctx.run(input(), |ctx| {
+                ctx.run(1600.0, 1200.0, |ctx| {
                     // Both prompt-bearing folds are collapsed by default; egui's
                     // own test hook opens every collapsible (the same one the
                     // mask-brush width test uses), so an unopened fold cannot
                     // make this vacuous.
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    let r =
-                        egui::SidePanel::left("controls").default_width(800.0).show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| {
-                                app.commands().ai_panel(ui);
-                                app.commands().retouch_panel(ui);
-                            });
+                    let r = panel(ctx, "controls", 800.0, |ui| {
+                        scroll_vertical(ui, |ui| {
+                            app.commands().ai_panel(ui);
+                            app.commands().retouch_panel(ui);
                         });
-                    widths.push(r.response.rect.width());
+                    });
+                    widths.push(r.width());
                 });
             }
             assert!(
@@ -550,19 +533,10 @@
      variants,
      ..Default::default()
  }; editor });
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                )),
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::TopBottomPanel::bottom("variants")
-                    .exact_height(AutoShadeApp::VARIANT_STRIP_H)
-                    .show(ctx, |ui| app.commands().variant_strip(ui));
+            ctx.run(800.0, 600.0, |ctx| {
+                bottom_panel(ctx, "variants", AutoShadeApp::VARIANT_STRIP_H, |ui| app.commands().variant_strip(ui));
             });
             let row = app.seams().strip_row_rect.expect("the strip records its row (test seam)");
             let card = app.seams().strip_card_rect.expect("the strip records its card (test seam)");
@@ -601,29 +575,16 @@
         {
 
         for (tw, th, tag) in [(40u32, 60u32, "portrait 2:3"), (60, 40, "landscape 3:2")] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default();
-            let tex = ctx.load_texture(
-                "r22_thumb",
-                egui::ColorImage::filled([tw as usize, th as usize], egui::Color32::GRAY),
-                egui::TextureOptions::LINEAR,
-            );
+            let tex = ctx.gray_texture("r22_thumb", tw, th);
             // One row, its texture already resident: the loaded branch.
             app.workspace_mut().gal_mut().gallery = vec![PathBuf::from("r22-thumb-geometry.arw")];
             app.workspace_mut().gal_mut().gallery_dir = Some(PathBuf::from("."));
             app.workspace_mut().gal_mut().thumbs.insert(0, tex);
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1200.0, 800.0),
-                )),
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::SidePanel::left("library")
-                    .default_width(260.0)
-                    .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
+            ctx.run(1200.0, 800.0, |ctx| {
+                panel(ctx, "library", 260.0, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
             });
             let slot = app.workspace().gal().gallery_slot_rect.expect("the gallery records its thumb slot (test seam)");
             let draw = app.workspace().gal().gallery_thumb_rect.expect("the gallery records the drawn image (test seam)");
@@ -672,24 +633,15 @@
     /// phase ②.
     #[test]
     fn the_ai_panel_freezes_only_while_a_photo_is_opening() {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let frame = |app: &mut AutoShadeApp| -> Option<bool> {
+        let mut frame = |app: &mut AutoShadeApp| -> Option<bool> {
             app.seams().ai_gate_enabled = None; // this frame's evidence only
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(1000.0, 900.0),
-                    )),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.commands().ai_panel(ui);
-                    });
-                },
-            );
+            ctx.run(1000.0, 900.0, |ctx| {
+                panel(ctx, "controls", 320.0, |ui| {
+                    app.commands().ai_panel(ui);
+                });
+            });
             app.seams().ai_gate_enabled
         };
         // ① settled: live.
@@ -724,34 +676,25 @@
     #[test]
     fn the_mask_brush_session_carries_the_brush_size_slider() {
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default().but_lang(lang);
             // A plate is what start_mask_brush sizes its buffers against.
             app.editor_mut().photo_mut().base_preview = Some(std::sync::Arc::new(image::DynamicImage::new_rgb8(64, 96)));
             app.commands().start_mask_brush(None);
             assert!(app.workspace().masks().mask_brush.is_some(), "{lang:?}: the brush session armed");
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 900.0),
-                )),
-                ..Default::default()
-            };
             let mut widths = Vec::new();
             for frame in 0..3 {
                 app.seams().brush_slider_rect = None; // this frame's evidence only
-                let _ = ctx.run(input(), |ctx| {
+                ctx.run(1400.0, 900.0, |ctx| {
                     // Local Masks is a collapsed section by default; opening
                     // every collapsible is egui's own test hook for exactly
                     // this (CollapsingState::openness).
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    let r = egui::SidePanel::left("controls")
-                        .default_width(320.0)
-                        .show(ctx, |ui| {
-                            egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                        });
-                    widths.push(r.response.rect.width());
+                    let r = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| app.commands().develop_panel(ui));
+                    });
+                    widths.push(r.width());
                 });
                 let s = app.seams().brush_slider_rect.unwrap_or_else(|| {
                     panic!(
