@@ -68,6 +68,8 @@ mod buttons;
 mod shortcuts;
 mod ui_kit;
 mod forms;
+#[cfg(test)]
+mod harness;
 mod shell;
 mod headings;
 mod theme;
