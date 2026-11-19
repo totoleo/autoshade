@@ -1339,7 +1339,10 @@
         for (start, _) in src.match_indices("Window::new(") {
             let end = src[start..].find(".show(ctx").expect("the window's show call") + start;
             let builder = &src[start..end];
-            assert!(builder.contains(".id(Id::new("), "a window whose id is its localised title, so its state resets with the language");
+            assert!(
+                builder.contains(".id(Id::new(") || builder.contains(".id(egui::Id::new("),
+                "a window whose id is its localised title, so its state resets with the language"
+            );
             seen += 1;
         }
         assert!(seen >= 2, "premise: the Settings and Shortcuts windows are both built here ({seen} found)");

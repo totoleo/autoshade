@@ -129,8 +129,16 @@ pub(crate) fn rect(rect: egui::Rect) -> RectT {
 }
 
 impl RectT {
+    pub(crate) fn nothing() -> Self {
+        Self { min: pt(f32::INFINITY, f32::INFINITY), max: pt(f32::NEG_INFINITY, f32::NEG_INFINITY) }
+    }
+
     pub(crate) fn center(self) -> Pt {
         pt((self.min.x + self.max.x) * 0.5, (self.min.y + self.max.y) * 0.5)
+    }
+
+    pub(crate) fn contains(self, pos: egui::Pos2) -> bool {
+        pos.x >= self.min.x && pos.x <= self.max.x && pos.y >= self.min.y && pos.y <= self.max.y
     }
 
     pub(crate) fn right(self) -> f32 {
@@ -139,6 +147,10 @@ impl RectT {
 
     pub(crate) fn width(self) -> f32 {
         self.max.x - self.min.x
+    }
+
+    pub(crate) fn left(self) -> f32 {
+        self.min.x
     }
 }
 
@@ -694,4 +706,25 @@ pub(crate) fn controls_panel_texts(app: &mut crate::AutoShadeApp, w: f32, h: f32
 pub(crate) fn settle(app: &mut crate::AutoShadeApp) {
     let mut ctx = Ctx::new();
     ctx.run_default(|ctx| app.run_frame(ctx));
+}
+
+/// One left side panel at `width`, drawn into the current frame; its rect.
+pub(crate) fn panel(ctx: &egui::Context, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) -> RectT {
+    rect(egui::SidePanel::left(id).default_width(width).show(ctx, |ui| body(ui)).response.rect)
+}
+
+/// A vertical scroll area over the current `ui` (the controls column's fold
+/// body).
+pub(crate) fn scroll_vertical(ui: &mut egui::Ui, body: impl FnOnce(&mut egui::Ui)) {
+    egui::ScrollArea::vertical().show(ui, |ui| body(ui));
+}
+
+/// A floating window with a fixed id and width, drawn into the current frame.
+pub(crate) fn window(ctx: &egui::Context, title: &str, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) {
+    egui::Window::new(title).id(egui::Id::new(id)).default_width(width).show(ctx, |ui| body(ui));
+}
+
+/// The installed style's one-row height (the vocabulary buttons' height).
+pub(crate) fn row_height(ctx: &egui::Context) -> f32 {
+    ctx.style().spacing.interact_size.y
 }

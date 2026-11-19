@@ -16,7 +16,7 @@
     #[test]
     fn the_toolbar_turn_moves_the_recipe_and_the_plate_together() {
         let (mut app, _scrub) = app_with_masked_photo("rotate-plate");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         // A deliberately non-square plate, so a turn is visible in the dims.
         let plate = std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6));
         app.editor_mut().photo_mut().base_preview = Some(plate.clone());
@@ -85,7 +85,7 @@
     #[test]
     fn the_two_subject_backends_land_as_two_different_sentences() {
         use std::path::PathBuf;
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
 
         // THE PINNED MODEL: named in the status, and no alarm raised.
         let mut ok = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.busy_mut() = true; view });
@@ -176,24 +176,15 @@
     /// panels/ai.rs and phase (2) fails.
     #[test]
     fn gui_adherence_slider_is_disabled_without_a_direction() {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let frame = |app: &mut AutoShadeApp| -> Option<bool> {
+        let mut frame = |app: &mut AutoShadeApp| -> Option<bool> {
             app.seams().adherence_gate_enabled = None; // this frame's evidence only
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(1000.0, 900.0),
-                    )),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.commands().ai_panel(ui);
-                    });
-                },
-            );
+            let _ = ctx.run(1000.0, 900.0, |ctx| {
+                panel(ctx, "controls", 320.0, |ui| {
+                    app.commands().ai_panel(ui);
+                });
+            });
             app.seams().adherence_gate_enabled
         };
         // (1) no direction: the dial exists but cannot be moved.
@@ -242,21 +233,15 @@
     #[test]
     fn gui_guide_switch_greys_the_other_side_and_persists() {
         use autoshade::pipeline::Guide;
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let frame = |app: &mut AutoShadeApp| -> Option<(bool, bool)> {
+        let mut frame = |app: &mut AutoShadeApp| -> Option<(bool, bool)> {
             app.seams().guide_gate_enabled = None;
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 900.0))),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.commands().ai_panel(ui);
-                    });
-                },
-            );
+            let _ = ctx.run(1000.0, 900.0, |ctx| {
+                panel(ctx, "controls", 320.0, |ui| {
+                    app.commands().ai_panel(ui);
+                });
+            });
             app.seams().guide_gate_enabled
         };
         let mut app = AutoShadeApp::default();
@@ -493,30 +478,21 @@
 
         use crate::buttons::DRAWN;
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            let row = ctx.style().spacing.interact_size.y;
+            let row = row_height(&ctx);
             let mut app = app_with_every_button(lang);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 20_000.0),
-                )),
-                ..Default::default()
-            };
             let mut widths: Vec<[f32; 2]> = Vec::new();
-            let mut rects: Vec<[egui::Rect; 2]> = Vec::new();
+            let mut rects: Vec<[RectT; 2]> = Vec::new();
             let mut sections = [0.0f32; 3];
             for _ in 0..3 {
                 DRAWN.with_borrow_mut(Vec::clear); // the LAST frame's registry only
-                let _ = ctx.run(input(), |ctx| {
+                let _ = ctx.run(1400.0, 20_000.0, |ctx| {
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     app.upd_top_bar(ctx);
-                    let gallery = egui::SidePanel::left("gallery")
-                        .default_width(240.0)
-                        .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
-                    let controls = egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
+                    let gallery = panel(ctx, "gallery", 240.0, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
+                    let controls = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| {
                             app.commands().ai_panel(ui);
                             sections[0] = ui.min_rect().width();
                             app.commands().develop_panel(ui);
@@ -525,12 +501,9 @@
                             sections[2] = ui.min_rect().width();
                         });
                     });
-                    egui::Window::new(tr(lang, K_APP_SETTINGS))
-                        .id(egui::Id::new("settings_window"))
-                        .default_width(480.0)
-                        .show(ctx, |ui| app.draw_panel(|view| view.settings_ui(ui)));
-                    widths.push([gallery.response.rect.width(), controls.response.rect.width()]);
-                    rects.push([gallery.response.rect, controls.response.rect]);
+                    window(ctx, tr(lang, K_APP_SETTINGS), "settings_window", 480.0, |ui| app.draw_panel(|view| view.settings_ui(ui)));
+                    widths.push([gallery.width(), controls.width()]);
+                    rects.push([gallery, controls]);
                 });
             }
             let drawn = DRAWN.with_borrow(|d| d.clone());
@@ -576,29 +549,18 @@
         use crate::buttons::DRAWN;
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
             for controls_width in [800.0, 1600.0] {
-                let ctx = egui::Context::default();
+                let mut ctx = harness::Ctx::new();
                 crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
                 let mut app = app_with_every_button(lang);
                 let mut widths = Vec::new();
                 for frame in 0..3 {
                     DRAWN.with_borrow_mut(Vec::clear);
-                    let _ = ctx.run(
-                        egui::RawInput {
-                            screen_rect: Some(egui::Rect::from_min_size(
-                                egui::Pos2::ZERO,
-                                egui::vec2(2400.0, 1200.0),
-                            )),
-                            ..Default::default()
-                        },
-                        |ctx| {
-                            ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                            let gallery = egui::SidePanel::left("gallery")
-                                .default_width(800.0)
-                                .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
-                            let controls = controls_panel(ctx, &mut app, controls_width);
-                            widths.push([gallery.response.rect.width(), controls.width()]);
-                        },
-                    );
+                    let _ = ctx.run(2400.0, 1200.0, |ctx| {
+                        ctx.memory_mut(|m| m.set_everything_is_visible(true));
+                        let gallery = panel(ctx, "gallery", 800.0, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
+                        let controls = controls_panel(ctx, &mut app, controls_width);
+                        widths.push([gallery.width(), controls.width()]);
+                    });
                     let drawn = DRAWN.with_borrow(|d| d.clone());
                     // The histogram readout used to be the one widget that grew
                     // with the panel without limit (user report 2026-09-27).
@@ -832,7 +794,7 @@
     #[test]
     fn a_turn_rebinds_the_paint_canvas_to_the_transposed_plate() {
         let (mut app, _scrub) = app_with_masked_photo("rotate-paint");
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let plate = std::sync::Arc::new(image::DynamicImage::new_rgb8(8, 6));
         app.editor_mut().photo_mut().base_preview = Some(plate.clone());
         app.editor_mut().photo_mut().source_preview = Some(plate);
@@ -891,26 +853,20 @@
     fn every_side_panel_text_verb_is_laid_in_a_cell_and_the_sections_align() {
         use crate::buttons::DRAWN;
         for lang in [crate::i18n::Lang::En, crate::i18n::Lang::Zh] {
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = app_with_every_button(lang);
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                ..Default::default()
-            };
-            let mut rects = [egui::Rect::NOTHING; 2];
+            let mut rects = [RectT::nothing(); 2];
             let mut sections: Vec<(&'static str, f32, f32)> = Vec::new();
             for _ in 0..3 {
                 DRAWN.with_borrow_mut(Vec::clear);
                 let mut inner = Vec::new();
-                let _ = ctx.run(input(), |ctx| {
+                let _ = ctx.run(1400.0, 20_000.0, |ctx| {
                     ctx.memory_mut(|m| m.set_everything_is_visible(true));
                     app.upd_top_bar(ctx);
-                    let gallery = egui::SidePanel::left("gallery")
-                        .default_width(240.0)
-                        .show(ctx, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
-                    let controls = egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
+                    let gallery = panel(ctx, "gallery", 240.0, |ui| app.draw_panel(|view| view.gallery_panel(ui)));
+                    let controls = panel(ctx, "controls", 320.0, |ui| {
+                        scroll_vertical(ui, |ui| {
                             let y0 = ui.min_rect().top();
                             app.commands().ai_panel(ui);
                             let y1 = ui.min_rect().bottom();
@@ -921,7 +877,7 @@
                             inner = vec![("ai", y0, y1), ("develop", y1, y2), ("retouch", y2, y3)];
                         });
                     });
-                    rects = [gallery.response.rect, controls.response.rect];
+                    rects = [gallery, controls];
                 });
                 sections = inner;
             }
