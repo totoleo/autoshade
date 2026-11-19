@@ -47,7 +47,7 @@
     }
 
     /// A finished worker landing through the one door every retouch takes.
-    fn land(app: &mut AutoShadeApp, ctx: &egui::Context, note: RetouchNote, out: &str, kind: RetouchKind) {
+    fn land(app: &mut AutoShadeApp, ctx: &harness::Ctx, note: RetouchNote, out: &str, kind: RetouchKind) {
         let (lang, epoch) = (app.lang(), app.workspace().tools().gen_epoch);
         app.commands().on_retouched(ctx, lang, epoch, Ok((
             image::DynamicImage::new_rgb8(4, 4),
@@ -62,21 +62,10 @@
     }
 
     /// One headless frame of the prompt alone, with `keys` pressed.
-    fn prompt_frame(app: &mut AutoShadeApp, ctx: &egui::Context, keys: &[egui::Key]) {
-        let input = egui::RawInput {
-            events: keys
-                .iter()
-                .map(|&key| egui::Event::Key {
-                    key,
-                    physical_key: None,
-                    pressed: true,
-                    repeat: false,
-                    modifiers: egui::Modifiers::NONE,
-                })
-                .collect(),
-            ..Default::default()
-        };
-        let _ = ctx.run(input, |ctx| app.commands().fit_prompt_layer(ctx));
+    fn prompt_frame(app: &mut AutoShadeApp, ctx: &mut harness::Ctx, keys: &[harness::Key]) {
+        ctx.run_default_events(keys.iter().map(|&key| harness::Event::Key(key)).collect(), |ctx| {
+            app.commands().fit_prompt_layer(ctx);
+        });
     }
 
     /// A reimagine landing asks, about the card it just made; a second one
@@ -89,7 +78,7 @@
     /// a fresh prompt over an open one.
     #[test]
     fn a_generation_landing_asks_to_reverse_fit_the_new_card_and_nothing_else_does() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let one = "out/_fit_prompt_test.reimagine.png";
         let two = "out/_fit_prompt_test.reimagine-2.png";
         let mut app = app_before_a_generation(Lang::En);
@@ -150,7 +139,7 @@
     fn the_prompt_offers_the_panels_sources_and_starts_on_the_original() {
         let one = "out/_fit_prompt_test.reimagine.png";
         for lang in [Lang::En, Lang::Zh] {
-            let ctx = egui::Context::default();
+            let ctx = harness::Ctx::new();
             let mut app = app_before_a_generation(lang);
             land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
             assert_eq!(app.commands().negative_index(), Some(1), "premise: Automatic would pick the ◈ master");
@@ -170,12 +159,12 @@
     /// and touches nothing.
     #[test]
     fn confirming_the_prompt_fits_from_the_original_and_esc_changes_nothing() {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         let one = "out/_fit_prompt_test.reimagine.png";
         let two = "out/_fit_prompt_test.reimagine-2.png";
         let mut app = app_before_a_generation(Lang::En);
         land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
-        prompt_frame(&mut app, &ctx, &[egui::Key::Escape]);
+        prompt_frame(&mut app, &mut ctx, &[harness::Key::Escape]);
         assert!(app.workspace().fit().fit_prompt.is_none(), "Esc closes the question");
         assert_eq!(app.workspace().fit().fit_from, None, "and leaves the fold's source alone");
         assert!(!app.workspace().busy(), "and starts nothing");
@@ -183,7 +172,7 @@
 
         land(&mut app, &ctx, reimagined(two), two, RetouchKind::NewGenerated);
         app.workspace_mut().fit_mut().fit_ref = Some(PathBuf::from("library/_fit_prompt_test.reference.jpg"));
-        prompt_frame(&mut app, &ctx, &[egui::Key::Enter]);
+        prompt_frame(&mut app, &mut ctx, &[harness::Key::Enter]);
         assert!(app.workspace().fit().fit_prompt.is_none(), "the prompt closes before the fit runs");
         assert_eq!(app.workspace().fit().fit_from.as_deref(), Some(ORIGINAL_VARIANT_ID), "the fit solves from the ▣ original");
         assert_eq!(app.workspace().fit().fit_ref, None, "the fit targets the generated card, not an older reference");
@@ -195,30 +184,29 @@
     #[test]
     fn the_ask_pref_turns_the_prompt_off_and_round_trips() {
         assert!(AutoShadeApp::default().workspace().fit().ask_fit_after_generate && Prefs::default().ask_fit_after_generate);
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         let one = "out/_fit_prompt_test.reimagine.png";
         let two = "out/_fit_prompt_test.reimagine-2.png";
         let mut app = app_before_a_generation(Lang::En);
         land(&mut app, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
         app.workspace_mut().fit_mut().fit_prompt.as_mut().unwrap().dont_ask = true;
-        prompt_frame(&mut app, &ctx, &[egui::Key::Escape]);
+        prompt_frame(&mut app, &mut ctx, &[harness::Key::Escape]);
         assert!(!app.workspace().fit().ask_fit_after_generate, "the box is applied as the prompt closes");
         land(&mut app, &ctx, reimagined(two), two, RetouchKind::NewGenerated);
         assert!(app.workspace().fit().fit_prompt.is_none(), "the pref off: no question");
 
         for ask in [false, true] {
-            let mut storage = PrefsMemory::default();
             let mut app = AutoShadeApp::default().but_workspace({ let mut view = WorkspaceView::default(); *view.fit_mut() = FitState { ask_fit_after_generate: ask, ..Default::default() }; view });
-            eframe::App::save(&mut app, &mut storage);
-            let text = eframe::Storage::get_string(&storage, eframe::APP_KEY).unwrap();
+            let storage = harness::PrefsStore::save(&mut app);
+            let text = storage.raw();
             assert!(text.contains(&format!("ask_fit_after_generate:{ask}")), "{text}");
-            let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+            let prefs = storage.prefs().unwrap();
             let mut back = AutoShadeApp::default();
             back.restore_prefs(prefs);
             assert_eq!(back.workspace().fit().ask_fit_after_generate, ask);
         }
-        let mut storage = PrefsMemory::default();
-        eframe::Storage::set_string(&mut storage, eframe::APP_KEY, "()".into());
-        let prefs: Prefs = eframe::get_value(&storage, eframe::APP_KEY).unwrap();
+        let mut storage = harness::PrefsStore::empty();
+        storage.set_raw("()");
+        let prefs = storage.prefs().unwrap();
         assert!(prefs.ask_fit_after_generate, "an older prefs file keeps asking");
     }

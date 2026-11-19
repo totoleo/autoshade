@@ -140,6 +140,23 @@ impl RectT {
 pub(crate) enum Event {
     PointerMoved(Pt),
     PointerButton { pos: Pt, pressed: bool },
+    Key(Key),
+}
+
+/// The keys the GUI tests press, as the app's own names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Key {
+    Escape,
+    Enter,
+}
+
+impl Key {
+    fn into_egui(self) -> egui::Key {
+        match self {
+            Key::Escape => egui::Key::Escape,
+            Key::Enter => egui::Key::Enter,
+        }
+    }
 }
 
 impl Event {
@@ -152,8 +169,60 @@ impl Event {
                 pressed,
                 modifiers: egui::Modifiers::NONE,
             },
+            Event::Key(key) => egui::Event::Key {
+                key: key.into_egui(),
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            },
         }
     }
+}
+
+/// An in-memory prefs file, so a test can save/restore the way the framework
+/// does without naming the framework's storage trait.
+#[derive(Default)]
+pub(crate) struct PrefsStore(std::collections::HashMap<String, String>);
+
+impl PrefsStore {
+    pub(crate) fn empty() -> Self {
+        Self::default()
+    }
+
+    /// The app's prefs, saved the way the framework saves them on exit.
+    pub(crate) fn save(app: &mut crate::AutoShadeApp) -> Self {
+        let mut store = Self::empty();
+        eframe::App::save(app, &mut store);
+        store
+    }
+
+    /// The raw string stored under the framework's app key.
+    pub(crate) fn raw(&self) -> String {
+        self.0.get(eframe::APP_KEY).cloned().unwrap_or_default()
+    }
+
+    /// Replace the raw stored string (a prefs file from an older version).
+    pub(crate) fn set_raw(&mut self, value: impl Into<String>) {
+        self.0.insert(eframe::APP_KEY.into(), value.into());
+    }
+
+    /// The decoded preferences, if the raw string decodes.
+    pub(crate) fn prefs(&self) -> Option<crate::Prefs> {
+        eframe::get_value(self, eframe::APP_KEY)
+    }
+}
+
+impl eframe::Storage for PrefsStore {
+    fn get_string(&self, key: &str) -> Option<String> {
+        self.0.get(key).cloned()
+    }
+
+    fn set_string(&mut self, key: &str, value: String) {
+        self.0.insert(key.into(), value);
+    }
+
+    fn flush(&mut self) {}
 }
 
 /// The framework's stock light or dark look, for tests that check what the
@@ -206,6 +275,17 @@ pub(crate) fn side_panel(ctx: &egui::Context, id: &'static str, width: f32, body
 }
 
 impl Ctx {
+    /// One frame with the framework's default input but `events` injected.
+    pub(crate) fn run_default_events(&mut self, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_input(
+            egui::RawInput {
+                events: events.into_iter().map(Event::into_egui).collect(),
+                ..Default::default()
+            },
+            draw,
+        )
+    }
+
     /// One frame over a `w`x`h`-point screen at `tick`, injecting `events`.
     pub(crate) fn run_events(&mut self, w: f32, h: f32, tick: usize, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
         self.run_input(

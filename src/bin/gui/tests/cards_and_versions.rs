@@ -239,7 +239,8 @@
         // (the prompt's own frame path is the same gate).
         let one = "out/_fit_prompt_test.reimagine.png";
         let mut prompt = app_before_a_generation(Lang::En);
-        land(&mut prompt, &ctx, reimagined(one), one, RetouchKind::NewGenerated);
+        let land_ctx = harness::Ctx::new();
+        land(&mut prompt, &land_ctx, reimagined(one), one, RetouchKind::NewGenerated);
         assert!(prompt.workspace().fit().fit_prompt.is_some());
         let mut input = egui::RawInput::default();
         input.events.push(key(egui::Key::R));
