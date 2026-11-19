@@ -52,7 +52,7 @@ fn window_texts(app: &mut AutoShadeApp) -> Vec<String> {
     crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
     let mut seen = Vec::new();
     for frame in 0..3 {
-        let out = ctx.run(1400.0, 1200.0, frame, |ctx| {
+        let out = ctx.run_at(1400.0, 1200.0, frame, |ctx| {
             ctx.memory_mut(|m| m.set_everything_is_visible(true));
             app.commands().recipe_library_window(ctx);
         });

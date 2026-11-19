@@ -22,13 +22,32 @@ impl Ctx {
         Self(egui::Context::default())
     }
 
-    /// One frame over a `w`x`h`-point screen, with `draw` as the frame body.
-    pub(crate) fn run(&mut self, w: f32, h: f32, tick: usize, draw: impl FnMut(&egui::Context)) -> Out {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
-            time: Some(tick as f64 / 2.0),
-            ..Default::default()
-        };
+    /// One frame over a `w`x`h`-point screen with no clock advance, `draw` as
+    /// the frame body.
+    pub(crate) fn run(&mut self, w: f32, h: f32, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_with(w, h, None, draw)
+    }
+
+    /// One frame over a `w`x`h`-point screen at `tick` (the clock the frame
+    /// tests use: half a second per tick), `draw` as the frame body.
+    pub(crate) fn run_at(&mut self, w: f32, h: f32, tick: usize, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_with(w, h, Some(tick as f64 / 2.0), draw)
+    }
+
+    /// One frame over a `w`x`h`-point screen with an explicit frame clock, for
+    /// tests that drive the framework's own animations.
+    pub(crate) fn run_with(&mut self, w: f32, h: f32, time: Option<f64>, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_input(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
+                time,
+                ..Default::default()
+            },
+            draw,
+        )
+    }
+
+    fn run_input(&mut self, input: egui::RawInput, draw: impl FnMut(&egui::Context)) -> Out {
         Out(self.0.run(input, draw))
     }
 
@@ -61,6 +80,19 @@ impl std::ops::Deref for Ctx {
     fn deref(&self) -> &egui::Context {
         &self.0
     }
+}
+
+impl Ctx {
+    /// A small example texture, for tests that only need a thumbnail-bearing
+    /// card (the framework's own example image).
+    pub(crate) fn example_texture(&self, name: &str) -> egui::TextureHandle {
+        self.0.load_texture(name, egui::ColorImage::example(), egui::TextureOptions::LINEAR)
+    }
+}
+
+/// One left side panel of the given width, drawn into the current frame.
+pub(crate) fn side_panel(ctx: &egui::Context, id: &'static str, width: f32, body: impl FnOnce(&mut egui::Ui)) {
+    egui::SidePanel::left(id).default_width(width).show(ctx, |ui| body(ui));
 }
 
 /// What one frame produced, as far as a test asks: the drawn texts (and, in

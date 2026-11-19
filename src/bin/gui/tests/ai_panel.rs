@@ -95,25 +95,19 @@
     /// sentence that says why.
     #[test]
     fn the_reference_library_builds_at_style_zero_but_is_not_read() {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-        let frame = |app: &mut AutoShadeApp| -> (Option<bool>, Option<bool>) {
+        let mut frame = |app: &mut AutoShadeApp| -> (Option<bool>, Option<bool>) {
             app.seams().ai_library_build_enabled = None; // this frame's evidence only
             app.seams().ai_library_read_enabled = None;
-            let _ = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 900.0))),
-                    ..Default::default()
-                },
-                |ctx| {
-                    // egui's own test hook opens every collapsible, so a fold
-                    // state cannot make this vacuous.
-                    ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        app.commands().ai_panel(ui);
-                    });
-                },
-            );
+            ctx.run(1000.0, 900.0, |ctx| {
+                // egui's own test hook opens every collapsible, so a fold
+                // state cannot make this vacuous.
+                ctx.memory_mut(|m| m.set_everything_is_visible(true));
+                harness::side_panel(ctx, "controls", 320.0, |ui| {
+                    app.commands().ai_panel(ui);
+                });
+            });
             (app.seams().ai_library_build_enabled, app.seams().ai_library_read_enabled)
         };
         let mut app = AutoShadeApp::default();
@@ -450,7 +444,7 @@
     /// refresh the status.
     #[test]
     fn a_library_build_lands_as_a_typed_outcome_in_every_arm() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let dir = std::env::temp_dir().join(format!("autoshade-library-{}/finished", std::process::id()));
         let stage = autoshade::library::BuildStage::Images;
 
@@ -650,21 +644,16 @@
             assert!(seen.iter().any(|t| t == verb), "{lang:?}: an overflowing analysis offers {verb:?}: {seen:?}");
 
             app.workspace_mut().ui_mut().show_analysis_full = true;
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             // A window spends its first frame measuring itself (egui's sizing
             // pass draws nothing), so the text is read off the third.
             let mut window = Vec::new();
             for i in 0..3 {
-                let out = ctx.run(
-                    egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 20_000.0))),
-                        time: Some(f64::from(i) / 60.0),
-                        ..Default::default()
-                    },
-                    |ctx| app.commands().analysis_full_window(ctx),
-                );
-                window = drawn_texts(&out.shapes);
+                let out = ctx.run_with(1400.0, 20_000.0, Some(f64::from(i) / 60.0), |ctx| {
+                    app.commands().analysis_full_window(ctx);
+                });
+                window = out.texts();
             }
             assert!(
                 window.iter().any(|t| t.contains("END-OF-RATIONALE")),

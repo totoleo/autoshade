@@ -195,7 +195,7 @@
     /// still points at the raster it pointed at before, and busy is released.
     #[test]
     fn an_over_budget_refine_refuses_with_the_dimensions_and_keeps_the_mask() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.doc_mut() = Document {
 
                 recipe: EditRecipe {
@@ -252,7 +252,7 @@
     /// could not be kept while dropping the retouch.
     #[test]
     fn a_retouch_landing_does_not_fold_a_mid_flight_recipe_edit_into_the_pixel_step() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default();
         let b0 = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
         app.editor_mut().doc_mut().variants = vec![Variant {
@@ -310,13 +310,9 @@
     /// settled switch must keep it.
     #[test]
     fn a_variant_switch_drops_a_card_whose_frame_never_landed() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default();
-        let tex = ctx.load_texture(
-            "l06_thumb",
-            egui::ColorImage::example(),
-            egui::TextureOptions::LINEAR,
-        );
+        let tex = ctx.example_texture("l06_thumb");
         app.editor_mut().doc_mut().variants = vec![
             Variant {
                 id: String::new(),
@@ -362,7 +358,7 @@
         // Deleting `&& self.workspace().open().open_same_path` at the KEEP arm turns phase 1
         // into a graft and fails its assert.
         let mut app = AutoShadeApp::default();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mk = || Variant {
             id: String::new(),
             name: None,
@@ -450,7 +446,7 @@
         // as the era stamp. Deleting `&& self.workspace().cards().keep_recipe` at the
         // apply_step gate repairs phase 1's install and fails its assert.
         let mut app = AutoShadeApp::default();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let p = std::env::temp_dir().join(format!("autoshade-histgate-{}/__autoshade_histgate__.ARW", std::process::id()));
         // Pre-era fingerprint: version 1, interior x >= 0.5, darkens > 0.05.
         let washy = vec![[0.0, 0.0], [0.6, 0.4], [1.0, 1.0]];
@@ -517,7 +513,7 @@
         // preview never reached, it persists into Prefs, and five bake sites
         // read it (a heal in that window installs a new-edge raster under an
         // old-edge canvas). Three outcomes, three asserts.
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let armed = |base: Option<Arc<image::DynamicImage>>, origin: Option<PathBuf>| AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
 
                 src_path: Some(std::env::temp_dir().join(
@@ -731,7 +727,7 @@
     #[test]
     fn switching_persisted_cards_keeps_all_four_unsaved_consumers_clean() {
         let mut app = persisted_two_card_fixture();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.commands().switch_variant(1, &ctx);
 
         assert!(!app.editor().unsaved_marker_dirty(), "the ● marker predicate stays clean");
@@ -760,7 +756,7 @@
     #[test]
     fn edit_save_and_switch_back_use_each_cards_persisted_develop() {
         let mut app = persisted_two_card_fixture();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.commands().switch_variant(1, &ctx);
         app.editor_mut().doc_mut().recipe.contrast = 27.0;
         assert!(app.editor().unsaved_marker_dirty(), "editing the switched-to card is dirty");
@@ -829,7 +825,7 @@
         let entry = &mut app.editor_mut().session_mut().hist.saved_strip.as_mut().unwrap().others[0];
         entry.kind = "generated".into();
         entry.origin = Some(generated_origin);
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.commands().switch_variant(1, &ctx);
 
         assert!(!app.editor().unsaved_marker_dirty(), "pixels.json belongs to card X, not card Y");
@@ -847,7 +843,7 @@
     #[test]
     fn renaming_a_switched_to_card_is_still_unsaved_work() {
         let mut app = persisted_two_card_fixture();
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         app.commands().switch_variant(1, &ctx);
         app.editor_mut().doc_mut().variants[1].name = Some("new fitted name".into());
 
