@@ -735,3 +735,17 @@ pub(crate) fn bottom_panel(ctx: &egui::Context, id: &'static str, height: f32, b
 pub(crate) fn row_height(ctx: &egui::Context) -> f32 {
     ctx.style().spacing.interact_size.y
 }
+
+/// Every text the shapes drew, nested `Shape::Vec` included.
+pub(crate) fn drawn_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    shapes.iter().for_each(|c| walk(&c.shape, &mut out));
+    out
+}

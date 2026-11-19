@@ -10,17 +10,6 @@
     /// and it used to show a list with no controls and no explanation).
     #[test]
     fn the_mask_panel_groups_its_sliders_and_says_what_is_engine_only() {
-        // Every text the frame drew (nested Shape::Vec included).
-        fn texts(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<String>) {
-            fn walk(s: &egui::Shape, out: &mut Vec<String>) {
-                match s {
-                    egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
-                    egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
-                    _ => {}
-                }
-            }
-            shapes.iter().for_each(|c| walk(&c.shape, out));
-        }
         for (lang, group, recolour, hint, new_sliders, tint_shift) in [
             (
                 crate::i18n::Lang::En,
@@ -39,8 +28,6 @@
                 "色调偏移",
             ),
         ] {
-            let ctx = egui::Context::default();
-            crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
             let mut app = AutoShadeApp::default().but_lang(lang);
             app.editor_mut().doc_mut().recipe.masks = vec![
                 autoshade::recipe::LocalAdjustment {
@@ -58,23 +45,8 @@
             // TALL on purpose: egui culls shapes outside the visible clip
             // rect, and Local Masks sits below a full screen of sections — a
             // 900 px window drew nothing of it to inspect.
-            let input = || egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1400.0, 20_000.0),
-                )),
-                ..Default::default()
-            };
             let frame = |app: &mut AutoShadeApp| -> Vec<String> {
-                let mut seen = Vec::new();
-                let out = ctx.run(input(), |ctx| {
-                    ctx.memory_mut(|m| m.set_everything_is_visible(true));
-                    egui::SidePanel::left("controls").default_width(320.0).show(ctx, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| app.commands().develop_panel(ui));
-                    });
-                });
-                texts(&out.shapes, &mut seen);
-                seen
+                tall_frame(app, |a, ui| a.commands().develop_panel(ui))
             };
             // ① a mask selected: the group captions and the engine-only note.
             app.workspace_mut().masks_mut().sel_mask = Some(0);
@@ -167,34 +139,21 @@
         let mut app = AutoShadeApp::default();
         app.editor_mut().doc_mut().recipe.masks =
             vec![autoshade::recipe::LocalAdjustment { name: "sky".into(), ..Default::default() }];
-        let ctx = egui::Context::default();
-        let run_pass = |app: &mut AutoShadeApp, events: Vec<egui::Event>| -> bool {
+        let mut ctx = harness::Ctx::new();
+        let mut run_pass = |app: &mut AutoShadeApp, events: Vec<harness::Event>| -> bool {
             let mut changed = false;
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                )),
-                events,
-                ..Default::default()
-            };
-            let _ = ctx.run(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
+            ctx.run_events(800.0, 600.0, 0, events, |ctx| {
+                harness::central_panel(ctx, |ui| {
                     changed |= app.panel_view(&mut Vec::new()).curve_editor_for(ui, CurveTarget::Mask(0));
                 });
             });
             changed
         };
-        let _ = run_pass(&mut app, vec![]);
+        let _ = run_pass(&mut app, Vec::new());
         let rect = app.seams().curve_rect.expect("the mask editor records its square (test seam)");
-        let q = egui::pos2(rect.min.x + rect.width() * 0.25, rect.min.y + rect.height() * 0.5);
-        let button = |pressed: bool| egui::Event::PointerButton {
-            pos: q,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        };
-        let pressed = run_pass(&mut app, vec![egui::Event::PointerMoved(q), button(true)]);
+        let q = harness::pt(rect.min.x + rect.width() * 0.25, rect.min.y + rect.height() * 0.5);
+        let button = |pressed: bool| harness::Event::PointerButton { pos: q, pressed };
+        let pressed = run_pass(&mut app, vec![harness::Event::PointerMoved(q), button(true)]);
         let released = run_pass(&mut app, vec![button(false)]);
         assert!(pressed || released, "the mask editor must report the edit");
         assert_eq!(
@@ -211,29 +170,13 @@
         //    than falling through to the global curves.
         app.editor_mut().doc_mut().recipe.masks.clear();
         let mut drew = true;
-        let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
+        ctx.run_default(|ctx| {
+            harness::central_panel(ctx, |ui| {
                 drew = app.panel_view(&mut Vec::new()).curve_editor_for(ui, CurveTarget::Mask(0));
             });
         });
         assert!(!drew, "a stale mask index must not report an edit");
         assert!(app.editor().doc().recipe.tone_curve.is_empty(), "…and must not touch the global curves");
-    }
-
-    /// Every text one frame drew, nested `Shape::Vec` included — the way to read
-    /// a `CollapsingHeader`'s own label (and therefore its ● or lack of one)
-    /// without a seam per section.
-    fn drawn_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
-        fn walk(s: &egui::Shape, out: &mut Vec<String>) {
-            match s {
-                egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
-                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
-                _ => {}
-            }
-        }
-        let mut out = Vec::new();
-        shapes.iter().for_each(|c| walk(&c.shape, &mut out));
-        out
     }
 
     /// A tall frame: egui culls shapes outside the visible clip rect, and the
@@ -544,12 +487,12 @@
             save_denoise_strength: 0.5, ..Prefs::default() });
         assert!(app.workspace().chrome().startup_note.is_some());
         app.services().tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
-        app.poll_workers(&egui::Context::default());
+        app.poll_workers(&harness::Ctx::new());
         assert!(app.workspace().status().contains("no photos found"), "{}", app.workspace().status());
         assert!(app.workspace().status().contains("reset to 71"), "{}", app.workspace().status());
         assert!(app.workspace().chrome().startup_note.is_none());
         app.services().tx.send(Msg::Folder(Box::new(Ok((PathBuf::new(), vec![], 0))))).unwrap();
-        app.poll_workers(&egui::Context::default());
+        app.poll_workers(&harness::Ctx::new());
         assert!(!app.workspace().status().contains("reset to"), "a later scan must not repeat the startup note");
     }
 
