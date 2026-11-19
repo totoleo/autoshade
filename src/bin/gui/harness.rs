@@ -773,3 +773,102 @@ pub(crate) fn paint_canvas_frame(
     });
     canvas_rect
 }
+
+impl Ctx {
+    /// One frame over a `w`x`h` screen with an explicit clock and `events`.
+    pub(crate) fn run_events_with(&mut self, w: f32, h: f32, time: Option<f64>, events: Vec<Event>, draw: impl FnMut(&egui::Context)) -> Out {
+        self.run_input(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h))),
+                time,
+                events: events.into_iter().map(Event::into_egui).collect(),
+                ..Default::default()
+            },
+            draw,
+        )
+    }
+}
+
+/// The AI panel's texts over two 1600x20 000 frames at `width` points, with the
+/// font size of each — the heading-level probes.
+pub(crate) fn ai_panel_texts_with_sizes(app: &mut crate::AutoShadeApp, width: f32) -> Vec<(String, f32)> {
+    fn texts(shape: &egui::Shape, out: &mut Vec<(String, f32)>) {
+        if let egui::Shape::Text(t) = shape {
+            let size = t.galley.job.sections.first().map_or(0.0, |s| s.format.font_id.size);
+            out.push((t.galley.text().to_owned(), size));
+        } else if let egui::Shape::Vec(v) = shape {
+            v.iter().for_each(|s| texts(s, out));
+        }
+    }
+    let mut ctx = Ctx::new();
+    crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
+    let mut seen = Vec::new();
+    for _ in 0..2 {
+        crate::buttons::DRAWN.with_borrow_mut(Vec::clear);
+        let out = ctx.run(1600.0, 20_000.0, |ctx| {
+            ctx.memory_mut(|m| m.set_everything_is_visible(true));
+            panel(ctx, "controls", width, |ui| scroll_vertical(ui, |ui| app.commands().ai_panel(ui)));
+        });
+        seen.clear();
+        out.0.shapes.iter().for_each(|c| texts(&c.shape, &mut seen));
+    }
+    seen
+}
+
+/// Remember a controls-panel width for the next frame (the framework's own
+/// persisted panel state), as a dragged width would be.
+pub(crate) fn seed_controls_width(ctx: &Ctx, width: f32) {
+    let id = egui::Id::new("controls");
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 900.0));
+    ctx.data_mut(|d| d.insert_persisted(id, egui::containers::panel::PanelState { rect }));
+}
+
+/// Run the controls panel once with a `row`-wide allocation inside it, and
+/// return the width the panel keeps for the next frame.
+pub(crate) fn controls_panel_with_row(ctx: &mut Ctx, row: f32) -> f32 {
+    ctx.run(1600.0, 900.0, |ctx| {
+        crate::side_panel::controls_side_panel(ctx, |ui| {
+            ui.allocate_exact_size(egui::vec2(row, 20.0), egui::Sense::hover());
+        });
+    });
+    egui::containers::panel::PanelState::load(&ctx.0, egui::Id::new("controls")).expect("stored").rect.width()
+}
+
+/// The controls panel's maximum width under the installed style.
+pub(crate) fn controls_max_width(ctx: &Ctx) -> f32 {
+    crate::theme::controls_w_max(&ctx.style())
+}
+
+/// The content column a controls panel of `panel_width` leaves under the
+/// installed style.
+pub(crate) fn controls_column_width(ctx: &Ctx, panel_width: f32) -> f32 {
+    let style = ctx.style();
+    panel_width - egui::Frame::side_top_panel(&style).inner_margin.sum().x - crate::theme::controls_gutter(&style)
+}
+
+/// One frame of a card fold with the pointer at `pointer`, and the fold
+/// header's rect.
+pub(crate) fn card_fold_frame(ctx: &mut Ctx, time: f64, pointer: Option<Pt>) -> (Out, RectT) {
+    let mut header = RectT::nothing();
+    let out = ctx.run_events_with(400.0, 300.0, Some(time), pointer.map(Event::PointerMoved).into_iter().collect(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let r = crate::headings::card_fold(ui, egui::CollapsingHeader::new("Fold").default_open(true), |ui| {
+                ui.add_space(40.0);
+            });
+            header = rect(r.header_response.rect);
+        });
+    });
+    (out, header)
+}
+
+/// Whether the shapes contain a rect filled with `fill`.
+pub(crate) fn shapes_have_fill(out: &Out, fill: egui::Color32) -> bool {
+    fn walk(shape: &egui::Shape, fill: egui::Color32) -> bool {
+        match shape {
+            egui::Shape::Rect(r) => r.fill == fill,
+            egui::Shape::Vec(v) => v.iter().any(|s| walk(s, fill)),
+            _ => false,
+        }
+    }
+    out.0.shapes.iter().any(|c| walk(&c.shape, fill))
+}
