@@ -141,7 +141,7 @@
     /// on an ✎ card and the ✨ card stays as generated.
     #[test]
     fn a_fill_lands_as_a_layer_on_the_card_it_was_made_on() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let src = std::path::PathBuf::from("_fill_layer_test.ARW");
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
      src_path: Some(src.clone()),
@@ -214,7 +214,7 @@
         std::fs::create_dir_all(dir.join("library")).unwrap();
         for lang in [Lang::En, Lang::Zh] {
             for region in [false, true] {
-                let ctx = egui::Context::default();
+                let ctx = harness::Ctx::new();
                 let src = dir.join("library").join(format!("adjust-{lang:?}-{region}.png"));
                 let base = Arc::new(image::DynamicImage::new_rgb8(4, 4));
                 let origin = dir.join(format!("generated-{lang:?}-{region}.png"));
@@ -297,24 +297,21 @@
     }
 
     fn draw_adjust_panel(app: &mut AutoShadeApp) -> Vec<String> {
-        let ctx = egui::Context::default();
+        let mut ctx = harness::Ctx::new();
         crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
         let mut texts = Vec::new();
         for _ in 0..3 {
-            texts = draw_adjust_frame(app, &ctx);
+            texts = draw_adjust_frame(app, &mut ctx);
         }
         texts
     }
 
-    fn draw_adjust_frame(app: &mut AutoShadeApp, ctx: &egui::Context) -> Vec<String> {
-        let out = ctx.run(egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 20_000.0))),
-            ..Default::default()
-        }, |ctx| {
+    fn draw_adjust_frame(app: &mut AutoShadeApp, ctx: &mut harness::Ctx) -> Vec<String> {
+        let out = ctx.run(1000.0, 20_000.0, |ctx| {
             ctx.memory_mut(|m| m.set_everything_is_visible(true));
-            egui::SidePanel::left("adjust-controls").default_width(320.0).show(ctx, |ui| app.commands().ai_panel(ui));
+            panel(ctx, "adjust-controls", 320.0, |ui| app.commands().ai_panel(ui));
         });
-        drawn_texts(&out.shapes)
+        out.texts()
     }
 
     #[test]
@@ -411,36 +408,23 @@
     #[test]
     fn the_adjust_fold_scans_only_after_a_paint_mask_change() {
         fn stroke(app: &mut AutoShadeApp, drag: bool) {
-            let ctx = egui::Context::default();
-            let frame = |app: &mut AutoShadeApp, events: Vec<egui::Event>| {
-                let mut painted_rect = egui::Rect::NOTHING;
-                let _ = ctx.run(egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1100.0, 850.0))),
-                    events, ..Default::default()
-                }, |ctx| {
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        let (rect, resp) = ui.allocate_exact_size(egui::vec2(1024.0, 768.0), egui::Sense::click_and_drag());
-                        painted_rect = rect;
-                        app.commands().handle_paint(&resp, ViewXform {
-                            rect, uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-                        });
-                    });
-                });
-                painted_rect
+            let mut ctx = harness::Ctx::new();
+            let screen = sz(1100.0, 850.0);
+            let canvas = sz(1024.0, 768.0);
+            let frame = |app: &mut AutoShadeApp, ctx: &mut harness::Ctx, events: Vec<harness::Event>| {
+                paint_canvas_frame(ctx, app, screen, canvas, events)
             };
-            let rect = frame(app, vec![]);
+            let rect = frame(app, &mut ctx, Vec::new());
             let start = rect.center();
-            let end = start + egui::vec2(if drag { 48.0 } else { 0.0 }, 0.0);
-            let button = |pos, pressed| egui::Event::PointerButton {
-                pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
-            };
-            frame(app, vec![egui::Event::PointerMoved(start), button(start, true)]);
+            let end = harness::pt(start.x + if drag { 48.0 } else { 0.0 }, start.y);
+            let button = |pos, pressed| harness::Event::PointerButton { pos, pressed };
+            frame(app, &mut ctx, vec![harness::Event::PointerMoved(start), button(start, true)]);
             if drag {
-                frame(app, vec![egui::Event::PointerMoved(end)]);
+                frame(app, &mut ctx, vec![harness::Event::PointerMoved(end)]);
             }
-            frame(app, vec![button(end, false)]);
+            frame(app, &mut ctx, vec![button(end, false)]);
         }
-        fn five_frames(app: &mut AutoShadeApp, ctx: &egui::Context, painted: bool, why: &str) {
+        fn five_frames(app: &mut AutoShadeApp, ctx: &mut harness::Ctx, painted: bool, why: &str) {
             let mut text = Vec::new();
             for _ in 0..5 {
                 // A texture upload consumes this flag; it must not consume
@@ -481,15 +465,15 @@
             let __lang = app.lang();
             app.workspace_mut().rebind_paint_canvas(__lang, 1024, 768);
             app.commands().arm_brush(BrushOwner::Adjust);
-            let ctx = egui::Context::default();
+            let mut ctx = harness::Ctx::new();
             crate::theme::install_theme(&ctx, crate::theme::ThemePref::Dark);
-            five_frames(&mut app, &ctx, false, "an empty brush reads the whole image");
+            five_frames(&mut app, &mut ctx, false, "an empty brush reads the whole image");
             assert!(app.workspace().overlay().mask_presence_scans.get() <= 1, "five empty frames may scan only once");
             let empty_scans = app.workspace().overlay().mask_presence_scans.get();
 
             stroke(&mut app, drag);
             assert!(app.workspace().masks().mask_paint.as_ref().unwrap().pixels().any(|p| p[3] > 10), "the real brush added paint");
-            five_frames(&mut app, &ctx, true, "a brush stroke limits the adjust to the painted area");
+            five_frames(&mut app, &mut ctx, true, "a brush stroke limits the adjust to the painted area");
             assert_eq!(app.workspace().overlay().mask_presence_scans.get(), empty_scans, "adding paint needs no presence scan");
             assert!(app.workspace().export_area_png(BrushOwner::Adjust).is_some());
 
@@ -497,7 +481,7 @@
             // erase mode): the canvas is known blank, so nothing scans.
             app.workspace_mut().clear_area(BrushOwner::Adjust);
             assert!(app.workspace().masks().mask_paint.as_ref().unwrap().pixels().all(|p| p[3] <= 10), "clearing removed every stroke");
-            five_frames(&mut app, &ctx, false, "clearing the area must return the adjust fold to whole image");
+            five_frames(&mut app, &mut ctx, false, "clearing the area must return the adjust fold to whole image");
             assert_eq!(app.workspace().overlay().mask_presence_scans.get(), empty_scans, "a cleared area needs no scan");
             assert!(app.workspace().export_area_png(BrushOwner::Adjust).is_none());
 
@@ -506,13 +490,13 @@
             let before_switch = app.workspace().overlay().mask_presence_scans.get();
             app.commands().switch_variant(1, &ctx);
             assert_eq!(app.editor().doc().active, 1);
-            five_frames(&mut app, &ctx, false, "a fresh card starts with an empty brush");
+            five_frames(&mut app, &mut ctx, false, "a fresh card starts with an empty brush");
             assert_eq!(app.workspace().overlay().mask_presence_scans.get(), before_switch, "a fresh card needs zero scans");
 
             // The other plate-replacement door is also known empty.
             let __lang = app.lang();
             app.workspace_mut().rebind_paint_canvas(__lang, 1024, 768);
-            five_frames(&mut app, &ctx, false, "a rebound canvas starts empty");
+            five_frames(&mut app, &mut ctx, false, "a rebound canvas starts empty");
             assert_eq!(app.workspace().overlay().mask_presence_scans.get(), before_switch, "rebinding needs zero scans");
         }
     }
@@ -784,7 +768,7 @@
     /// Without a master the fit keeps landing on the loaded photo, origin-free.
     #[test]
     fn a_reverse_fit_lands_on_the_negatives_master() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let mut app = AutoShadeApp::default();
         let master = std::path::PathBuf::from("out/_negative_master_test.denoise.png");
         let clean = std::sync::Arc::new(image::DynamicImage::new_rgba8(4, 4));
@@ -867,7 +851,7 @@
     /// reimagine develops from — follows it.
     #[test]
     fn an_ai_denoise_lands_as_a_new_denoised_card_and_leaves_the_source_and_negative_alone() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let src = std::path::PathBuf::from("_negative_follow_test.ARW");
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {
      src_path: Some(src.clone()),
@@ -1005,7 +989,7 @@
     /// headroom transfer in the landing; `is_remade_negative` back to ◈ alone.
     #[test]
     fn a_stack_lands_as_a_new_stacked_card_that_becomes_the_negative() {
-        let ctx = egui::Context::default();
+        let ctx = harness::Ctx::new();
         let src = std::path::PathBuf::from("_stack_landing_test.ARW");
         let developed = EditRecipe { contrast: 11.0, ..Default::default() };
         let mut app = AutoShadeApp::default().but_editor({ let mut editor = Editor::default(); *editor.photo_mut() = PhotoPixels {

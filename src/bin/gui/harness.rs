@@ -749,3 +749,27 @@ pub(crate) fn drawn_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> 
     shapes.iter().for_each(|c| walk(&c.shape, &mut out));
     out
 }
+
+/// One paint-canvas frame: allocates the canvas, hands the gesture to the app's
+/// brush and returns the canvas rect. Reuse one `Ctx` across the frames of a
+/// stroke — the drag state lives in the framework.
+pub(crate) fn paint_canvas_frame(
+    ctx: &mut Ctx,
+    app: &mut crate::AutoShadeApp,
+    screen: Sz,
+    canvas: Sz,
+    events: Vec<Event>,
+) -> RectT {
+    let mut canvas_rect = RectT::nothing();
+    ctx.run_events(screen.w, screen.h, 0, events, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let (canvas_egui, resp) = ui.allocate_exact_size(egui::vec2(canvas.w, canvas.h), egui::Sense::click_and_drag());
+            canvas_rect = rect(canvas_egui);
+            app.commands().handle_paint(&resp, crate::model::ViewXform {
+                rect: canvas_egui,
+                uv: egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+            });
+        });
+    });
+    canvas_rect
+}
