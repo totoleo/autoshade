@@ -1,4 +1,4 @@
-#![allow(clippy::disallowed_types)]
+#![allow(clippy::disallowed_types, clippy::disallowed_methods, clippy::disallowed_names)]
 
 //! The one door to the UI framework.
 //!

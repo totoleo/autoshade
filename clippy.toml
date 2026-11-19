@@ -1,6 +1,7 @@
-# The anti-corruption layer owns the UI framework. These types are allowed only
-# inside `src/bin/gui/view.rs` (which carries an item-level allow); clippy
-# reports every other mention, including one hidden behind a re-exported name.
+# The anti-corruption layer owns the UI framework. These entries are allowed
+# only inside `src/bin/gui/view.rs` (item-level allow) and the test harness
+# (module-level allow); clippy reports every other mention — including one
+# hidden behind a name the door re-exports.
 disallowed-types = [
     # The eframe shell: the door owns the launch, the hooks and the storage.
     "eframe::App",
@@ -8,7 +9,17 @@ disallowed-types = [
     "eframe::Storage",
     "eframe::CreationContext",
     "eframe::NativeOptions",
-    # Framework types already confined to the door.
+    # Framework types the door owns outright.
     "egui::IconData",
     "egui::ViewportBuilder",
 ]
+
+disallowed-methods = [
+    # The eframe functions: launch, storage and its key resolution.
+    "eframe::run_native",
+    "eframe::get_value",
+    "eframe::set_value",
+    "eframe::storage_dir",
+]
+
+disallowed-names = ["egui", "eframe"]

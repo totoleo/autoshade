@@ -3,7 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 // The framework quarantine is a clippy rule (see clippy.toml): only the door
 // and the harness may name the framework shell or the types it owns.
-#![warn(clippy::disallowed_types)]
+#![warn(clippy::disallowed_types, clippy::disallowed_methods, clippy::disallowed_names)]
 
 //! AutoShade — native desktop GUI (egui/eframe).
 //!
@@ -232,6 +232,6 @@ fn main() {
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_types)]
+#[allow(clippy::disallowed_types, clippy::disallowed_methods, clippy::disallowed_names)]
 mod tests;
 
