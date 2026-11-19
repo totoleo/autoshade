@@ -234,6 +234,5 @@ fn main() {
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_types, clippy::disallowed_methods, clippy::disallowed_names)]
 mod tests;
 
